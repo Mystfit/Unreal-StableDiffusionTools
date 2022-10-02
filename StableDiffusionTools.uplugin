@@ -1,0 +1,30 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "StableDiffusionTools",
+	"Description": "Editor tools for working with stable diffusion",
+	"Category": "Other",
+	"CreatedBy": "Byron Mallett",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Plugins": [
+		{
+			"Name": "RemoteSession",
+			"Enabled":  true
+		}
+	],
+	"Modules": [
+		{
+			"Name": "StableDiffusionTools",
+			"Type": "Editor",
+			"LoadingPhase": "PostDefault"
+		}
+	]
+}
