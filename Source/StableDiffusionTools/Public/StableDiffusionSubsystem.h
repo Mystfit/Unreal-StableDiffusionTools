@@ -22,7 +22,7 @@ public:
 	void StartCapturingViewport(FIntPoint FrameSize);
 
 	UFUNCTION(BlueprintCallable)
-	UTexture2D* GenerateImage(const FString& Prompt, FIntPoint Size, float InputStrength, int32 Iterations, int32 Seed);
+	void GenerateImage(const FString& Prompt, FIntPoint Size, float InputStrength, int32 Iterations, int32 Seed);
 
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UStableDiffusionBridge> GeneratorBridge;
@@ -34,4 +34,5 @@ private:
 	void SetCaptureViewport(TSharedRef<FSceneViewport> Viewport, FIntPoint FrameSize);
 	TSharedPtr<FFrameGrabber> ViewportCapture;
 	
+	FDelegateHandle ActiveEndframeHandler;
 };

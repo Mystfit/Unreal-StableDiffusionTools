@@ -41,8 +41,6 @@ void UStableDiffusionViewportWidget::GenerateImage(const FString& prompt, FIntPo
 				}
 			}
 		});
-		FFunctionGraphTask::CreateAndDispatchWhenReady([this, subsystem, prompt, size, InputStrength, Iterations, Seed]() {
-			subsystem->GenerateImage(prompt, size, InputStrength, Iterations, Seed);
-		}, TStatId{}, nullptr, ENamedThreads::AnyBackgroundHiPriTask);
+		subsystem->GenerateImage(prompt, size, InputStrength, Iterations, Seed);
 	}
 }
