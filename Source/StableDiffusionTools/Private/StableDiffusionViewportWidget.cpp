@@ -15,6 +15,12 @@
 //	//ViewportImage = WidgetTree->ConstructWidget<UImage>(this, UImage::StaticClass(), "ViewportImageDisplay");
 //}
 
+UStableDiffusionSubsystem* UStableDiffusionViewportWidget::GetStableDiffusionSubsystem() {
+	UStableDiffusionSubsystem* subsystem = nullptr;
+	subsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
+	return subsystem;
+}
+
 void UStableDiffusionViewportWidget::InstallDependencies()
 {
 	auto subsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
@@ -30,9 +36,7 @@ void UStableDiffusionViewportWidget::InitModel(FIntPoint size)
 	if (!subsystem)
 		return;
 
-	if(subsystem->GeneratorBridge)
-		subsystem->GeneratorBridge->InitModel();
-
+	subsystem->InitModel();
 	subsystem->StartCapturingViewport(size);
 }
 

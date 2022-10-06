@@ -23,6 +23,9 @@ public:
     /** Python stable diffusion implementable functions */
 
     UFUNCTION(BlueprintImplementableEvent, Category = StableDiffusion)
+    FString GetPythonID();
+
+    UFUNCTION(BlueprintImplementableEvent, Category = StableDiffusion)
     void InitModel();
 
     UFUNCTION(BlueprintImplementableEvent, Category = StableDiffusion)

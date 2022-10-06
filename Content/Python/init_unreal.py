@@ -10,9 +10,6 @@ except ImportError as e:
     print("Stable Diffusion plugin python dependencies not installed")
 
 try:
-    import DiffusersBridge
-    print("Creating default Diffusers bridge")
-    subsystem = unreal.get_editor_subsystem(unreal.StableDiffusionSubsystem)
-    subsystem.set_editor_property("GeneratorBridge", DiffusersBridge.DiffusersBridge())
+    import load_diffusers_bridge
 except ImportError:
     print("Skipping default Diffusers Bridge load until dependencies have been installed")

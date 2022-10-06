@@ -9,4 +9,5 @@ pip_dependencies = [
 ]
 
 for dep in pip_dependencies:
+    print("Installing dependency " + dep)
     subprocess.check_call([pythonpath, '-m', 'pip', 'install'] + dep.split(' '))

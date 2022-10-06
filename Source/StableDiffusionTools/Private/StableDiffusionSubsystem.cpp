@@ -11,24 +11,51 @@ bool UStableDiffusionSubsystem::DependenciesAreInstalled()
 {
 	FPythonCommandEx PythonCommand;
 	PythonCommand.Command = FString("SD_dependencies_installed");//*FString::Printf(TEXT("\"%s\""), *Parameters); // Account for space in path
-	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
+	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::EvaluateStatement;
 	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
 	return PythonCommand.CommandResult == "True";
 }
 
 
-bool UStableDiffusionSubsystem::InstallDependencies() 
+void UStableDiffusionSubsystem::InstallDependencies() 
 {
-	FPythonCommandEx PythonCommand;
-	PythonCommand.Command = FString("install_dependencies.py");//*FString::Printf(TEXT("\"%s\""), *Parameters); // Account for space in path
-	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
-	if (!IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand)) {
-		// Dependency installation failed - log result
-		return false;
-	}
+	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this]() {
+		FPythonCommandEx PythonCommand;
+		PythonCommand.Command = FString("install_dependencies.py");//*FString::Printf(TEXT("\"%s\""), *Parameters); // Account for space in path
+		PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
+		
+		bool install_result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
+		if (!install_result) {
+			// Dependency installation failed - log result
+			OnDependenciesInstalled.Broadcast(install_result);
+			return;
+		}
 
-	IPythonScriptPlugin::Get()->ExecPythonCommand(TEXT("import importlib; importlib.reload(DiffusersBridge); SD_dependencies_installed = True"));
-	return true;
+		// TODO: Reload current bridge
+		// Reload default bridge
+		//bool reload_result = IPythonScriptPlugin::Get()->ExecPythonCommand(TEXT("import importlib; importlib.reload(DiffusersBridge); SD_dependencies_installed = True"));
+		AsyncTask(ENamedThreads::GameThread, [this]() {
+			//bool reload_result = IPythonScriptPlugin::Get()->ExecPythonCommand(TEXT("import DiffusersBridge; SD_dependencies_installed = True"));
+			FPythonCommandEx PythonCommand;
+			PythonCommand.Command = FString("load_diffusers_bridge.py");//*FString::Printf(TEXT("\"%s\""), *Parameters); // Account for space in path
+			PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
+			bool reload_result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
+			OnDependenciesInstalled.Broadcast(reload_result);
+		});
+	});
+}
+
+void UStableDiffusionSubsystem::InitModel()
+{
+	if (GeneratorBridge) {
+		AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this](){
+			this->GeneratorBridge->InitModel();
+			this->ModelInitialised = true;
+			AsyncTask(ENamedThreads::GameThread, [this]() {
+				this->OnModelInitialized.Broadcast(true);
+			});
+		});
+	}
 }
 
 void UStableDiffusionSubsystem::StartCapturingViewport(FIntPoint FrameSize)
@@ -97,14 +124,18 @@ void UStableDiffusionSubsystem::GenerateImage(const FString& Prompt, FIntPoint S
 
 	ViewportCapture->CaptureThisFrame(FFramePayloadPtr());
 
+	check(this->CurrentBridgeID == this->GeneratorBridge->GetPythonID());
 	ActiveEndframeHandler = GEngine->GetPostRenderDelegate().AddLambda([this, Prompt, Size, InputStrength, Iterations, Seed]()
 	{
+		check(this->CurrentBridgeID == this->GeneratorBridge->GetPythonID());
+
 		TArray<FCapturedFrameData> CapturedFrames = ViewportCapture->GetCapturedFrames();
 		if (CapturedFrames.Num())
 		{
 			// Generate the SD image on a background thread to avoid blocking
 			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Prompt, Size, InputStrength, Iterations, Seed, FrameData=CapturedFrames[CapturedFrames.Num() - 1].ColorBuffer]()
 			{
+				check(this->CurrentBridgeID == this->GeneratorBridge->GetPythonID());
 				TArray<FColor> pixels = GeneratorBridge->GenerateImageFromStartImage(Prompt, Size.X, Size.Y, FrameData, TArray<FColor>(), InputStrength, Iterations, Seed);
 				
 				// Create generated texture on game thread

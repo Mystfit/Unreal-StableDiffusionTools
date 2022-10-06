@@ -32,31 +32,25 @@ def preprocess_mask(mask: Image, width: int, height: int):
 class DiffusersBridge(unreal.StableDiffusionBridge):
     def __init__(self):
         unreal.StableDiffusionBridge.__init__(self)
-        print("In diffusers bridge init")
-        print(id(self))
+        self.pipe = None
 
     @unreal.ufunction(override=True)
     def InitModel(self):
-        with unreal.ScopedSlowTask(1, "Loading model") as load_task:
-            load_task.make_dialog(True)
-            load_task.enter_progress_frame(1.0, "Loading model")
-            self.pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
-                "CompVis/stable-diffusion-v1-4", 
-                revision="fp16", 
-                torch_dtype=torch.float16,
-                use_auth_token=True
-            )
+        #with unreal.ScopedSlowTask(1, "Loading model") as load_task:
+        #    load_task.make_dialog(True)
+        #    load_task.enter_progress_frame(1.0, "Loading model")
+        print(id(self))
+        self.pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+            "CompVis/stable-diffusion-v1-4", 
+            revision="fp16", 
+            torch_dtype=torch.float16,
+            use_auth_token=True
+        )
         self.pipe = self.pipe.to("cuda")
         self.pipe.enable_attention_slicing()
-        self.persistance_test = True
-        print(dir(self))
-        print(id(self))
 
     @unreal.ufunction(override=True)
     def GenerateImageFromStartImage(self, prompt, frame_width, frame_height, guide_frame, mask_frame, strength, iterations, seed):
-        print(dir(self))
-        print(id(self))
-
         result = []
         with autocast("cuda"):
             guide_img = preprocess_init_image(FColorAsPILImage(guide_frame, frame_width, frame_height).convert("RGB"), frame_width, frame_height) if guide_frame else None

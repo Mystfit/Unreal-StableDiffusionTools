@@ -10,6 +10,9 @@
 #include "StableDiffusionSubsystem.generated.h"
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FImageGenerationComplete, UTexture2D*);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FModelInitialized, bool, Success);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDependenciesInstalled, bool, Success);
+
 /**
  * 
  */
@@ -22,7 +25,10 @@ public:
 	bool DependenciesAreInstalled();
 
 	UFUNCTION(BlueprintCallable)
-	bool InstallDependencies();
+	void InstallDependencies();
+
+	UFUNCTION(BlueprintCallable)
+	void InitModel();
 
 	UFUNCTION(BlueprintCallable)
 	void StartCapturingViewport(FIntPoint FrameSize);
@@ -30,15 +36,26 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void GenerateImage(const FString& Prompt, FIntPoint Size, float InputStrength, int32 Iterations, int32 Seed);
 
+	UPROPERTY(BlueprintReadOnly)
+	bool ModelInitialised;
+
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UStableDiffusionBridge> GeneratorBridge;
 
-	//UPROPERTY(BlueprintAssignable, Category = "StableDiffusion")
+	//PROPERTY(BlueprintAssignable, Category = "StableDiffusion")
 	FImageGenerationComplete OnImageGenerationComplete;
+
+	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion")
+	FModelInitialized OnModelInitialized;
+
+	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion")
+	FDependenciesInstalled OnDependenciesInstalled;
 
 private:
 	void SetCaptureViewport(TSharedRef<FSceneViewport> Viewport, FIntPoint FrameSize);
 	TSharedPtr<FFrameGrabber> ViewportCapture;
+
+	FString CurrentBridgeID;
 	
 	FDelegateHandle ActiveEndframeHandler;
 };

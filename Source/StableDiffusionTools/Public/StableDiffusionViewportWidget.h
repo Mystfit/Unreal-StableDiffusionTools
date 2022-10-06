@@ -18,6 +18,8 @@ public:
 	/*virtual void NativeConstruct() override;
 
 	virtual TSharedRef<SWidget> RebuildWidget() override;*/
+	UFUNCTION(BlueprintCallable)
+	UStableDiffusionSubsystem* GetStableDiffusionSubsystem();
 
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidget))
 	UImage* ViewportImage;
