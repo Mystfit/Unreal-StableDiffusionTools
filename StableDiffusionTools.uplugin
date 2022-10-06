@@ -17,7 +17,11 @@
 	"Plugins": [
 		{
 			"Name": "RemoteSession",
-			"Enabled":  true
+			"Enabled": true
+		},
+		{
+			"Name": "PythonScriptPlugin",
+			"Enabled":   true
 		}
 	],
 	"Modules": [

@@ -23,6 +23,9 @@ public:
 	UImage* ViewportImage;
 
 	UFUNCTION(BlueprintCallable)
+	void InstallDependencies();
+
+	UFUNCTION(BlueprintCallable)
 	void InitModel(FIntPoint size);
 
 	UFUNCTION(BlueprintCallable)

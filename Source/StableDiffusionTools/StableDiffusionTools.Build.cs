@@ -49,7 +49,8 @@ public class StableDiffusionTools : ModuleRules
 				"EditorSubsystem",
 				"MovieSceneCapture",
 				"RemoteSession",
-				"LevelEditor"
+				"LevelEditor",
+				"PythonScriptPlugin"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

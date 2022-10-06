@@ -2,6 +2,7 @@
 #include "StableDiffusionBridge.h"
 #include "StableDiffusionSubsystem.h"
 #include "Components/Image.h"
+#include "..\Public\StableDiffusionViewportWidget.h"
 //
 //void UStableDiffusionViewportWidget::NativeConstruct()
 //{ 
@@ -13,6 +14,15 @@
 //{ 
 //	//ViewportImage = WidgetTree->ConstructWidget<UImage>(this, UImage::StaticClass(), "ViewportImageDisplay");
 //}
+
+void UStableDiffusionViewportWidget::InstallDependencies()
+{
+	auto subsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
+	if (!subsystem)
+		return;
+
+	subsystem->InstallDependencies();
+}
 
 void UStableDiffusionViewportWidget::InitModel(FIntPoint size)
 {

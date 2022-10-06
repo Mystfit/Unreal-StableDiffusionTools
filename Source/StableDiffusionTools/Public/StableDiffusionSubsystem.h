@@ -19,6 +19,12 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionSubsystem : public UEditorSubsyst
 	GENERATED_BODY()
 public:
 	UFUNCTION(BlueprintCallable)
+	bool DependenciesAreInstalled();
+
+	UFUNCTION(BlueprintCallable)
+	bool InstallDependencies();
+
+	UFUNCTION(BlueprintCallable)
 	void StartCapturingViewport(FIntPoint FrameSize);
 
 	UFUNCTION(BlueprintCallable)

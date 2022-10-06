@@ -4,6 +4,32 @@
 #include "Engine/GameEngine.h"
 #include "Async/Async.h"
 #include "LevelEditor.h"
+#include "IPythonScriptPlugin.h"
+#include "PythonScriptTypes.h"
+
+bool UStableDiffusionSubsystem::DependenciesAreInstalled()
+{
+	FPythonCommandEx PythonCommand;
+	PythonCommand.Command = FString("SD_dependencies_installed");//*FString::Printf(TEXT("\"%s\""), *Parameters); // Account for space in path
+	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
+	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
+	return PythonCommand.CommandResult == "True";
+}
+
+
+bool UStableDiffusionSubsystem::InstallDependencies() 
+{
+	FPythonCommandEx PythonCommand;
+	PythonCommand.Command = FString("install_dependencies.py");//*FString::Printf(TEXT("\"%s\""), *Parameters); // Account for space in path
+	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
+	if (!IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand)) {
+		// Dependency installation failed - log result
+		return false;
+	}
+
+	IPythonScriptPlugin::Get()->ExecPythonCommand(TEXT("import importlib; importlib.reload(DiffusersBridge); SD_dependencies_installed = True"));
+	return true;
+}
 
 void UStableDiffusionSubsystem::StartCapturingViewport(FIntPoint FrameSize)
 {
