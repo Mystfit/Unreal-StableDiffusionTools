@@ -70,7 +70,7 @@ TSharedRef<SDockTab> FStableDiffusionToolsModule::OnSpawnPluginTab(const FSpawnT
 	TSubclassOf<UEditorUtilityWidget> WidgetClass;
 	const FAssetRegistryModule & AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	AssetRegistry.Get().ScanFilesSynchronous(TArray<FString>{"/StableDiffusionTools"});
-	auto Data = AssetRegistry.Get().GetAssetByObjectPath("/StableDiffusionTools/UI/BP_StableDiffusionViewportWidget.BP_StableDiffusionViewportWidget");
+	auto Data = AssetRegistry.Get().GetAssetByObjectPath("/StableDiffusionTools/UI/Widgets/BP_StableDiffusionViewportWidget.BP_StableDiffusionViewportWidget");
 	// check if valid:
 
 	if (Data.AssetName.ToString().Equals(TEXT("BP_StableDiffusionViewportWidget"), ESearchCase::CaseSensitive))

@@ -17,9 +17,7 @@ UStableDiffusionBridge* UStableDiffusionBridge::Get()
 
 void UStableDiffusionBridge::UpdateImageProgress(FString prompt, int32 step, int32 timestep, int32 width, int32 height, const TArray<FColor>& FrameColors)
 {
-	// Create generated texture on game thread
 	AsyncTask(ENamedThreads::GameThread, [this, prompt, step, timestep, width, height, FrameColors] {
-		//auto texture = ColorBufferToTexture(prompt, FrameColors, FIntPoint(width, height));
 		OnImageProgress.Broadcast(step, timestep, FIntPoint(width, height), FrameColors);
 		OnImageProgressEx.Broadcast(step, timestep, FIntPoint(width, height), FrameColors);
 	});

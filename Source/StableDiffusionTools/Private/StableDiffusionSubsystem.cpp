@@ -8,6 +8,8 @@
 #include "PythonScriptTypes.h"
 #include "LevelEditorSubsystem.h"
 #include "StableDiffusionImageResult.h"
+#include "AssetRegistryModule.h"
+#include "ImageUtils.h"
 
 bool FCapturedFramePayload::OnFrameReady_RenderThread(FColor* ColorBuffer, FIntPoint BufferSize, FIntPoint TargetSize) const
 {
@@ -195,7 +197,6 @@ void UStableDiffusionSubsystem::GenerateImage(const FString& Prompt, FIntPoint S
 			// Create generated texture on game thread
 			AsyncTask(ENamedThreads::GameThread, [this, result]
 			{
-				/*auto texture = this->GeneratorBridge->ColorBufferToTexture(Prompt, pixels, Size);*/
 				this->OnImageGenerationComplete.Broadcast(result);
 				this->OnImageGenerationCompleteEx.Broadcast(result);
 				
@@ -212,6 +213,33 @@ void UStableDiffusionSubsystem::GenerateImage(const FString& Prompt, FIntPoint S
 	ViewportCapture->CaptureThisFrame(framePtr);
 }
 
+bool UStableDiffusionSubsystem::SaveImageData(const FString& PackagePath, const FString& Name, UTexture2D* Texture)
+{
+	if (Name.IsEmpty() || PackagePath.IsEmpty() || !Texture)
+		return false;
+
+	// Create package
+	FString FullPackagePath = PackagePath;
+	FullPackagePath += Name;
+	UPackage* Package = CreatePackage(NULL, *FullPackagePath);
+	Package->FullyLoad();
+
+	// Duplicate texture
+	auto MipData = Texture->GetPlatformMips()[0].BulkData;
+	UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *Name, RF_Public | RF_Standalone | RF_MarkAsRootSet);
+	NewTexture = ColorBufferToTexture(Name, static_cast<const uint8*>(MipData.LockReadOnly()), FIntPoint(Texture->GetSizeX(), Texture->GetSizeY()), NewTexture);
+	MipData.Unlock();
+
+	// Update package
+	Package->MarkPackageDirty();
+	FAssetRegistryModule::AssetCreated(NewTexture);
+	FString PackageFileName = FPackageName::LongPackageNameToFilename(FullPackagePath, FPackageName::GetAssetPackageExtension());
+	bool bSaved = UPackage::SavePackage(Package, NewTexture, EObjectFlags::RF_Public | EObjectFlags::RF_Standalone, *PackageFileName, GError, nullptr, true, true, SAVE_None);
+
+	return bSaved;
+}
+
+
 void UStableDiffusionSubsystem::UpdateImageProgress(int32 Step, int32 Timestep, FIntPoint Size, const TArray<FColor>& PixelData)
 {
 	OnImageProgressUpdated.Broadcast(Step, Timestep, Size, PixelData);
@@ -221,9 +249,17 @@ UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& Frame
 {
 	if (!FrameColors.Num())
 		return nullptr;
+	return ColorBufferToTexture(FrameName, (uint8*)FrameColors.GetData(), FrameSize, OutTex);
+}
 
+UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex)
+{
+	if (!FrameData) 
+		return nullptr;
+
+	// Replace with CreateTexture2D from "ImageUtils.h"
 	if (!OutTex) {
-		TObjectPtr<UTexture2D> NewTex = NewObject<UTexture2D>();//UTexture2D::CreateTransient(FrameSize.X, FrameSize.Y, EPixelFormat::PF_B8G8R8A8, FName(FrameName));
+		TObjectPtr<UTexture2D> NewTex = NewObject<UTexture2D>();
 		OutTex = NewTex;
 	}
 
@@ -245,11 +281,11 @@ UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& Frame
 	// Lock the texture so it can be modified
 	Mip->BulkData.Lock(LOCK_READ_WRITE);
 	uint8* TextureData = (uint8*)Mip->BulkData.Realloc(FrameSize.X * FrameSize.Y * 4);
-	FMemory::Memcpy(TextureData, FrameColors.GetData(), sizeof(uint8) * FrameSize.X * FrameSize.Y * 4);
+	FMemory::Memcpy(TextureData, FrameData, sizeof(uint8) * FrameSize.X * FrameSize.Y * 4);
 	Mip->BulkData.Unlock();
 	OutTex->UpdateResource();
 
-	OutTex->Source.Init(FrameSize.X, FrameSize.Y, 1, 1, ETextureSourceFormat::TSF_RGBA8, reinterpret_cast<const uint8*>(FrameColors.GetData()));
+	OutTex->Source.Init(FrameSize.X, FrameSize.Y, 1, 1, ETextureSourceFormat::TSF_RGBA8, reinterpret_cast<const uint8*>(FrameData));
 	OutTex->UpdateResource();
 
 	return OutTex;

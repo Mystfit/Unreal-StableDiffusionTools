@@ -55,6 +55,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void GenerateImage(const FString& Prompt, FIntPoint Size, float InputStrength, int32 Iterations, int32 Seed);
 
+	UFUNCTION(BlueprintCallable)
+	bool SaveImageData(const FString& PackagePath, const FString& Name, UTexture2D* Texture);
+
 	UPROPERTY(BlueprintReadOnly)
 	bool ModelInitialised;
 
@@ -80,6 +83,8 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	UTexture2D* ColorBufferToTexture(const FString& FrameName, const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture);
+
+	UTexture2D* ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTexture);
 
 private:
 	void SetCaptureViewport(TSharedRef<FSceneViewport> Viewport, FIntPoint FrameSize);
