@@ -30,8 +30,11 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void InitModel(FIntPoint size);
 
+	//UFUNCTION(BlueprintCallable)
+	//void GenerateImage(const FString& prompt, FIntPoint size, float InputStrength, int32 Iterations, int32 Seed);
+
 	UFUNCTION(BlueprintCallable)
-	void GenerateImage(const FString& prompt, FIntPoint size, float InputStrength, int32 Iterations, int32 Seed);
+	void UpdateViewportImage(const FString& Prompt, FIntPoint Size, const TArray<FColor>& PixelData);
 
 private:
 	TObjectPtr<UTexture2D> DisplayedTexture;

@@ -4,6 +4,7 @@ try:
     import diffusers
     import PIL
     import torch
+    import huggingface_hub
     SD_dependencies_installed = True
     print("Stable Diffusion dependencies are available")
 except ImportError as e:
