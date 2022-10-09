@@ -1,17 +1,13 @@
 import unreal
-
 import os
-
-from PIL import Image
 import numpy as np
-
 import huggingface_hub
 import torch
-import torchvision.transforms as T
-
 from torch import autocast
-from diffusers import StableDiffusionImg2ImgPipeline
+from PIL import Image
+from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline
 from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray
+
 
 def preprocess_init_image(image: Image, width: int, height: int):
     image = image.resize((width, height), resample=Image.LANCZOS)
@@ -33,25 +29,28 @@ def preprocess_mask(mask: Image, width: int, height: int):
 
 @unreal.uclass()
 class DiffusersBridge(unreal.StableDiffusionBridge):
-    # Static transforms
-    progress_transform = T.ToPILImage("RGBA")
-
     def __init__(self):
         unreal.StableDiffusionBridge.__init__(self)
         self.pipe = None
 
     @unreal.ufunction(override=True)
-    def InitModel(self):
+    def InitModel(self, modelname, precision, revision):
         result = False
         try:
-            print("Loading Stable Diffusion model")
-            token = huggingface_hub.utils.HfFolder.get_token()
-            self.pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
-                "CompVis/stable-diffusion-v1-4", 
-                revision="fp16", 
-                torch_dtype=torch.float16,
-                use_auth_token=True
-            )
+            modelname = modelname if modelname else "CompVis/stable-diffusion-v1-4"
+
+            #ActivePipeline = StableDiffusionPipeline
+            ActivePipeline = StableDiffusionImg2ImgPipeline
+
+            kwargs = {
+                "torch_dtype": torch.float32 if precision == "fp32" else torch.float16,
+                "use_auth_token": True
+            }
+            if revision:
+                kwargs["revision"] = precision
+
+            print("Loading Stable Diffusion model " + modelname)
+            self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
             self.pipe = self.pipe.to("cuda")
             self.pipe.enable_attention_slicing()
             result = True
@@ -66,14 +65,15 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             guide_img = preprocess_init_image(FColorAsPILImage(guide_frame, in_frame_width, in_frame_height).convert("RGB"), frame_width, frame_height) if guide_frame else None
             mask_img = preprocess_mask(FColorAsPILImage(mask_frame, in_frame_width, in_frame_height).convert("RGB"), frame_width, frame_height) if mask_frame else None
             generator = torch.Generator("cuda")
-            if seed >= 0:
-                generator.manual_seed(seed)
+            
+            seed = torch.random.seed() if seed < 0 else seed
+            generator.manual_seed(seed)
 
             images = self.pipe(prompt=prompt, init_image=guide_img, strength=strength, num_inference_steps=iterations, generator=generator, guidance_scale=7.5, callback=self.ImageProgressStep, callback_steps=10).images
 
         result = unreal.StableDiffusionImageResult()
         result.prompt = prompt
-        result.seed = seed if seed > -1 else generator.seed()
+        result.seed = seed
         result.start_image_size = unreal.IntPoint(in_frame_width, in_frame_height)
         result.generated_image_size = unreal.IntPoint(frame_width, frame_height)
         result.pixel_data =  PILImageToFColorArray(images[0].convert("RGBA"))

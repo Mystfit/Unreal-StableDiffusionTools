@@ -47,7 +47,7 @@ public:
 	bool LoginHuggingFaceUsingToken(const FString& token);
 
 	UFUNCTION(BlueprintCallable)
-	void InitModel();
+	void InitModel(const FString& ModelName, const FString& Precision, const FString& Revision);
 
 	UFUNCTION(BlueprintCallable)
 	void StartCapturingViewport(FIntPoint Size);
@@ -56,7 +56,13 @@ public:
 	void GenerateImage(const FString& Prompt, FIntPoint Size, float InputStrength, int32 Iterations, int32 Seed);
 
 	UFUNCTION(BlueprintCallable)
-	bool SaveImageData(const FString& PackagePath, const FString& Name, UTexture2D* Texture);
+	bool SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture);
+
+	UFUNCTION(BLueprintCallable)
+	FString OpenImageFilePicker(const FString& StartDir);
+
+	UFUNCTION(BLueprintCallable)
+	FString FilepathToLongPackagePath(const FString& Path);
 
 	UPROPERTY(BlueprintReadOnly)
 	bool ModelInitialised;

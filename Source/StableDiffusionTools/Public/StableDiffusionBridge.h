@@ -30,7 +30,7 @@ public:
     FString GetPythonID();
 
     UFUNCTION(BlueprintImplementableEvent, Category = StableDiffusion)
-    bool InitModel();
+    bool InitModel(const FString& ModelName, const FString& Precision, const FString& Revision);
 
     UFUNCTION(BlueprintImplementableEvent, Category = StableDiffusion)
     FStableDiffusionImageResult GenerateImageFromStartImage(const FString& prompt, int32 InFrameWidth, int32 InFrameHeight, int32 OutFrameWidth, int32 OutFrameHeight, const TArray<FColor>& GuideFrame, const TArray<FColor>& MaskFrame, float Strength, int32 Iterations, int32 Seed) const;

@@ -10,23 +10,6 @@ UStableDiffusionSubsystem* UStableDiffusionViewportWidget::GetStableDiffusionSub
 	return subsystem;
 }
 
-void UStableDiffusionViewportWidget::InstallDependencies()
-{
-	auto subsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
-	if (!subsystem)
-		return;
-
-	subsystem->InstallDependencies();
-}
-
-void UStableDiffusionViewportWidget::InitModel(FIntPoint size)
-{
-	auto subsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
-	if (!subsystem)
-		return;
-	subsystem->InitModel();
-}
-
 void UStableDiffusionViewportWidget::UpdateViewportImage(const FString& Prompt, FIntPoint Size, const TArray<FColor>& PixelData)
 {
 	auto BrushTex = Cast<UTexture2D>(ViewportImage->Brush.GetResourceObject());

@@ -10,6 +10,7 @@
 #include "StableDiffusionImageResult.h"
 #include "AssetRegistryModule.h"
 #include "ImageUtils.h"
+#include "DesktopPlatformModule.h"
 
 bool FCapturedFramePayload::OnFrameReady_RenderThread(FColor* ColorBuffer, FIntPoint BufferSize, FIntPoint TargetSize) const
 {
@@ -68,11 +69,11 @@ bool UStableDiffusionSubsystem::LoginHuggingFaceUsingToken(const FString& token)
 	return IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
 }
 
-void UStableDiffusionSubsystem::InitModel()
+void UStableDiffusionSubsystem::InitModel(const FString& ModelName, const FString& Precision, const FString& Revision)
 {
 	if (GeneratorBridge) {
-		AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this](){
-			this->ModelInitialised = this->GeneratorBridge->InitModel();
+		AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, ModelName, Precision, Revision](){
+			this->ModelInitialised = this->GeneratorBridge->InitModel(ModelName, Precision, Revision);
 			AsyncTask(ENamedThreads::GameThread, [this]() {
 				this->OnModelInitialized.Broadcast(this->ModelInitialised);
 			});
@@ -213,22 +214,22 @@ void UStableDiffusionSubsystem::GenerateImage(const FString& Prompt, FIntPoint S
 	ViewportCapture->CaptureThisFrame(framePtr);
 }
 
-bool UStableDiffusionSubsystem::SaveImageData(const FString& PackagePath, const FString& Name, UTexture2D* Texture)
+bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty() || !Texture)
 		return false;
 
 	// Create package
-	FString FullPackagePath = PackagePath;
-	FullPackagePath += Name;
+	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
 	UPackage* Package = CreatePackage(NULL, *FullPackagePath);
 	Package->FullyLoad();
 
 	// Duplicate texture
-	auto MipData = Texture->GetPlatformMips()[0].BulkData;
+	auto SrcMipData = Texture->Source.LockMip(0);// GetPlatformMips()[0].BulkData;
 	UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *Name, RF_Public | RF_Standalone | RF_MarkAsRootSet);
-	NewTexture = ColorBufferToTexture(Name, static_cast<const uint8*>(MipData.LockReadOnly()), FIntPoint(Texture->GetSizeX(), Texture->GetSizeY()), NewTexture);
-	MipData.Unlock();
+	NewTexture->AddToRoot();
+	NewTexture = ColorBufferToTexture(Name, SrcMipData, FIntPoint(Texture->GetSizeX(), Texture->GetSizeY()), NewTexture);
+	Texture->Source.UnlockMip(0);
 
 	// Update package
 	Package->MarkPackageDirty();
@@ -257,36 +258,56 @@ UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& Frame
 	if (!FrameData) 
 		return nullptr;
 
-	// Replace with CreateTexture2D from "ImageUtils.h"
 	if (!OutTex) {
-		TObjectPtr<UTexture2D> NewTex = NewObject<UTexture2D>();
+		TObjectPtr<UTexture2D> NewTex = UTexture2D::CreateTransient(FrameSize.X, FrameSize.Y, EPixelFormat::PF_B8G8R8A8);
 		OutTex = NewTex;
 	}
 
+	OutTex->Source.Init(FrameSize.X, FrameSize.Y, 1, 1, ETextureSourceFormat::TSF_BGRA8);//ETextureSourceFormat::TSF_RGBA8);
 	OutTex->MipGenSettings = TMGS_NoMipmaps;
-	OutTex->PlatformData = new FTexturePlatformData();
-	OutTex->PlatformData->SizeX = FrameSize.X;
-	OutTex->PlatformData->SizeY = FrameSize.Y;
-	OutTex->PlatformData->SetNumSlices(1);
-	OutTex->PlatformData->PixelFormat = EPixelFormat::PF_B8G8R8A8;
+	OutTex->SRGB = true;
+	OutTex->DeferCompression = true;
 
-	// Allocate first mipmap.
-	FTexture2DMipMap* Mip = nullptr;
-	if (!OutTex->PlatformData->Mips.Num()) {
-		Mip = new(OutTex->PlatformData->Mips) FTexture2DMipMap();
-	}
-	Mip->SizeX = FrameSize.X;
-	Mip->SizeY = FrameSize.Y;
-
-	// Lock the texture so it can be modified
-	Mip->BulkData.Lock(LOCK_READ_WRITE);
-	uint8* TextureData = (uint8*)Mip->BulkData.Realloc(FrameSize.X * FrameSize.Y * 4);
+	uint8* TextureData = OutTex->Source.LockMip(0);
 	FMemory::Memcpy(TextureData, FrameData, sizeof(uint8) * FrameSize.X * FrameSize.Y * 4);
-	Mip->BulkData.Unlock();
+	OutTex->Source.UnlockMip(0);
 	OutTex->UpdateResource();
 
-	OutTex->Source.Init(FrameSize.X, FrameSize.Y, 1, 1, ETextureSourceFormat::TSF_RGBA8, reinterpret_cast<const uint8*>(FrameData));
-	OutTex->UpdateResource();
-
+#if WITH_EDITOR
+	OutTex->PostEditChange();
+#endif
 	return OutTex;
+}
+
+FString UStableDiffusionSubsystem::OpenImageFilePicker(const FString& StartDir)
+{
+	FString OpenFolderName;
+	bool bOpen = false;
+
+	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();	
+	if (DesktopPlatform)
+	{
+		FString ExtensionStr;
+		ExtensionStr += TEXT("Image file (*.png)|*.exr|*.bmp|*.exr");
+		bOpen = DesktopPlatform->OpenDirectoryDialog(
+			FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
+			"Save image to destination...",
+			StartDir,
+			OpenFolderName
+		);
+	}
+	if (!bOpen)
+	{
+		return "";
+	}
+
+	return OpenFolderName;
+}
+
+FString UStableDiffusionSubsystem::FilepathToLongPackagePath(const FString& Path) 
+{
+	FString result;
+	FString error;
+	FPackageName::TryConvertFilenameToLongPackageName(Path, result, &error);
+	return result;
 }
