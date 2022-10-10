@@ -1,7 +1,6 @@
 import unreal
 import os
 import numpy as np
-import huggingface_hub
 import torch
 from torch import autocast
 from PIL import Image

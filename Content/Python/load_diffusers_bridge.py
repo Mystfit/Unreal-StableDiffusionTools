@@ -1,5 +1,10 @@
 import unreal
 import DiffusersBridge
+import huggingface_hub
+
+import importlib
+importlib.reload(DiffusersBridge)
+importlib.reload(huggingface_hub)
 
 print("Creating default Diffusers bridge")
 bridge = DiffusersBridge.DiffusersBridge()

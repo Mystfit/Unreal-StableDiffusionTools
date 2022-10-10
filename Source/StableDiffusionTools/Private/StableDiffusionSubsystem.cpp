@@ -33,6 +33,7 @@ void UStableDiffusionSubsystem::InstallDependencies()
 		FPythonCommandEx PythonCommand;
 		PythonCommand.Command = FString("install_dependencies.py");
 		PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
+		PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
 		
 		bool install_result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
 		if (!install_result) {
@@ -45,6 +46,7 @@ void UStableDiffusionSubsystem::InstallDependencies()
 			FPythonCommandEx PythonCommand;
 			PythonCommand.Command = FString("load_diffusers_bridge.py");
 			PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
+			PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
 			bool reload_result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
 			OnDependenciesInstalled.Broadcast(reload_result);
 		});
@@ -57,7 +59,10 @@ bool UStableDiffusionSubsystem::HasHuggingFaceToken()
 	PythonCommand.Command = FString("huggingface_hub.utils.HfFolder.get_token()");
 	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::EvaluateStatement;
 	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
-	return PythonCommand.CommandResult != "None";
+	bool trimmed = false;
+	//Python evaluation is wrapped in single quotes
+	auto result = PythonCommand.CommandResult.TrimChar(TCHAR('\''), &trimmed).TrimQuotes().TrimEnd();
+	return result != "None" && !result.IsEmpty();
 }
 
 

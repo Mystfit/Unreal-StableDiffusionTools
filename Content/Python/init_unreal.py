@@ -8,7 +8,7 @@ try:
     SD_dependencies_installed = True
     print("Stable Diffusion dependencies are available")
 except ImportError as e:
-    print("Stable Diffusion plugin python dependencies not installed")
+    print("Stable Diffusion plugin python dependencies not installed. Exception was " + str(e))
 
 try:
     import load_diffusers_bridge

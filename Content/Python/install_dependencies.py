@@ -5,7 +5,8 @@ pythonpath = unreal.Paths().make_standard_filename(os.path.join("..", "ThirdPart
 
 pip_dependencies = [
     "torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu116",
-    "diffusers"
+    "diffusers",
+    "transformers"	
 ]
 
 for dep in pip_dependencies:

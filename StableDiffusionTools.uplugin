@@ -1,19 +1,22 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "1.0",
+	"VersionName": "0.1",
 	"FriendlyName": "StableDiffusionTools",
-	"Description": "Editor tools for working with stable diffusion",
-	"Category": "Other",
+	"Description": "Create images in-editor using AI image generation models such as Stable Diffusion.",
+	"Category": "Editor",
 	"CreatedBy": "Byron Mallett",
-	"CreatedByURL": "",
+	"CreatedByURL": "https://github.com/Mystfit/Unreal-StableDiffusionTools",
 	"DocsURL": "",
 	"MarketplaceURL": "",
 	"SupportURL": "",
 	"CanContainContent": true,
-	"IsBetaVersion": false,
+	"IsBetaVersion": true,
 	"IsExperimentalVersion": false,
-	"Installed": false,
+	"Installed": true,
+	"WhitelistPlatforms": [
+		"Win64"
+	],
 	"Plugins": [
 		{
 			"Name": "RemoteSession",
@@ -21,7 +24,7 @@
 		},
 		{
 			"Name": "PythonScriptPlugin",
-			"Enabled":   true
+			"Enabled": true
 		}
 	],
 	"Modules": [
