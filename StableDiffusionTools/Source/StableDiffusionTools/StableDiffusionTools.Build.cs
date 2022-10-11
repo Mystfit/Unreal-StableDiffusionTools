@@ -51,7 +51,10 @@ public class StableDiffusionTools : ModuleRules
 				"RemoteSession",
 				"LevelEditor",
 				"PythonScriptPlugin",
-				"DesktopPlatform"
+				"DesktopPlatform",
+				"MovieRenderPipelineRenderPasses",
+				"MovieRenderPipelineSettings",
+				"MovieRenderPipelineCore"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

@@ -57,13 +57,6 @@ void FStableDiffusionToolsModule::ShutdownModule()
 
 TSharedRef<SDockTab> FStableDiffusionToolsModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
 {
-	/*FText WidgetText = FText::Format(
-		LOCTEXT("WindowWidgetText", "Add code to {0} in {1} to override this window's contents"),
-		FText::FromString(TEXT("FStableDiffusionToolsModule::OnSpawnPluginTab")),
-		FText::FromString(TEXT("StableDiffusionTools.cpp"))
-		);*/
-
-
 	auto DockTab = SNew(SDockTab)
 		.TabRole(ETabRole::NomadTab);
 
@@ -80,8 +73,6 @@ TSharedRef<SDockTab> FStableDiffusionToolsModule::OnSpawnPluginTab(const FSpawnT
 		{
 			if (!BP->GeneratedClass.Get()->HasAnyClassFlags(CLASS_Deprecated | CLASS_Hidden)) {
 				WidgetClass = BP->GeneratedClass.Get();
-				// UMyBaseType* CDO = GetCDOfromBlueprint<UMyBaseType>(BP);
-				// I do stuff in CDO.. 'GetCDOxx' above doesn't exist in your copy of Unreal.
 			}
 		}
 	}
