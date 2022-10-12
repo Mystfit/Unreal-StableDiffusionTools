@@ -32,4 +32,7 @@ public:
 	virtual int32 GetOutputFileSortingOrder() const override { return 2; }
 
 	virtual bool IsAntiAliasingSupported() const { return false; }
+
+protected:
+	virtual void RenderSample_GameThreadImpl(const FMoviePipelineRenderPassMetrics& InSampleState) override;
 };

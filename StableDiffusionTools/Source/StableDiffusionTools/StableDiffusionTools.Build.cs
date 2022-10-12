@@ -54,7 +54,10 @@ public class StableDiffusionTools : ModuleRules
 				"DesktopPlatform",
 				"MovieRenderPipelineRenderPasses",
 				"MovieRenderPipelineSettings",
-				"MovieRenderPipelineCore"
+				"MovieRenderPipelineCore",
+				"ImageWriteQueue",
+				"RHI",
+				"RenderCore"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
