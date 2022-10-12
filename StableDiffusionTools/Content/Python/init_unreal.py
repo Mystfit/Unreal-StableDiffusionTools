@@ -1,16 +1,25 @@
-SD_dependencies_installed = False
+import importlib.util
 
-try:
-    import diffusers
-    import PIL
-    import torch
-    import huggingface_hub
-    SD_dependencies_installed = True
-    print("Stable Diffusion dependencies are available")
-except ImportError as e:
-    print("Stable Diffusion plugin python dependencies not installed. Exception was " + str(e))
+modules = [
+    "diffusers",
+    "PIL",
+    "torch",
+    "huggingface_hub",
+    "transformers"
+]
+SD_dependencies_installed = True
+for module in modules:
+    try:
+        importlib.util.find_spec(module)
+    except ValueError:
+        print("Missing Stable Diffusion dependency {0}. Please install or update the plugin's python dependencies".format(module))
+        SD_dependencies_installed = False
+     
+    
+print("Stable Diffusion dependencies are {0}available".format("" if SD_dependencies_installed else "not "))
 
-try:
-    import load_diffusers_bridge
-except ImportError:
-    print("Skipping default Diffusers Bridge load until dependencies have been installed")
+if SD_dependencies_installed:
+    try:
+        import load_diffusers_bridge
+    except ImportError:
+        print("Skipping default Diffusers Bridge load until dependencies have been installed")
