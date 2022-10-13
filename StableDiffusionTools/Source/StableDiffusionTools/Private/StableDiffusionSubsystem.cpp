@@ -55,16 +55,27 @@ void UStableDiffusionSubsystem::InstallDependencies()
 
 bool UStableDiffusionSubsystem::HasHuggingFaceToken()
 {
+	auto token = GetHuggingfaceToken();
+	return token != "None" && !token.IsEmpty();
+}
+
+FString UStableDiffusionSubsystem::GetHuggingfaceToken()
+{
 	FPythonCommandEx PythonCommand;
+	PythonCommand.Command = FString("import huggingface_hub");
+	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
+	PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
+	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
+
 	PythonCommand.Command = FString("huggingface_hub.utils.HfFolder.get_token()");
 	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::EvaluateStatement;
 	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
-	bool trimmed = false;
-	//Python evaluation is wrapped in single quotes
-	auto result = PythonCommand.CommandResult.TrimChar(TCHAR('\''), &trimmed).TrimQuotes().TrimEnd();
-	return result != "None" && !result.IsEmpty();
-}
 
+	//Python evaluation is wrapped in single quotes
+	bool trimmed = false;
+	auto result = PythonCommand.CommandResult.TrimChar(TCHAR('\''), &trimmed).TrimQuotes().TrimEnd();
+	return result;
+}
 
 bool UStableDiffusionSubsystem::LoginHuggingFaceUsingToken(const FString& token)
 {
@@ -182,17 +193,7 @@ void UStableDiffusionSubsystem::GenerateImage(const FString& Prompt, FIntPoint S
 			LevelEditorSubsystem->EditorSetGameView(bPrevViewportGameViewEnabled);
 
 		// Copy frame data
-		TArray<FColor> CopiedFrame;
-		CopiedFrame.InsertUninitialized(0, TargetSize.X * TargetSize.Y);
-		FColor* Dest = &CopiedFrame[0];
-		//FColor* PixelPtr = Pixels;
-		const int32 MaxWidth = FMath::Min(TargetSize.X, BufferSize.X);
-		for (int32 Row = 0; Row < FMath::Min(TargetSize.Y, BufferSize.Y); ++Row)
-		{
-			FMemory::Memcpy(Dest, Pixels, sizeof(FColor) * MaxWidth);
-			Pixels += BufferSize.X;
-			Dest += MaxWidth;
-		}
+		TArray<FColor> CopiedFrame = CopyFrameData(TargetSize, BufferSize, Pixels);
 
 		// Generate the image on a background thread
 		AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Prompt, TargetSize, Size, InputStrength, Iterations, Seed, Framedata=CopiedFrame]()
@@ -315,4 +316,23 @@ FString UStableDiffusionSubsystem::FilepathToLongPackagePath(const FString& Path
 	FString error;
 	FPackageName::TryConvertFilenameToLongPackageName(Path, result, &error);
 	return result;
+}
+
+
+TArray<FColor> UStableDiffusionSubsystem::CopyFrameData(FIntPoint TargetSize, FIntPoint BufferSize, FColor* ColorBuffer)
+{
+	// Copy frame data
+	TArray<FColor> CopiedFrame;
+
+	CopiedFrame.InsertUninitialized(0, TargetSize.X * TargetSize.Y);
+	FColor* Dest = &CopiedFrame[0];
+	const int32 MaxWidth = FMath::Min(TargetSize.X, BufferSize.X);
+	for (int32 Row = 0; Row < FMath::Min(TargetSize.Y, BufferSize.Y); ++Row)
+	{
+		FMemory::Memcpy(Dest, ColorBuffer, sizeof(FColor) * MaxWidth);
+		ColorBuffer += BufferSize.X;
+		Dest += MaxWidth;
+	}
+
+	return std::move(CopiedFrame);
 }

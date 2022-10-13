@@ -44,6 +44,9 @@ public:
 	bool HasHuggingFaceToken();
 
 	UFUNCTION(BlueprintCallable)
+	FString GetHuggingfaceToken();
+
+	UFUNCTION(BlueprintCallable)
 	bool LoginHuggingFaceUsingToken(const FString& token);
 
 	UFUNCTION(BlueprintCallable)
@@ -91,6 +94,8 @@ public:
 	UTexture2D* ColorBufferToTexture(const FString& FrameName, const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture);
 
 	UTexture2D* ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTexture);
+
+	TArray<FColor> CopyFrameData(FIntPoint TargetSize, FIntPoint BufferSize, FColor* ColorBuffer);
 
 private:
 	void SetCaptureViewport(TSharedRef<FSceneViewport> Viewport, FIntPoint FrameSize);

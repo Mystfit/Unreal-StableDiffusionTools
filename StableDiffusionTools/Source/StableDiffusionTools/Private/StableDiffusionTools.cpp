@@ -20,8 +20,6 @@ static const FName StableDiffusionToolsTabName("StableDiffusionTools");
 
 void FStableDiffusionToolsModule::StartupModule()
 {
-	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
-	
 	FStableDiffusionToolsStyle::Initialize();
 	FStableDiffusionToolsStyle::ReloadTextures();
 	FStableDiffusionToolsCommands::Register();
@@ -41,9 +39,6 @@ void FStableDiffusionToolsModule::StartupModule()
 
 void FStableDiffusionToolsModule::ShutdownModule()
 {
-	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
-	// we call this function before unloading the module.
-
 	UToolMenus::UnRegisterStartupCallback(this);
 
 	UToolMenus::UnregisterOwner(this);
@@ -62,9 +57,8 @@ TSharedRef<SDockTab> FStableDiffusionToolsModule::OnSpawnPluginTab(const FSpawnT
 
 	TSubclassOf<UEditorUtilityWidget> WidgetClass;
 	const FAssetRegistryModule & AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	AssetRegistry.Get().ScanFilesSynchronous(TArray<FString>{"/StableDiffusionTools"});
 	auto Data = AssetRegistry.Get().GetAssetByObjectPath("/StableDiffusionTools/UI/Widgets/BP_StableDiffusionViewportWidget.BP_StableDiffusionViewportWidget");
-	// check if valid:
+	check(Data.IsValid());
 
 	if (Data.AssetName.ToString().Equals(TEXT("BP_StableDiffusionViewportWidget"), ESearchCase::CaseSensitive))
 	{
@@ -77,7 +71,6 @@ TSharedRef<SDockTab> FStableDiffusionToolsModule::OnSpawnPluginTab(const FSpawnT
 		}
 	}
 	
-
 
 	UWorld* World = GEditor->GetEditorWorldContext().World();
 	check(World);
