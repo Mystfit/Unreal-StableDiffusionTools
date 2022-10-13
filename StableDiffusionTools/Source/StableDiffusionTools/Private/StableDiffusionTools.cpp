@@ -20,8 +20,6 @@ static const FName StableDiffusionToolsTabName("StableDiffusionTools");
 
 void FStableDiffusionToolsModule::StartupModule()
 {
-	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
-	
 	FStableDiffusionToolsStyle::Initialize();
 	FStableDiffusionToolsStyle::ReloadTextures();
 	FStableDiffusionToolsCommands::Register();
@@ -41,9 +39,6 @@ void FStableDiffusionToolsModule::StartupModule()
 
 void FStableDiffusionToolsModule::ShutdownModule()
 {
-	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
-	// we call this function before unloading the module.
-
 	UToolMenus::UnRegisterStartupCallback(this);
 
 	UToolMenus::UnregisterOwner(this);
@@ -57,21 +52,13 @@ void FStableDiffusionToolsModule::ShutdownModule()
 
 TSharedRef<SDockTab> FStableDiffusionToolsModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
 {
-	/*FText WidgetText = FText::Format(
-		LOCTEXT("WindowWidgetText", "Add code to {0} in {1} to override this window's contents"),
-		FText::FromString(TEXT("FStableDiffusionToolsModule::OnSpawnPluginTab")),
-		FText::FromString(TEXT("StableDiffusionTools.cpp"))
-		);*/
-
-
 	auto DockTab = SNew(SDockTab)
 		.TabRole(ETabRole::NomadTab);
 
 	TSubclassOf<UEditorUtilityWidget> WidgetClass;
 	const FAssetRegistryModule & AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	AssetRegistry.Get().ScanFilesSynchronous(TArray<FString>{"/StableDiffusionTools"});
 	auto Data = AssetRegistry.Get().GetAssetByObjectPath("/StableDiffusionTools/UI/Widgets/BP_StableDiffusionViewportWidget.BP_StableDiffusionViewportWidget");
-	// check if valid:
+	check(Data.IsValid());
 
 	if (Data.AssetName.ToString().Equals(TEXT("BP_StableDiffusionViewportWidget"), ESearchCase::CaseSensitive))
 	{
@@ -80,13 +67,10 @@ TSharedRef<SDockTab> FStableDiffusionToolsModule::OnSpawnPluginTab(const FSpawnT
 		{
 			if (!BP->GeneratedClass.Get()->HasAnyClassFlags(CLASS_Deprecated | CLASS_Hidden)) {
 				WidgetClass = BP->GeneratedClass.Get();
-				// UMyBaseType* CDO = GetCDOfromBlueprint<UMyBaseType>(BP);
-				// I do stuff in CDO.. 'GetCDOxx' above doesn't exist in your copy of Unreal.
 			}
 		}
 	}
 	
-
 
 	UWorld* World = GEditor->GetEditorWorldContext().World();
 	check(World);

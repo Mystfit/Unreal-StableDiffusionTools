@@ -1,4 +1,8 @@
 import importlib.util
+import unreal
+
+# Replace print() command to fix Unreal flagging every Python print call as an error 
+print = unreal.log
 
 modules = [
     "diffusers",

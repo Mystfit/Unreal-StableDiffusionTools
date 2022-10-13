@@ -1,11 +1,12 @@
 import os, sys, subprocess
+from subprocess import CalledProcessError
 import unreal
 
 pip_dependencies = [
     "torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu116",
     "diffusers",
     "transformers",
-    "scipy"
+    "scipy",
     "ftfy"
 ]
 

@@ -44,6 +44,9 @@ public:
 	bool HasHuggingFaceToken();
 
 	UFUNCTION(BlueprintCallable)
+	FString GetHuggingfaceToken();
+
+	UFUNCTION(BlueprintCallable)
 	bool LoginHuggingFaceUsingToken(const FString& token);
 
 	UFUNCTION(BlueprintCallable)

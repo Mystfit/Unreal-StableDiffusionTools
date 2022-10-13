@@ -55,6 +55,12 @@ void UStableDiffusionSubsystem::InstallDependencies()
 
 bool UStableDiffusionSubsystem::HasHuggingFaceToken()
 {
+	auto token = GetHuggingfaceToken();
+	return token != "None" && !token.IsEmpty();
+}
+
+FString UStableDiffusionSubsystem::GetHuggingfaceToken()
+{
 	FPythonCommandEx PythonCommand;
 	PythonCommand.Command = FString("import huggingface_hub");
 	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
@@ -68,9 +74,8 @@ bool UStableDiffusionSubsystem::HasHuggingFaceToken()
 	//Python evaluation is wrapped in single quotes
 	bool trimmed = false;
 	auto result = PythonCommand.CommandResult.TrimChar(TCHAR('\''), &trimmed).TrimQuotes().TrimEnd();
-	return result != "None" && !result.IsEmpty();
+	return result;
 }
-
 
 bool UStableDiffusionSubsystem::LoginHuggingFaceUsingToken(const FString& token)
 {
