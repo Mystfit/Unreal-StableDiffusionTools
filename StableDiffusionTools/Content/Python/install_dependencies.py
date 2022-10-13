@@ -4,7 +4,9 @@ import unreal
 pip_dependencies = [
     "torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu116",
     "diffusers",
-    "transformers"	
+    "transformers",
+    "scipy"
+    "ftfy"
 ]
 
 def install_dependencies(pip_dependencies):
