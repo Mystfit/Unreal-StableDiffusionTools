@@ -3,6 +3,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "StableDiffusionPromptMovieSceneTrack.h"
+#include "StableDiffusionPromptMovieSceneSection.h"
+#include "StableDiffusionOptionsTrack.h"
+#include "StableDiffusionOptionsSection.h"
 #include "MoviePipelineDeferredPasses.h"
 #include "StableDiffusionMoviePipeline.generated.h"
 
@@ -10,7 +14,7 @@
  * 
  */
 UCLASS()
-class STABLEDIFFUSIONTOOLS_API UStableDiffusionMoviePipeline : public UMoviePipelineDeferredPassBase
+class STABLEDIFFUSIONSEQUENCER_API UStableDiffusionMoviePipeline : public UMoviePipelineDeferredPassBase
 {
 	GENERATED_BODY()
 
@@ -19,6 +23,8 @@ public:
 	{
 		PassIdentifier = FMoviePipelinePassIdentifier("StableDiffusion");
 	}
+	virtual void SetupForPipelineImpl(UMoviePipeline* InPipeline);
+
 #if WITH_EDITOR
 	virtual FText GetDisplayText() const override { return NSLOCTEXT("MovieRenderPipeline", "DeferredBasePassSetting_DisplayName_StableDiffusion", "Stable Diffusion"); }
 	virtual FText GetFooterText(UMoviePipelineExecutorJob* InJob) const override;
@@ -35,4 +41,8 @@ public:
 
 protected:
 	virtual void RenderSample_GameThreadImpl(const FMoviePipelineRenderPassMetrics& InSampleState) override;
+
+private:
+	UStableDiffusionOptionsTrack* OptionsTrack;
+	TArray<UStableDiffusionPromptMovieSceneTrack*> PromptTracks;
 };

@@ -4,7 +4,7 @@
 #include "StableDIffusionImageResult.generated.h"
 
 USTRUCT(BlueprintType)
-struct FStableDiffusionImageResult
+struct STABLEDIFFUSIONTOOLS_API FStableDiffusionImageResult
 {
     GENERATED_BODY()
 public:

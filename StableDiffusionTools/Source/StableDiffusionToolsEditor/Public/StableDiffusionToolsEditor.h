@@ -3,14 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "StableDiffusionBridge.h"
 #include "Modules/ModuleManager.h"
 #include "StableDiffusionViewportWidget.h"
 
 class FToolBarBuilder;
 class FMenuBuilder;
 
-class FStableDiffusionToolsModule : public IModuleInterface
+class FStableDiffusionToolsEditorModule : public IModuleInterface
 {
 public:
 

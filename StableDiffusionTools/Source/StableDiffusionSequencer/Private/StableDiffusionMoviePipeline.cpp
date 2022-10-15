@@ -4,9 +4,12 @@
 #include "StableDiffusionMoviePipeline.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "StableDiffusionSubsystem.h"
+#include "MoviePipelineQueue.h"
 #include "MoviePipeline.h"
 #include "ImageUtils.h"
 #include "EngineModule.h"
+#include "LevelSequence.h"
+#include "Channels/MovieSceneChannelProxy.h"
 #include "RenderingThread.h"
 
 #if WITH_EDITOR
@@ -17,6 +20,20 @@ FText UStableDiffusionMoviePipeline::GetFooterText(UMoviePipelineExecutorJob* In
 		"Rendered frames are passed to the Stable Diffusion subsystem for processing");
 }
 #endif
+
+void UStableDiffusionMoviePipeline::SetupForPipelineImpl(UMoviePipeline* InPipeline)
+{
+	Super::SetupForPipelineImpl(InPipeline);
+
+	auto Tracks = InPipeline->GetTargetSequence()->GetMovieScene()->GetMasterTracks();
+	for (auto Track : Tracks) {
+		if (auto MasterOptionsTrack = Cast<UStableDiffusionOptionsTrack>(Track)) {
+			OptionsTrack = MasterOptionsTrack;
+		} else if (auto PromptTrack = Cast<UStableDiffusionPromptMovieSceneTrack>(Track)){
+			PromptTracks.Add(PromptTrack);
+		}
+	}
+}
 
 void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipelineRenderPassMetrics& InSampleState)
 {
@@ -85,18 +102,60 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			ColorData.InsertUninitialized(0, RenderTarget->GetSizeXY().X * RenderTarget->GetSizeXY().Y);
 			RenderTarget->ReadPixels(ColorData);
 
-			// TODO: Replace hardcoded images with prompt curves
+			auto EffectiveFrame = FFrameTime(FFrameNumber(this->GetPipeline()->GetOutputState().EffectiveFrameNumber));
+			auto FullFrameTime = EffectiveFrame * 1000.0f;
+
+			float Strength;
+			int32 Iterations;
+			int32 Seed;
+			if (OptionsTrack) {
+				for (auto Section : OptionsTrack->Sections) {
+					if (Section) {
+						auto OptionSection = Cast<UStableDiffusionOptionsSection>(Section);
+						if (OptionSection) {
+							// Find EffectiveFrameNumber
+							OptionSection->GetStrengthChannel().Evaluate(FullFrameTime, Strength);
+							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Iterations);
+							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Seed);
+						}
+					}
+				}
+			}
+
+			// Build combined prompt
+			TArray<FString> AccumulatedPrompt;
+			for (auto Track : PromptTracks) {
+				if (Track) {
+					for (auto Section : Track->Sections) {
+						if (Section) {
+							auto PromptSection = Cast<UStableDiffusionPromptMovieSceneSection>(Section);
+							if (PromptSection) {
+								// Frame number for curves includes subframes so we divide by 1000 to get the frame number
+								float PromptWeight = 0.0f;
+								PromptSection->GetPromptWeightChannel().Evaluate(EffectiveFrame, PromptWeight);
+
+								auto SectionStartFrame = PromptSection->GetInclusiveStartFrame();
+								auto SectionEndFrame = PromptSection->GetExclusiveEndFrame();
+								if (SectionStartFrame < FullFrameTime && FullFrameTime < SectionEndFrame) {
+									AccumulatedPrompt.Add(PromptSection->Prompt.Prompt);
+								}
+							}
+						}
+					}
+				}
+			}
+			
 			auto SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(
-				"the michelin man on an island in the ocean, cumulus clouds, sparkling ocean, 4k", 
+				FString::Join(AccumulatedPrompt, TEXT(", ")),
 				RenderTarget->GetSizeXY().X, 
 				RenderTarget->GetSizeXY().Y, 
 				RenderTarget->GetSizeXY().X, 
 				RenderTarget->GetSizeXY().Y, 
 				ColorData, 
 				TArray<FColor>(), 
-				float(InSampleState.FrameIndex+1 + 10.0)/100.0f,
-				150, 
-				99999
+				Strength,
+				Iterations,
+				Seed
 			);
 
 			TArray<FFloat16Color> ConvertedResultPixels;
