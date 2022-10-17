@@ -87,36 +87,37 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 
 		// Submit to be rendered. Main render pass always uses target 0.
 		FRenderTarget* RenderTarget = GetViewRenderTarget()->GameThread_GetRenderTargetResource();
-		FCanvas Canvas = FCanvas(RenderTarget, nullptr, GetPipeline()->GetWorld(), ERHIFeatureLevel::SM5, FCanvas::CDM_DeferDrawing, 1.0f);
+		FCanvas Canvas = FCanvas(RenderTarget, nullptr, GetPipeline()->GetWorld(), ERHIFeatureLevel::SM5, FCanvas::CDM_ImmediateDrawing, 1.0f);
 		GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.Get());
-		
-		// Wait for scene to render first before generating SD image
-		FlushRenderingCommands();
 
 #if WITH_EDITOR
 		auto SDSubsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
 		if (SDSubsystem) {
 			// Get input image from rendered data
 			// TODO: Add float colour support to the generated images
-			TArray<FColor> ColorData;
-			ColorData.InsertUninitialized(0, RenderTarget->GetSizeXY().X * RenderTarget->GetSizeXY().Y);
-			RenderTarget->ReadPixels(ColorData);
+			FStableDiffusionInput Input;
+			Input.Options.InSizeX = RenderTarget->GetSizeXY().X;
+			Input.Options.InSizeY = RenderTarget->GetSizeXY().Y;
+			Input.Options.OutSizeX = RenderTarget->GetSizeXY().X;
+			Input.Options.OutSizeY = RenderTarget->GetSizeXY().Y;
+			Input.InputImagePixels.InsertUninitialized(0, RenderTarget->GetSizeXY().X * RenderTarget->GetSizeXY().Y);
+			RenderTarget->ReadPixels(Input.InputImagePixels);
 
+			// Get frame time for curve evaluation
 			auto EffectiveFrame = FFrameTime(FFrameNumber(this->GetPipeline()->GetOutputState().EffectiveFrameNumber));
+
+			// Frame number for curves includes subframes so we divide by 1000 to get the frame number
 			auto FullFrameTime = EffectiveFrame * 1000.0f;
 
-			float Strength;
-			int32 Iterations;
-			int32 Seed;
 			if (OptionsTrack) {
 				for (auto Section : OptionsTrack->Sections) {
 					if (Section) {
 						auto OptionSection = Cast<UStableDiffusionOptionsSection>(Section);
 						if (OptionSection) {
-							// Find EffectiveFrameNumber
-							OptionSection->GetStrengthChannel().Evaluate(FullFrameTime, Strength);
-							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Iterations);
-							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Seed);
+							// Evaluate curve values
+							OptionSection->GetStrengthChannel().Evaluate(FullFrameTime, Input.Options.Strength);
+							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Input.Options.Iterations);
+							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Input.Options.Seed);
 						}
 					}
 				}
@@ -130,34 +131,33 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 						if (Section) {
 							auto PromptSection = Cast<UStableDiffusionPromptMovieSceneSection>(Section);
 							if (PromptSection) {
-								// Frame number for curves includes subframes so we divide by 1000 to get the frame number
 								float PromptWeight = 0.0f;
-								PromptSection->GetPromptWeightChannel().Evaluate(EffectiveFrame, PromptWeight);
+								int  PromptRepeats = 1;
+								PromptSection->GetWeightChannel().Evaluate(EffectiveFrame, PromptWeight);
+								PromptSection->GetRepeatsChannel().Evaluate(EffectiveFrame, PromptRepeats);
 
+								// Get frame range of the section
 								auto SectionStartFrame = PromptSection->GetInclusiveStartFrame();
 								auto SectionEndFrame = PromptSection->GetExclusiveEndFrame();
 								if (SectionStartFrame < FullFrameTime && FullFrameTime < SectionEndFrame) {
-									AccumulatedPrompt.Add(PromptSection->Prompt.Prompt);
+									if (PromptRepeats > 0) {
+										// For the moment since we don't have normalized per-prompt weights
+										// we repeat the same prompt multiple times to increase emphasis
+										for (size_t idx = 0; idx < PromptRepeats; ++idx) {
+											Input.Options.AddPrompt(PromptSection->Prompt);
+										}
+									}
 								}
 							}
 						}
 					}
 				}
 			}
-			
-			auto SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(
-				FString::Join(AccumulatedPrompt, TEXT(", ")),
-				RenderTarget->GetSizeXY().X, 
-				RenderTarget->GetSizeXY().Y, 
-				RenderTarget->GetSizeXY().X, 
-				RenderTarget->GetSizeXY().Y, 
-				ColorData, 
-				TArray<FColor>(), 
-				Strength,
-				Iterations,
-				Seed
-			);
 
+			// Generate image
+			auto SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(Input);
+
+			// Convert 8bit BGRA FColors returned from SD to 16bit BGRA
 			TArray<FFloat16Color> ConvertedResultPixels;
 			ConvertedResultPixels.InsertUninitialized(0, SDResult.PixelData.Num());
 			for (size_t idx = 0; idx < SDResult.PixelData.Num(); ++idx) {

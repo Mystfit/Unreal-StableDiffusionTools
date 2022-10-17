@@ -6,6 +6,7 @@
 #include "UObject/NoExportTypes.h"
 #include "Engine/Texture2D.h"
 #include "StableDiffusionImageResult.h"
+#include "StableDiffusionGenerationOptions.h"
 #include "StableDiffusionBridge.generated.h"
 
 DECLARE_MULTICAST_DELEGATE_FourParams(FImageProgress, int32, int32, FIntPoint, const TArray<FColor>&);
@@ -33,7 +34,8 @@ public:
     bool InitModel(const FString& ModelName, const FString& Precision, const FString& Revision);
 
     UFUNCTION(BlueprintImplementableEvent, Category = StableDiffusion)
-    FStableDiffusionImageResult GenerateImageFromStartImage(const FString& prompt, int32 InFrameWidth, int32 InFrameHeight, int32 OutFrameWidth, int32 OutFrameHeight, const TArray<FColor>& GuideFrame, const TArray<FColor>& MaskFrame, float Strength, int32 Iterations, int32 Seed) const;
+    //FStableDiffusionImageResult GenerateImageFromStartImage(const FString& PositivePrompts, int32 InFrameWidth, int32 InFrameHeight, int32 OutFrameWidth, int32 OutFrameHeight, const TArray<FColor>& GuideFrame, const TArray<FColor>& MaskFrame, float Strength, int32 Iterations, int32 Seed) const;
+    FStableDiffusionImageResult GenerateImageFromStartImage(const FStableDiffusionInput& InputOptions) const;
 
     UFUNCTION(BlueprintCallable)
     void UpdateImageProgress(FString prompt, int32 step, int32 timestep, int32 width, int32 height, const TArray<FColor>& FrameColors);

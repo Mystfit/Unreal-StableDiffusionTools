@@ -55,8 +55,13 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void StartCapturingViewport(FIntPoint Size);
 
+	//UFUNCTION(BlueprintCallable)
+	//void GenerateImage(const TArray<FPrompt>& PositivePrompts, const TArray<FPrompt>& NegativePrompts, FIntPoint Size, float InputStrength, int32 Iterations, int32 Seed);
+
 	UFUNCTION(BlueprintCallable)
-	void GenerateImage(const FString& Prompt, FIntPoint Size, float InputStrength, int32 Iterations, int32 Seed);
+	void GenerateImage(FStableDiffusionInput Input, bool FromViewport = true);
+
+	//void GenerateImage(const FString& Prompt, FIntPoint Size, float InputStrength, int32 Iterations, int32 Seed);
 
 	UFUNCTION(BlueprintCallable)
 	bool SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture);

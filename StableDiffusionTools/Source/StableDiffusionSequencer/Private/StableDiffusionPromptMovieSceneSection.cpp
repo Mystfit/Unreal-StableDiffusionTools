@@ -7,12 +7,19 @@ EMovieSceneChannelProxyType UStableDiffusionPromptMovieSceneSection::CacheChanne
 
 #if WITH_EDITOR
 	Channels.Add(
-		PromptWeight,
-		FMovieSceneChannelMetaData("PromptWeight", FText::FromString("Prompt Weight")),
+		Weight,
+		FMovieSceneChannelMetaData("Weight", FText::FromString("Weight")),
 		TMovieSceneExternalValue<float>::Make()
 	);
+
+	Channels.Add(
+		Repeats,
+		FMovieSceneChannelMetaData("Repeats", FText::FromString("Repeats")),
+		TMovieSceneExternalValue<int>::Make()
+	);
 #else
-	Channels.Add(PromptWeight);
+	Channels.Add(Weight);
+	Channels.Add(Repeats);
 #endif
 	ChannelProxy = MakeShared<FMovieSceneChannelProxy>(MoveTemp(Channels));
 

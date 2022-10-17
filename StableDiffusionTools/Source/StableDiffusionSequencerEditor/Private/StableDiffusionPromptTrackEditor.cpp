@@ -93,7 +93,7 @@ UStableDiffusionPromptMovieSceneSection* FStableDiffusionPromptTrackEditor::AddN
 	}
 	Section->SetRowIndex(RowIndex + 1);
 
-	PromptTrack->AddSection(*Section);
+	//PromptTrack->AddSection(*Section);
 
 	return Section;
 }

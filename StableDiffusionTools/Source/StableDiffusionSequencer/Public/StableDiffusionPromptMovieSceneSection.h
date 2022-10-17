@@ -4,6 +4,7 @@
 #include "PromptAsset.h"
 #include "MovieSceneSection.h"
 #include "Channels/MovieSceneFloatChannel.h"
+#include "Channels/MovieSceneIntegerChannel.h"
 #include "StableDiffusionPromptMovieSceneSection.generated.h"
 
 
@@ -19,13 +20,16 @@ public:
 	/**
 	 * Public access to this section's internal data function
 	 */
-	const FMovieSceneFloatChannel& GetPromptWeightChannel() const { return PromptWeight; }
+	const FMovieSceneFloatChannel& GetWeightChannel() const { return Weight; }
+	const FMovieSceneIntegerChannel& GetRepeatsChannel() const { return Repeats; }
 
 protected:
 
-	/** Float data */
 	UPROPERTY()
-	FMovieSceneFloatChannel PromptWeight;
+	FMovieSceneFloatChannel Weight;
+
+	UPROPERTY()
+	FMovieSceneIntegerChannel Repeats;
 
 private:
 

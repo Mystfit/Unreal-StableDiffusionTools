@@ -54,11 +54,13 @@ TSharedRef<SDockTab> FStableDiffusionToolsEditorModule::OnSpawnPluginTab(const F
 	auto DockTab = SNew(SDockTab)
 		.TabRole(ETabRole::NomadTab);
 
-	TSubclassOf<UEditorUtilityWidget> WidgetClass;
 	const FAssetRegistryModule & AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	auto Data = AssetRegistry.Get().GetAssetByObjectPath("/StableDiffusionTools/UI/Widgets/BP_StableDiffusionViewportWidget.BP_StableDiffusionViewportWidget");
+	FString EditorUIPackage = "/StableDiffusionTools/UI/Widgets/BP_StableDiffusionViewportWidget";
+	AssetRegistry.Get().ScanFilesSynchronous({ FPackageName::LongPackageNameToFilename(EditorUIPackage, FPackageName::GetAssetPackageExtension())});
+	auto Data = AssetRegistry.Get().GetAssetByObjectPath(FName(EditorUIPackage.Append(".BP_StableDiffusionViewportWidget")));
 	check(Data.IsValid());
 
+	TSubclassOf<UEditorUtilityWidget> WidgetClass;
 	if (Data.AssetName.ToString().Equals(TEXT("BP_StableDiffusionViewportWidget"), ESearchCase::CaseSensitive))
 	{
 		UBlueprint* BP = Cast<UBlueprint>(Data.GetAsset());
@@ -69,7 +71,6 @@ TSharedRef<SDockTab> FStableDiffusionToolsEditorModule::OnSpawnPluginTab(const F
 			}
 		}
 	}
-	
 
 	UWorld* World = GEditor->GetEditorWorldContext().World();
 	check(World);

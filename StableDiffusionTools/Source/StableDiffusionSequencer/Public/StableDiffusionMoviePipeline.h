@@ -32,8 +32,8 @@ public:
 	virtual void GetViewShowFlags(FEngineShowFlags& OutShowFlag, EViewModeIndex& OutViewModeIndex) const override
 	{
 		OutShowFlag = FEngineShowFlags(EShowFlagInitMode::ESFIM_Game);
-		OutShowFlag.SetPathTracing(true);
-		OutViewModeIndex = EViewModeIndex::VMI_PathTracing;
+		//OutShowFlag.SetPathTracing(true);
+		OutViewModeIndex = EViewModeIndex::VMI_Lit;
 	}
 	virtual int32 GetOutputFileSortingOrder() const override { return 2; }
 
