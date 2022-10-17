@@ -25,11 +25,11 @@ The first time you use the plugin you will need to install the required python d
 ### Models
 To download a model from [huggingface.co](https://huggingface.co), you will need an account and a token with read permissions. The button next to the token input in the `Models` section will open a browser window that will take you to the token creation page if you are logged in to huggingface.co, or you can visit [this link.](https://huggingface.co/settings/tokens)
 
-You can use any diffusers based model from [the diffusers category on huggingface.co.](https://huggingface.co/models?library=diffusers) To choose a model, enter it in the format `Username/Modelname`. The `revision` property will allow you to pick a specific branch of the model to download. I recommend the `fp16` branch of the default `CompVis/stable-diffusion-v1-4` in case you don't have a limited amount of VRAM (under 6GB).
+You can use any diffusers based model from [the diffusers category on huggingface.co.](https://huggingface.co/models?library=diffusers) To choose a model, enter it in the format `Username/Modelname`. To use the default model, you need to vist the [model card page](https://huggingface.co/CompVis/stable-diffusion-v1-4) and accept the usage agreement in order to download the weights. 
+
+The `revision` property will allow you to pick a specific branch of the model to download. I recommend the `fp16` branch of the default `CompVis/stable-diffusion-v1-4` in case you don't have a limited amount of VRAM (under 6GB). You can also choose the level of precision you want to model to use where 16-bit floating point is the default.
 
 **Note:** For the first release, there may be an issue with downloading git lfs files hosted in models.
-
-You can also choose the level of prevision you want to model to use. 16-bit floating point is the default.
 
 ### Prompt based image generation
 
