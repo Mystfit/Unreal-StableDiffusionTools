@@ -19,6 +19,9 @@ public:
 	UPROPERTY(EditAnywhere, meta = (Multiline = true, ShowOnlyInnerProperties))
 	FStableDiffusionGenerationOptions GenerationOptions;
 
+	UPROPERTY(EditAnywhere, meta = (Multiline = true, ShowOnlyInnerProperties))
+	FStableDiffusionModelOptions ModelOptions;
+
 	/**
 	 * Public access to this section's internal data function
 	 */

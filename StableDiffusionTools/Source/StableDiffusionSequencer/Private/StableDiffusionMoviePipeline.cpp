@@ -11,6 +11,7 @@
 #include "LevelSequence.h"
 #include "Channels/MovieSceneChannelProxy.h"
 #include "RenderingThread.h"
+#include "GenericPlatform/GenericPlatformProcess.h"
 
 #if WITH_EDITOR
 FText UStableDiffusionMoviePipeline::GetFooterText(UMoviePipelineExecutorJob* InJob) const {
@@ -25,10 +26,27 @@ void UStableDiffusionMoviePipeline::SetupForPipelineImpl(UMoviePipeline* InPipel
 {
 	Super::SetupForPipelineImpl(InPipeline);
 
+	// Make sure model is loaded before we render
+	auto SDSubsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
 	auto Tracks = InPipeline->GetTargetSequence()->GetMovieScene()->GetMasterTracks();
 	for (auto Track : Tracks) {
 		if (auto MasterOptionsTrack = Cast<UStableDiffusionOptionsTrack>(Track)) {
 			OptionsTrack = MasterOptionsTrack;
+			if (SDSubsystem) {
+				auto Sections = OptionsTrack->GetAllSections();
+				if (Sections.Num()) {
+					// Use the first found SD options section to pull model info from
+					auto OptionsSection = Cast<UStableDiffusionOptionsSection>(Sections[0]);
+					if (OptionsSection) {
+						if (SDSubsystem->ModelOptions != OptionsSection->ModelOptions) {
+							SDSubsystem->InitModel(FStableDiffusionModelOptions{ 
+								OptionsSection->ModelOptions.Model, 
+								OptionsSection->ModelOptions.Revision, 
+								OptionsSection->ModelOptions.Precision}, false);
+						}
+					}
+				}
+			}
 		} else if (auto PromptTrack = Cast<UStableDiffusionPromptMovieSceneTrack>(Track)){
 			PromptTracks.Add(PromptTrack);
 		}
@@ -114,6 +132,15 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 					if (Section) {
 						auto OptionSection = Cast<UStableDiffusionOptionsSection>(Section);
 						if (OptionSection) {
+							//Reload model if it doesn't match the current options track
+							if (SDSubsystem->ModelOptions != OptionSection->ModelOptions) {
+								SDSubsystem->InitModel(FStableDiffusionModelOptions{
+									OptionSection->ModelOptions.Model,
+									OptionSection->ModelOptions.Revision,
+									OptionSection->ModelOptions.Precision }, false
+								);
+							}
+						
 							// Evaluate curve values
 							OptionSection->GetStrengthChannel().Evaluate(FullFrameTime, Input.Options.Strength);
 							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Input.Options.Iterations);

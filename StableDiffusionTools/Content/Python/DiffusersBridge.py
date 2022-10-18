@@ -96,23 +96,24 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.pipe = None
 
     @unreal.ufunction(override=True)
-    def InitModel(self, modelname, precision, revision):
+    def InitModel(self, model_options):
         result = False
+        ActivePipeline = StableDiffusionImg2ImgPipeline
+        modelname = model_options.model if model_options.model else "CompVis/stable-diffusion-v1-4"
+        kwargs = {
+            "torch_dtype": torch.float32 if model_options.precision == "fp32" else torch.float16,
+            "use_auth_token": True
+        }
+        if model_options.revision:
+            kwargs["revision"] = model_options.revision
+
         try:
-            modelname = modelname if modelname else "CompVis/stable-diffusion-v1-4"
-            ActivePipeline = StableDiffusionImg2ImgPipeline
-
-            kwargs = {
-                "torch_dtype": torch.float32 if precision == "fp32" else torch.float16,
-                "use_auth_token": True
-            }
-            if revision:
-                kwargs["revision"] = precision
-
             print("Loading Stable Diffusion model " + modelname)
             self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
             self.pipe = self.pipe.to("cuda")
             self.pipe.enable_attention_slicing()
+
+            self.model_options = model_options
             result = True
         except Exception as e:
             print("Failed to init Stable Diffusion Img2Image pipeline. Exception was {0}".format(e))

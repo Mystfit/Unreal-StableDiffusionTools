@@ -4,6 +4,33 @@
 #include "PromptAsset.h"
 #include "StableDiffusionGenerationOptions.generated.h"
 
+
+USTRUCT(BlueprintType)
+struct STABLEDIFFUSIONTOOLS_API FStableDiffusionModelOptions
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+		FString Model;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+		FString Revision;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+		FString Precision;
+
+	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
+	{
+		return Model.Equals(Other.Model) && Revision.Equals(Other.Revision) && Precision.Equals(Other.Precision);
+	}
+
+	FORCEINLINE bool operator!=(const FStableDiffusionModelOptions& Other)
+	{
+		return !Model.Equals(Other.Model) || !Revision.Equals(Other.Revision) || !Precision.Equals(Other.Precision);
+	}
+};
+
+
 USTRUCT(BlueprintType)
 struct STABLEDIFFUSIONTOOLS_API FStableDiffusionGenerationOptions
 {

@@ -51,8 +51,7 @@ void FStableDiffusionToolsEditorModule::ShutdownModule()
 
 TSharedRef<SDockTab> FStableDiffusionToolsEditorModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
 {
-	auto DockTab = SNew(SDockTab)
-		.TabRole(ETabRole::NomadTab);
+	auto DockTab = SNew(SDockTab).TabRole(ETabRole::NomadTab);// .ShouldAutosize(true);
 
 	const FAssetRegistryModule & AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	FString EditorUIPackage = "/StableDiffusionTools/UI/Widgets/BP_StableDiffusionViewportWidget";

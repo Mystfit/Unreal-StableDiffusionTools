@@ -85,15 +85,31 @@ bool UStableDiffusionSubsystem::LoginHuggingFaceUsingToken(const FString& token)
 	return IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
 }
 
-void UStableDiffusionSubsystem::InitModel(const FString& ModelName, const FString& Precision, const FString& Revision)
+void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, bool Async)
 {
 	if (GeneratorBridge) {
-		AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, ModelName, Precision, Revision](){
-			this->ModelInitialised = this->GeneratorBridge->InitModel(ModelName, Precision, Revision);
+		if (Async) {
+			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model]() {
+				this->ModelInitialised = this->GeneratorBridge->InitModel(Model);
+				if (this->ModelInitialised)
+					ModelOptions = Model;
+
+				AsyncTask(ENamedThreads::GameThread, [this]() {
+					this->OnModelInitialized.Broadcast(this->ModelInitialised);
+					this->OnModelInitializedEx.Broadcast(this->ModelInitialised);
+					});
+				});
+		}
+		else {
+			this->ModelInitialised = this->GeneratorBridge->InitModel(Model);
+			if (this->ModelInitialised)
+				ModelOptions = Model;
+
 			AsyncTask(ENamedThreads::GameThread, [this]() {
 				this->OnModelInitialized.Broadcast(this->ModelInitialised);
+				this->OnModelInitializedEx.Broadcast(this->ModelInitialised);
 			});
-		});
+		}
 	}
 }
 
