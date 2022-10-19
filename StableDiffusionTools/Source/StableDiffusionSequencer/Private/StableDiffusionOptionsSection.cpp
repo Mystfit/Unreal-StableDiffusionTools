@@ -1,14 +1,18 @@
 #include "StableDiffusionOptionsSection.h"
+#include "StableDiffusionGenerationOptions.h"
 #include "Channels/MovieSceneChannelProxy.h"
-
 
 UStableDiffusionOptionsSection::UStableDiffusionOptionsSection(const FObjectInitializer& ObjectInitializer)
 {
+	FStableDiffusionGenerationOptions DefaultOptions;
+	StrengthCurve.SetDefault(DefaultOptions.Strength);
+	IterationsCurve.SetDefault(DefaultOptions.Iterations);
+	SeedCurve.SetDefault(0);	// Makes more sense for animations to have a consistent seed
+
 	FMovieSceneChannelProxyData Channels;
 
 	#if WITH_EDITOR
 
-	//static FColorSectionEditorData EditorData;
 	Channels.Add(
 		StrengthCurve, 
 		FMovieSceneChannelMetaData("Strength", FText::FromString("Strength")), 
@@ -33,19 +37,3 @@ UStableDiffusionOptionsSection::UStableDiffusionOptionsSection(const FObjectInit
 
 	ChannelProxy = MakeShared<FMovieSceneChannelProxy>(MoveTemp(Channels));
 }
-
-
-//EMovieSceneChannelProxyType UStableDiffusionOptionsSection::CacheChannelProxy()
-//{
-//#if WITH_EDITOR
-//
-//	ChannelProxy = MakeShared<FMovieSceneChannelProxy>(FloatCurve, FMovieSceneChannelMetaData(), TMovieSceneExternalValue<float>::Make());
-//
-//#else
-//
-//	ChannelProxy = MakeShared<FMovieSceneChannelProxy>(Strength);
-//
-//#endif
-//
-//	return EMovieSceneChannelProxyType::Static;
-//}

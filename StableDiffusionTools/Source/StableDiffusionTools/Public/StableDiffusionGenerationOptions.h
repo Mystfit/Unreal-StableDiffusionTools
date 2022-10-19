@@ -72,6 +72,17 @@ public:
 			return;
 		}
 		PositivePrompts.Add(Prompt);
+		/*TArray<FString> SplitPrompt;
+		Prompt.Prompt.ParseIntoArray(SplitPrompt, TEXT(","));
+		for (auto PromptS : SplitPrompt) {
+			PromptS.TrimStartAndEndInline();
+			if (Prompt.Sentiment == EPromptSentiment::Negative) {
+				NegativePrompts.Add(FPrompt{ PromptS, Prompt.Sentiment, Prompt.Weight });
+			}
+			else {
+				PositivePrompts.Add(FPrompt{ PromptS, Prompt.Sentiment, Prompt.Weight });
+			}
+		}*/
 	}
 };
 

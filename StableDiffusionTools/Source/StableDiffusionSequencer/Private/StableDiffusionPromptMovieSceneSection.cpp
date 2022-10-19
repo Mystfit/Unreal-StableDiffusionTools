@@ -1,6 +1,12 @@
 #include "StableDiffusionPromptMovieSceneSection.h"
 #include "Channels/MovieSceneChannelProxy.h"
 
+UStableDiffusionPromptMovieSceneSection::UStableDiffusionPromptMovieSceneSection(const FObjectInitializer& ObjectInitializer)
+{
+	Weight.SetDefault(0);
+	Repeats.SetDefault(1);
+}
+
 EMovieSceneChannelProxyType UStableDiffusionPromptMovieSceneSection::CacheChannelProxy()
 {
 	FMovieSceneChannelProxyData Channels;

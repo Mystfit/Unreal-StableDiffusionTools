@@ -129,13 +129,16 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             seed = torch.random.seed() if input.options.seed < 0 else input.options.seed
             generator.manual_seed(seed)
 
-            positive_prompts = [p.prompt for p in input.options.positive_prompts]
-            negative_prompts = [p.prompt for p in input.options.negative_prompts]
-            
+            # Split prompts in case commas have snuck in
+            positive_prompts = ", ".join([split_p.strip() for p in input.options.positive_prompts for split_p in p.prompt.split(",")])
+            negative_prompts = ", ".join([split_p.strip() for p in input.options.negative_prompts for split_p in p.prompt.split(",")])
+            print(positive_prompts)
+            print(negative_prompts)
+
             # Pad negative prompts to match batch size
-            if len(negative_prompts) < len(positive_prompts):
-                for idx in range(len(positive_prompts) - len(negative_prompts)):
-                    negative_prompts.append('')
+            #if len(negative_prompts) < len(positive_prompts):
+            #    for idx in range(len(positive_prompts) - len(negative_prompts)):
+            #        negative_prompts.append('')
 
             images = self.pipe(
                 prompt=positive_prompts, 

@@ -12,6 +12,8 @@ UCLASS()
 class STABLEDIFFUSIONSEQUENCER_API UStableDiffusionPromptMovieSceneSection : public UMovieSceneSection
 {
 	GENERATED_BODY()
+	UStableDiffusionPromptMovieSceneSection(const FObjectInitializer& ObjectInitializer);
+
 public:
 
 	UPROPERTY(EditAnywhere, meta = (Multiline = true, ShowOnlyInnerProperties))
