@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class StableDiffusionTools : ModuleRules
+public class StableDiffusionSequencer: ModuleRules
 {
-	public StableDiffusionTools(ReadOnlyTargetRules Target) : base(Target)
+	public StableDiffusionSequencer(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
@@ -18,6 +18,7 @@ public class StableDiffusionTools : ModuleRules
 		PrivateIncludePaths.AddRange(
 			new string[] {
 				// ... add other private include paths required here ...
+				"../StableDiffusionTools/Public"
 			}
 			);
 			
@@ -38,26 +39,22 @@ public class StableDiffusionTools : ModuleRules
 				"InputCore",
 				"EditorFramework",
 				"UnrealEd",
-				"ToolMenus",
 				"CoreUObject",
 				"Engine",
 				"Slate",
 				"SlateCore",
-				"Blutility",
 				"UMG",
 				"AssetRegistry",
-				"EditorSubsystem",
 				"MovieSceneCapture",
-				"RemoteSession",
-				"LevelEditor",
-				"PythonScriptPlugin",
-				"DesktopPlatform",
 				"MovieRenderPipelineRenderPasses",
 				"MovieRenderPipelineSettings",
 				"MovieRenderPipelineCore",
+				"MovieScene",
+				"MovieSceneTracks",
 				"ImageWriteQueue",
 				"RHI",
-				"RenderCore"
+				"RenderCore",
+				"StableDiffusionTools"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

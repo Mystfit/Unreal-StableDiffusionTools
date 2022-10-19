@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class StableDiffusionTools : ModuleRules
+public class StableDiffusionToolsEditor : ModuleRules
 {
-	public StableDiffusionTools(ReadOnlyTargetRules Target) : base(Target)
+	public StableDiffusionToolsEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
@@ -57,7 +57,8 @@ public class StableDiffusionTools : ModuleRules
 				"MovieRenderPipelineCore",
 				"ImageWriteQueue",
 				"RHI",
-				"RenderCore"
+				"RenderCore",
+				"StableDiffusionTools"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

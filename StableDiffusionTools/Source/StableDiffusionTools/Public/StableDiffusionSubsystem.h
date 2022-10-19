@@ -16,7 +16,9 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FImageGenerationComplete, FStableDiffusionIm
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FImageGenerationCompleteEx, FStableDiffusionImageResult, Result);
 //DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FImageProgressEx, int32, Step, int32, Timestep, UTexture2D*, Texture);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FModelInitialized, bool, Success);
+DECLARE_MULTICAST_DELEGATE_OneParam(FModelInitialized, bool);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FModelInitializedEx, bool, Success);
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDependenciesInstalled, bool, Success);
 
 
@@ -50,13 +52,18 @@ public:
 	bool LoginHuggingFaceUsingToken(const FString& token);
 
 	UFUNCTION(BlueprintCallable)
-	void InitModel(const FString& ModelName, const FString& Precision, const FString& Revision);
+	void InitModel(const FStableDiffusionModelOptions& Model, bool Async);
 
 	UFUNCTION(BlueprintCallable)
 	void StartCapturingViewport(FIntPoint Size);
 
+	//UFUNCTION(BlueprintCallable)
+	//void GenerateImage(const TArray<FPrompt>& PositivePrompts, const TArray<FPrompt>& NegativePrompts, FIntPoint Size, float InputStrength, int32 Iterations, int32 Seed);
+
 	UFUNCTION(BlueprintCallable)
-	void GenerateImage(const FString& Prompt, FIntPoint Size, float InputStrength, int32 Iterations, int32 Seed);
+	void GenerateImage(FStableDiffusionInput Input, bool FromViewport = true);
+
+	//void GenerateImage(const FString& Prompt, FIntPoint Size, float InputStrength, int32 Iterations, int32 Seed);
 
 	UFUNCTION(BlueprintCallable)
 	bool SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture);
@@ -70,6 +77,9 @@ public:
 	UPROPERTY(BlueprintReadOnly)
 	bool ModelInitialised;
 
+	UPROPERTY(BlueprintReadOnly)
+	FStableDiffusionModelOptions ModelOptions;
+
 	UPROPERTY(EditAnywhere)
 	TObjectPtr<UStableDiffusionBridge> GeneratorBridge;
 
@@ -79,6 +89,8 @@ public:
 	FImageGenerationCompleteEx OnImageGenerationCompleteEx;
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion")
+	FModelInitializedEx OnModelInitializedEx;
+	
 	FModelInitialized OnModelInitialized;
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion")

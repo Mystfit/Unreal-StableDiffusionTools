@@ -1,9 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "StableDiffusionTools.h"
+#include "StableDiffusionToolsEditor.h"
 #include "StableDiffusionToolsStyle.h"
 #include "StableDiffusionToolsCommands.h"
-#include "StableDiffusionSubsystem.h"
 
 #include "LevelEditor.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -16,9 +15,9 @@
 
 static const FName StableDiffusionToolsTabName("StableDiffusionTools");
 
-#define LOCTEXT_NAMESPACE "FStableDiffusionToolsModule"
+#define LOCTEXT_NAMESPACE "FStableDiffusionToolsEditorModule"
 
-void FStableDiffusionToolsModule::StartupModule()
+void FStableDiffusionToolsEditorModule::StartupModule()
 {
 	FStableDiffusionToolsStyle::Initialize();
 	FStableDiffusionToolsStyle::ReloadTextures();
@@ -27,17 +26,17 @@ void FStableDiffusionToolsModule::StartupModule()
 	PluginCommands = MakeShareable(new FUICommandList);
 	PluginCommands->MapAction(
 		FStableDiffusionToolsCommands::Get().OpenPluginWindow,
-		FExecuteAction::CreateRaw(this, &FStableDiffusionToolsModule::PluginButtonClicked),
+		FExecuteAction::CreateRaw(this, &FStableDiffusionToolsEditorModule::PluginButtonClicked),
 		FCanExecuteAction());
 
-	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FStableDiffusionToolsModule::RegisterMenus));
+	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FStableDiffusionToolsEditorModule::RegisterMenus));
 	
-	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(StableDiffusionToolsTabName, FOnSpawnTab::CreateRaw(this, &FStableDiffusionToolsModule::OnSpawnPluginTab))
-		.SetDisplayName(LOCTEXT("FStableDiffusionToolsTabTitle", "StableDiffusionTools"))
+	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(StableDiffusionToolsTabName, FOnSpawnTab::CreateRaw(this, &FStableDiffusionToolsEditorModule::OnSpawnPluginTab))
+		.SetDisplayName(LOCTEXT("FStableDiffusionToolsTabTitle", "Stable Diffusion Tools"))
 		.SetMenuType(ETabSpawnerMenuType::Hidden);
 }
 
-void FStableDiffusionToolsModule::ShutdownModule()
+void FStableDiffusionToolsEditorModule::ShutdownModule()
 {
 	UToolMenus::UnRegisterStartupCallback(this);
 
@@ -50,16 +49,17 @@ void FStableDiffusionToolsModule::ShutdownModule()
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(StableDiffusionToolsTabName);
 }
 
-TSharedRef<SDockTab> FStableDiffusionToolsModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
+TSharedRef<SDockTab> FStableDiffusionToolsEditorModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
 {
-	auto DockTab = SNew(SDockTab)
-		.TabRole(ETabRole::NomadTab);
+	auto DockTab = SNew(SDockTab).TabRole(ETabRole::NomadTab);// .ShouldAutosize(true);
 
-	TSubclassOf<UEditorUtilityWidget> WidgetClass;
 	const FAssetRegistryModule & AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	auto Data = AssetRegistry.Get().GetAssetByObjectPath("/StableDiffusionTools/UI/Widgets/BP_StableDiffusionViewportWidget.BP_StableDiffusionViewportWidget");
+	FString EditorUIPackage = "/StableDiffusionTools/UI/Widgets/BP_StableDiffusionViewportWidget";
+	AssetRegistry.Get().ScanFilesSynchronous({ FPackageName::LongPackageNameToFilename(EditorUIPackage, FPackageName::GetAssetPackageExtension())});
+	auto Data = AssetRegistry.Get().GetAssetByObjectPath(FName(EditorUIPackage.Append(".BP_StableDiffusionViewportWidget")));
 	check(Data.IsValid());
 
+	TSubclassOf<UEditorUtilityWidget> WidgetClass;
 	if (Data.AssetName.ToString().Equals(TEXT("BP_StableDiffusionViewportWidget"), ESearchCase::CaseSensitive))
 	{
 		UBlueprint* BP = Cast<UBlueprint>(Data.GetAsset());
@@ -70,7 +70,6 @@ TSharedRef<SDockTab> FStableDiffusionToolsModule::OnSpawnPluginTab(const FSpawnT
 			}
 		}
 	}
-	
 
 	UWorld* World = GEditor->GetEditorWorldContext().World();
 	check(World);
@@ -84,12 +83,12 @@ TSharedRef<SDockTab> FStableDiffusionToolsModule::OnSpawnPluginTab(const FSpawnT
 	return DockTab;
 }
 
-void FStableDiffusionToolsModule::PluginButtonClicked()
+void FStableDiffusionToolsEditorModule::PluginButtonClicked()
 {
 	FGlobalTabmanager::Get()->TryInvokeTab(StableDiffusionToolsTabName);
 }
 
-void FStableDiffusionToolsModule::RegisterMenus()
+void FStableDiffusionToolsEditorModule::RegisterMenus()
 {
 	// Owner will be used for cleanup in call to UToolMenus::UnregisterOwner
 	FToolMenuOwnerScoped OwnerScoped(this);
@@ -116,4 +115,4 @@ void FStableDiffusionToolsModule::RegisterMenus()
 
 #undef LOCTEXT_NAMESPACE
 	
-IMPLEMENT_MODULE(FStableDiffusionToolsModule, StableDiffusionTools)
+IMPLEMENT_MODULE(FStableDiffusionToolsEditorModule, StableDiffusionToolsEditor)

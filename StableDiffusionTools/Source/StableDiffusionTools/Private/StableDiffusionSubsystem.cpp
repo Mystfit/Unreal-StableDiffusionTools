@@ -85,15 +85,31 @@ bool UStableDiffusionSubsystem::LoginHuggingFaceUsingToken(const FString& token)
 	return IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
 }
 
-void UStableDiffusionSubsystem::InitModel(const FString& ModelName, const FString& Precision, const FString& Revision)
+void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, bool Async)
 {
 	if (GeneratorBridge) {
-		AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, ModelName, Precision, Revision](){
-			this->ModelInitialised = this->GeneratorBridge->InitModel(ModelName, Precision, Revision);
+		if (Async) {
+			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model]() {
+				this->ModelInitialised = this->GeneratorBridge->InitModel(Model);
+				if (this->ModelInitialised)
+					ModelOptions = Model;
+
+				AsyncTask(ENamedThreads::GameThread, [this]() {
+					this->OnModelInitialized.Broadcast(this->ModelInitialised);
+					this->OnModelInitializedEx.Broadcast(this->ModelInitialised);
+					});
+				});
+		}
+		else {
+			this->ModelInitialised = this->GeneratorBridge->InitModel(Model);
+			if (this->ModelInitialised)
+				ModelOptions = Model;
+
 			AsyncTask(ENamedThreads::GameThread, [this]() {
 				this->OnModelInitialized.Broadcast(this->ModelInitialised);
+				this->OnModelInitializedEx.Broadcast(this->ModelInitialised);
 			});
-		});
+		}
 	}
 }
 
@@ -146,14 +162,13 @@ void UStableDiffusionSubsystem::StartCapturingViewport(FIntPoint Size)
 	SetCaptureViewport(OutSceneViewport.ToSharedRef(), OutSceneViewport->GetSize());
 }
 
-
 void UStableDiffusionSubsystem::SetCaptureViewport(TSharedRef<FSceneViewport> Viewport, FIntPoint FrameSize)
 {
 	ViewportCapture = MakeShared<FFrameGrabber>(Viewport, FrameSize);
 	ViewportCapture->StartCapturingFrames();
 }
 
-void UStableDiffusionSubsystem::GenerateImage(const FString& Prompt, FIntPoint Size, float InputStrength, int32 Iterations, int32 Seed)
+void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool FromViewport)
 {
 	// Remember prior screen message state and disable it so our viewport is clean
 	bool bPrevGScreenMessagesEnabled = GAreScreenMessagesEnabled;
@@ -175,7 +190,7 @@ void UStableDiffusionSubsystem::GenerateImage(const FString& Prompt, FIntPoint S
 
 #endif
 
-	StartCapturingViewport(Size);
+	StartCapturingViewport(FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY));
 
 	if (!ViewportCapture || ActiveEndframeHandler.IsValid())
 		return;
@@ -185,7 +200,7 @@ void UStableDiffusionSubsystem::GenerateImage(const FString& Prompt, FIntPoint S
 
 	// Create a frame payload we will wait on to be filled with a frame
 	auto framePtr = MakeShared<FCapturedFramePayload>();
-	framePtr->OnFrameCapture.AddLambda([this, Prompt, Size, InputStrength, Iterations, Seed, bPrevGScreenMessagesEnabled, bPrevViewportGameViewEnabled, LevelEditorSubsystem](FColor* Pixels, FIntPoint BufferSize, FIntPoint TargetSize)
+	framePtr->OnFrameCapture.AddLambda([=](FColor* Pixels, FIntPoint BufferSize, FIntPoint TargetSize) mutable
 	{
 		// Restore screen messages and UI
 		GAreScreenMessagesEnabled = bPrevGScreenMessagesEnabled;
@@ -194,12 +209,17 @@ void UStableDiffusionSubsystem::GenerateImage(const FString& Prompt, FIntPoint S
 
 		// Copy frame data
 		TArray<FColor> CopiedFrame = CopyFrameData(TargetSize, BufferSize, Pixels);
+		Input.InputImagePixels = MoveTempIfPossible(CopiedFrame);
+
+		// Set size from viewport
+		Input.Options.InSizeX = FromViewport ? TargetSize.X : Input.Options.InSizeX;
+		Input.Options.InSizeY = FromViewport ? TargetSize.Y : Input.Options.InSizeY;
 
 		// Generate the image on a background thread
-		AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Prompt, TargetSize, Size, InputStrength, Iterations, Seed, Framedata=CopiedFrame]()
+		AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Input]()
 		{
-			FStableDiffusionImageResult result;
-			result = this->GeneratorBridge->GenerateImageFromStartImage(Prompt, TargetSize.X, TargetSize.Y, Size.X, Size.Y, Framedata, TArray<FColor>(), InputStrength, Iterations, Seed);
+			// Generate image
+			FStableDiffusionImageResult result = this->GeneratorBridge->GenerateImageFromStartImage(Input);
 
 			// Create generated texture on game thread
 			AsyncTask(ENamedThreads::GameThread, [this, result]
@@ -245,7 +265,6 @@ bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, con
 
 	return bSaved;
 }
-
 
 void UStableDiffusionSubsystem::UpdateImageProgress(int32 Step, int32 Timestep, FIntPoint Size, const TArray<FColor>& PixelData)
 {

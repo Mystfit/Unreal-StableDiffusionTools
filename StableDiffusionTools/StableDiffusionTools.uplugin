@@ -25,13 +25,32 @@
 		{
 			"Name": "PythonScriptPlugin",
 			"Enabled": true
+		},
+		{
+			"Name": "MovieRenderPipeline",
+			"Enabled": true
 		}
 	],
 	"Modules": [
 		{
 			"Name": "StableDiffusionTools",
 			"Type": "Editor",
-			"LoadingPhase": "PostDefault"
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "StableDiffusionToolsEditor",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
+		},
+		{
+			"Name": "StableDiffusionSequencer",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "StableDiffusionSequencerEditor",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
 		}
 	]
 }

@@ -10,7 +10,7 @@
  *
  */
 UCLASS(BlueprintType)
-class STABLEDIFFUSIONTOOLS_API UStableDiffusionViewportWidget : public UEditorUtilityWidget
+class STABLEDIFFUSIONTOOLSEDITOR_API UStableDiffusionViewportWidget : public UEditorUtilityWidget
 {
 	GENERATED_BODY()
 
