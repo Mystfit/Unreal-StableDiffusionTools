@@ -127,12 +127,12 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             print("Failed to init Stable Diffusion Img2Image pipeline. Exception was {0}".format(e))
         return result
     
-   try:
-        if getattr(self, "upsampler", None) is None:
-            self.upsampler = RealESRGANModel.from_pretrained("nateraw/real-esrgan")
-        self.upsampler.to("cuda")
-   except Exception as e:
-        print("Could not load upsampler. Exception was ".format(e))
+       try:
+            if getattr(self, "upsampler", None) is None:
+                self.upsampler = RealESRGANModel.from_pretrained("nateraw/real-esrgan")
+            self.upsampler.to("cuda")
+       except Exception as e:
+            print("Could not load upsampler. Exception was ".format(e))
 
         
     @unreal.ufunction(override=True)
