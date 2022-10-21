@@ -1,3 +1,5 @@
+# Original file from https://github.com/nateraw/stable-diffusion-videos licensed under Apache 2.0
+
 from pathlib import Path
 
 import cv2
