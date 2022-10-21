@@ -11,13 +11,16 @@ struct STABLEDIFFUSIONTOOLS_API FStableDiffusionModelOptions
 	GENERATED_BODY()
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		FString Model;
+		FString Model = "CompVis/stable-diffusion-v1-4";
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		FString Revision;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		FString Precision;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+		FString CustomPipeline = "waifu-research-department/long-prompt-weighting-pipeline";
 
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
 	{
