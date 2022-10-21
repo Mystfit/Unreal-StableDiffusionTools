@@ -7,7 +7,8 @@ pip_dependencies = [
     "diffusers",
     "transformers",
     "scipy",
-    "ftfy"
+    "ftfy",
+    "realesrgan"
 ]
 
 def install_dependencies(pip_dependencies):
