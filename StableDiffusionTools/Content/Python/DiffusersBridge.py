@@ -168,11 +168,13 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 guidance_scale=input.options.guidance_scale, 
                 callback=self.ImageProgressStep, 
                 callback_steps=10).images
-            image = image[0] if not upsample else self.upsampler(image[0])
+            image = image[0] if not input.upsample else self.upsampler(image[0])
 
         result = unreal.StableDiffusionImageResult()
         result.input = input
         result.pixel_data =  PILImageToFColorArray(image.convert("RGBA"))
+        result.out_width = image.width
+        result.out_height = image.height
         result.generated_texture = None
         return result
 
