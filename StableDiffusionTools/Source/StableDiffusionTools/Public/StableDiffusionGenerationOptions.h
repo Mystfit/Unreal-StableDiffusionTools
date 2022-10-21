@@ -20,7 +20,7 @@ public:
 		FString Precision;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		FString CustomPipeline = "waifu-research-department/long-prompt-weighting-pipeline";
+		FString CustomPipeline = "lpw_stable_diffusion";
 
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
 	{
