@@ -102,10 +102,13 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         modelname = model_options.model if model_options.model else "CompVis/stable-diffusion-v1-4"
         kwargs = {
             "torch_dtype": torch.float32 if model_options.precision == "fp32" else torch.float16,
-            "use_auth_token": True
+            "use_auth_token": True,
         }
+        
         if model_options.revision:
             kwargs["revision"] = model_options.revision
+        if custom_pipeline:
+            kwargs["custom_pipeline"] = = model_options.custom_pipeline
 
         try:
             print("Loading Stable Diffusion model " + modelname)
@@ -140,10 +143,12 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             #    for idx in range(len(positive_prompts) - len(negative_prompts)):
             #        negative_prompts.append('')
 
-            images = self.pipe(
+            images = self.pipe.img2img(
                 prompt=positive_prompts, 
                 negative_prompt=negative_prompts,
                 init_image=guide_img, 
+                width=input.options.out_size_x,
+                height=input.options.out_size_y,
                 strength=input.options.strength, 
                 num_inference_steps=input.options.iterations, 
                 generator=generator, 
