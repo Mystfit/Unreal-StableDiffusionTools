@@ -7,6 +7,11 @@ from PIL import Image
 from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline
 from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray
 
+try:
+    from .upsampling import RealESRGANModel
+except ImportError as e:
+    print("Could not import RealESRGAN upsampler")
+
 
 def preprocess_init_image(image: Image, width: int, height: int):
     image = image.resize((width, height), resample=Image.LANCZOS)
@@ -121,7 +126,15 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         except Exception as e:
             print("Failed to init Stable Diffusion Img2Image pipeline. Exception was {0}".format(e))
         return result
+    
+   try:
+        if getattr(self, "upsampler", None) is None:
+            self.upsampler = RealESRGANModel.from_pretrained("nateraw/real-esrgan")
+        self.upsampler.to("cuda")
+   except Exception as e:
+        print("Could not load upsampler. Exception was ".format(e))
 
+        
     @unreal.ufunction(override=True)
     def GenerateImageFromStartImage(self, input):
         with autocast("cuda"):
@@ -155,10 +168,11 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 guidance_scale=input.options.guidance_scale, 
                 callback=self.ImageProgressStep, 
                 callback_steps=10).images
+            image = image[0] if not upsample else self.upsampler(image[0])
 
         result = unreal.StableDiffusionImageResult()
         result.input = input
-        result.pixel_data =  PILImageToFColorArray(images[0].convert("RGBA"))
+        result.pixel_data =  PILImageToFColorArray(image.convert("RGBA"))
         result.generated_texture = None
         return result
 
