@@ -14,6 +14,12 @@ public:
 
     UPROPERTY(BlueprintReadWrite)
     TArray<FColor> PixelData;
+    
+    UPROPERTY(BlueprintReadWrite)
+    int32 OutWidth;
+    
+    UPROPERTY(BlueprintReadWrite)
+    int32 OutHeight
 
     UPROPERTY(BlueprintReadWrite)
     UTexture2D* GeneratedTexture;
