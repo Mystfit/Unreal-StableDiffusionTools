@@ -5,7 +5,14 @@ Description
 -----------
 This plugin feeds your editor viewport through the [Diffusers](https://github.com/huggingface/diffusers) library to create AI synthesized imagery.
 
-![StableDIffusionPluginUnreal](https://user-images.githubusercontent.com/795851/195005569-b7b33432-a981-4f76-81d5-d9948861fd84.png)
+![StableDiffusionPluginUnreal](https://user-images.githubusercontent.com/795851/195005569-b7b33432-a981-4f76-81d5-d9948861fd84.png)
+
+Requirements
+------------
+
+* Unreal Engine 5.0
+* CUDA compatible GPU (Nvidia)
+* Minimum 6GB Vram (to run Unreal and fp16 Stable Diffusion simultaneously)
 
 
 Installation
@@ -23,6 +30,10 @@ After installing the plugin, access the Stable Diffusion Tools window in your ed
 The first time you use the plugin you will need to install the required python dependencies using the `Update/Install dependencies` button in the Dependencies section. You may need to restart the Unreal Editor the first time you install dependencies.
 
 ### Models
+
+![androidquinn](https://user-images.githubusercontent.com/795851/197150314-1b2fee89-3670-47ff-a9ab-473243ba544c.gif)
+
+
 To download a model from [huggingface.co](https://huggingface.co), you will need an account and a token with read permissions. The button next to the token input in the `Models` section will open a browser window that will take you to the token creation page if you are logged in to huggingface.co, or you can visit [this link.](https://huggingface.co/settings/tokens)
 
 You can use any diffusers based model from [the diffusers category on huggingface.co.](https://huggingface.co/models?library=diffusers) To choose a model, enter it in the format `Username/Modelname`. To use the default model, you need to vist the [model card page](https://huggingface.co/CompVis/stable-diffusion-v1-4) and accept the usage agreement in order to download the weights. 
@@ -65,7 +76,6 @@ Click `Render (local)` to render your stable diffusion animation. If you haven't
 
 * Fix texture memory usage.
 * Panning the generated image only works when grabbing it from the upper right quarter.
-* Downloaded models are not pulling git lfs files for some reason.
 * You may have to restart the editor after installing dependencies.
 * No persistence for fields in the editor. These will eventually be stored in a data asset.
 
