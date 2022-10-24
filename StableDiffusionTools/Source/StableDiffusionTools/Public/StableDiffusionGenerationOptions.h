@@ -11,7 +11,7 @@ struct STABLEDIFFUSIONTOOLS_API FStableDiffusionModelOptions
 	GENERATED_BODY()
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		FString Model = "CompVis/stable-diffusion-v1-4";
+		FString Model;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		FString Revision;
@@ -20,7 +20,14 @@ public:
 		FString Precision;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		FString CustomPipeline = "lpw_stable_diffusion";
+		FString CustomPipeline;
+
+	/* 
+	Padding mode to use for image 2D convulution. Valid options are 'zeros', 'reflect', 'replicate' or 'circular'. 
+	See https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+		FString PaddingMode = "zeros";
 
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
 	{
@@ -50,6 +57,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	int32 Seed = -1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	bool Upscale = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	int32 InSizeX = -1;

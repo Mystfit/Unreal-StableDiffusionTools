@@ -95,7 +95,6 @@ void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Mo
 					ModelOptions = Model;
 
 				AsyncTask(ENamedThreads::GameThread, [this]() {
-					this->OnModelInitialized.Broadcast(this->ModelInitialised);
 					this->OnModelInitializedEx.Broadcast(this->ModelInitialised);
 					});
 				});
@@ -106,11 +105,15 @@ void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Mo
 				ModelOptions = Model;
 
 			AsyncTask(ENamedThreads::GameThread, [this]() {
-				this->OnModelInitialized.Broadcast(this->ModelInitialised);
 				this->OnModelInitializedEx.Broadcast(this->ModelInitialised);
 			});
 		}
 	}
+}
+
+void UStableDiffusionSubsystem::ReleaseModel()
+{
+	GeneratorBridge->ReleaseModel();
 }
 
 void UStableDiffusionSubsystem::StartCapturingViewport(FIntPoint Size)
@@ -224,7 +227,6 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool 
 			// Create generated texture on game thread
 			AsyncTask(ENamedThreads::GameThread, [this, result]
 			{
-				this->OnImageGenerationComplete.Broadcast(result);
 				this->OnImageGenerationCompleteEx.Broadcast(result);
 				
 				// Cleanup
@@ -238,6 +240,16 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool 
 
 	// Start frame capture
 	ViewportCapture->CaptureThisFrame(framePtr);
+}
+
+void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult& input)
+{
+	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, input](){
+		auto result = GeneratorBridge->UpsampleImage(input);
+		AsyncTask(ENamedThreads::GameThread, [this, result=MoveTemp(result)]() {
+			OnImageUpsampleCompleteEx.Broadcast(result);
+		});
+	});
 }
 
 bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture)

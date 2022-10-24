@@ -26,16 +26,17 @@ public:
 
 
     /** Python stable diffusion implementable functions */
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+        bool InitModel(const FStableDiffusionModelOptions& ModelOptions);
 
-    UFUNCTION(BlueprintImplementableEvent, Category = StableDiffusion)
-    FString GetPythonID();
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    void ReleaseModel();
 
-    UFUNCTION(BlueprintImplementableEvent, Category = StableDiffusion)
-    bool InitModel(const FStableDiffusionModelOptions& ModelOptions);
-
-    UFUNCTION(BlueprintImplementableEvent, Category = StableDiffusion)
-    //FStableDiffusionImageResult GenerateImageFromStartImage(const FString& PositivePrompts, int32 InFrameWidth, int32 InFrameHeight, int32 OutFrameWidth, int32 OutFrameHeight, const TArray<FColor>& GuideFrame, const TArray<FColor>& MaskFrame, float Strength, int32 Iterations, int32 Seed) const;
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     FStableDiffusionImageResult GenerateImageFromStartImage(const FStableDiffusionInput& InputOptions) const;
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    FStableDiffusionImageResult UpsampleImage(const FStableDiffusionImageResult& input_result) const;
 
     UFUNCTION(BlueprintCallable)
     void UpdateImageProgress(FString prompt, int32 step, int32 timestep, int32 width, int32 height, const TArray<FColor>& FrameColors);

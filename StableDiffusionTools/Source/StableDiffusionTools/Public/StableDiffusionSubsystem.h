@@ -14,7 +14,6 @@ DECLARE_MULTICAST_DELEGATE_ThreeParams(FFrameCaptureComplete, FColor*, FIntPoint
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FImageGenerationComplete, FStableDiffusionImageResult);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FImageGenerationCompleteEx, FStableDiffusionImageResult, Result);
-//DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FImageProgressEx, int32, Step, int32, Timestep, UTexture2D*, Texture);
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FModelInitialized, bool);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FModelInitializedEx, bool, Success);
@@ -36,84 +35,82 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionSubsystem : public UEditorSubsyst
 {
 	GENERATED_BODY()
 public:
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
 	bool DependenciesAreInstalled();
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
 	void InstallDependencies();
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	bool HasHuggingFaceToken();
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	FString GetHuggingfaceToken();
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	bool LoginHuggingFaceUsingToken(const FString& token);
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	void InitModel(const FStableDiffusionModelOptions& Model, bool Async);
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
+	void ReleaseModel();
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	void StartCapturingViewport(FIntPoint Size);
 
-	//UFUNCTION(BlueprintCallable)
-	//void GenerateImage(const TArray<FPrompt>& PositivePrompts, const TArray<FPrompt>& NegativePrompts, FIntPoint Size, float InputStrength, int32 Iterations, int32 Seed);
-
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
 	void GenerateImage(FStableDiffusionInput Input, bool FromViewport = true);
 
-	//void GenerateImage(const FString& Prompt, FIntPoint Size, float InputStrength, int32 Iterations, int32 Seed);
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
+	void UpsampleImage(const FStableDiffusionImageResult& input);
 
-	UFUNCTION(BlueprintCallable)
+	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Outputs")
+	FImageGenerationCompleteEx OnImageUpsampleCompleteEx;
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
 	bool SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture);
 
-	UFUNCTION(BLueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Utilities")
 	FString OpenImageFilePicker(const FString& StartDir);
 
-	UFUNCTION(BLueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Utilities")
 	FString FilepathToLongPackagePath(const FString& Path);
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Model")
 	bool ModelInitialised;
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Model")
 	FStableDiffusionModelOptions ModelOptions;
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Generation")
 	TObjectPtr<UStableDiffusionBridge> GeneratorBridge;
 
-	FImageGenerationComplete OnImageGenerationComplete;
-
-	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion")
+	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Generation")
 	FImageGenerationCompleteEx OnImageGenerationCompleteEx;
 
-	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion")
+	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Model")
 	FModelInitializedEx OnModelInitializedEx;
 	
-	FModelInitialized OnModelInitialized;
-
-	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion")
+	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Dependencies")
 	FDependenciesInstalled OnDependenciesInstalled;
 
-	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion")
+	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Generation")
 	FImageProgressEx OnImageProgressUpdated;
 
-	UFUNCTION()
-	void UpdateImageProgress(int32 Step, int32 Timestep, FIntPoint Size, const TArray<FColor>& PixelData);
-
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
 	UTexture2D* ColorBufferToTexture(const FString& FrameName, const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture);
 
-	UTexture2D* ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTexture);
-
-	TArray<FColor> CopyFrameData(FIntPoint TargetSize, FIntPoint BufferSize, FColor* ColorBuffer);
+protected:
+	UFUNCTION(Category = "StableDiffusion|Generation")
+	void UpdateImageProgress(int32 Step, int32 Timestep, FIntPoint Size, const TArray<FColor>& PixelData);
 
 private:
+	// Viewport capture
 	void SetCaptureViewport(TSharedRef<FSceneViewport> Viewport, FIntPoint FrameSize);
 	TSharedPtr<FFrameGrabber> ViewportCapture;
-
-	FString CurrentBridgeID;
-	
 	FDelegateHandle ActiveEndframeHandler;
+
+	TArray<FColor> CopyFrameData(FIntPoint TargetSize, FIntPoint BufferSize, FColor* ColorBuffer);
+	UTexture2D* ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTexture);
 };

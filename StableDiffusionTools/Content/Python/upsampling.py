@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
-import cv2
 from PIL import Image
 from huggingface_hub import hf_hub_download
 from torch import nn
+import numpy
 
 try:
     from realesrgan import RealESRGANer
@@ -46,15 +46,9 @@ class RealESRGANModel(nn.Module):
         Returns:
             Union[np.ndarray, PIL.Image.Image]: An upsampled version of the input image.
         """
-        if isinstance(image, (str, Path)):
-            img = cv2.imread(image, cv2.IMREAD_UNCHANGED)
-        else:
-            img = image
-            img = (img * 255).round().astype("uint8")
-            img = img[:, :, ::-1]
-
+        img = numpy.array(image)
+        img = img[:, :, ::-1]
         image, _ = self.upsampler.enhance(img, outscale=outscale)
-
         if convert_to_pil:
             image = Image.fromarray(image[:, :, ::-1])
 

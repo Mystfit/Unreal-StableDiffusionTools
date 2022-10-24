@@ -15,17 +15,11 @@ class STABLEDIFFUSIONTOOLSEDITOR_API UStableDiffusionViewportWidget : public UEd
 	GENERATED_BODY()
 
 public:
-	/*virtual void NativeConstruct() override;
-
-	virtual TSharedRef<SWidget> RebuildWidget() override;*/
 	UFUNCTION(BlueprintCallable)
 	UStableDiffusionSubsystem* GetStableDiffusionSubsystem();
 
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidget))
 	UImage* ViewportImage;
-
-	UFUNCTION(BlueprintCallable)
-	void UpdateViewportImage(const FString& Prompt, FIntPoint Size, const TArray<FColor>& PixelData);
 
 private:
 	TObjectPtr<UTexture2D> DisplayedTexture;

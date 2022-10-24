@@ -38,6 +38,6 @@ class STABLEDIFFUSIONTOOLS_API UPromptAsset : public UDataAsset
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Prompts")
 	TArray<FPrompt> Prompts;
 };
