@@ -15,25 +15,13 @@ class STABLEDIFFUSIONSEQUENCER_API UStableDiffusionPromptMovieSceneSection : pub
 	UStableDiffusionPromptMovieSceneSection(const FObjectInitializer& ObjectInitializer);
 
 public:
-
-	UPROPERTY(EditAnywhere, meta = (Multiline = true, ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer", meta = (Multiline = true, ShowOnlyInnerProperties))
 	FPrompt Prompt;
 
-	/**
-	 * Public access to this section's internal data function
-	 */
 	const FMovieSceneFloatChannel& GetWeightChannel() const { return Weight; }
-	const FMovieSceneIntegerChannel& GetRepeatsChannel() const { return Repeats; }
-
-protected:
-
-	UPROPERTY()
-	FMovieSceneFloatChannel Weight;
-
-	UPROPERTY()
-	FMovieSceneIntegerChannel Repeats;
 
 private:
-
+	UPROPERTY()
+	FMovieSceneFloatChannel Weight;
 	virtual EMovieSceneChannelProxyType CacheChannelProxy() override;
 };

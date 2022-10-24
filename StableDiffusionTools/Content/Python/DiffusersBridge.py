@@ -106,8 +106,17 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         seed = torch.random.seed() if input.options.seed < 0 else input.options.seed
 
         # Split prompts in case commas have snuck in
-        positive_prompts = ", ".join([split_p.strip() for p in input.options.positive_prompts for split_p in p.prompt.split(",")])
-        negative_prompts = ", ".join([split_p.strip() for p in input.options.negative_prompts for split_p in p.prompt.split(",")])
+
+        #positive_prompts = []
+        #for prompt in input.options.positive_prompts:
+        #    positive_prompts.append(" ".join([f"({p}:{prompt.weight})" for p in prompt.prompt.split(" ")]))
+
+        #negative_prompts = []
+        #for prompt in input.options.negative_prompts:
+        #    negative_prompts.append(" ".join([f"({p}:{prompt.weight})" for p in prompt.prompt.split(" ")]))
+
+        positive_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")])
+        negative_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")])
         print(positive_prompts)
         print(negative_prompts)
 

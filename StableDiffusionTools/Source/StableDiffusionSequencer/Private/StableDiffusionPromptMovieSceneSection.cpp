@@ -3,8 +3,7 @@
 
 UStableDiffusionPromptMovieSceneSection::UStableDiffusionPromptMovieSceneSection(const FObjectInitializer& ObjectInitializer)
 {
-	Weight.SetDefault(0);
-	Repeats.SetDefault(1);
+	Weight.SetDefault(1.0f);
 }
 
 EMovieSceneChannelProxyType UStableDiffusionPromptMovieSceneSection::CacheChannelProxy()
@@ -17,15 +16,8 @@ EMovieSceneChannelProxyType UStableDiffusionPromptMovieSceneSection::CacheChanne
 		FMovieSceneChannelMetaData("Weight", FText::FromString("Weight")),
 		TMovieSceneExternalValue<float>::Make()
 	);
-
-	Channels.Add(
-		Repeats,
-		FMovieSceneChannelMetaData("Repeats", FText::FromString("Repeats")),
-		TMovieSceneExternalValue<int>::Make()
-	);
 #else
 	Channels.Add(Weight);
-	Channels.Add(Repeats);
 #endif
 	ChannelProxy = MakeShared<FMovieSceneChannelProxy>(MoveTemp(Channels));
 

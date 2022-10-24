@@ -153,28 +153,17 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			// Build combined prompt
 			TArray<FString> AccumulatedPrompt;
 			for (auto Track : PromptTracks) {
-				if (Track) {
-					for (auto Section : Track->Sections) {
-						if (Section) {
-							auto PromptSection = Cast<UStableDiffusionPromptMovieSceneSection>(Section);
-							if (PromptSection) {
-								float PromptWeight = 0.0f;
-								int  PromptRepeats = 1;
-								PromptSection->GetWeightChannel().Evaluate(EffectiveFrame, PromptWeight);
-								PromptSection->GetRepeatsChannel().Evaluate(EffectiveFrame, PromptRepeats);
+				for (auto Section : Track->Sections) {
+					if (auto PromptSection = Cast<UStableDiffusionPromptMovieSceneSection>(Section)) {
+						if (PromptSection->IsActive()) {
+							FPrompt Prompt = PromptSection->Prompt;
+							PromptSection->GetWeightChannel().Evaluate(FullFrameTime, Prompt.Weight);
 
-								// Get frame range of the section
-								auto SectionStartFrame = PromptSection->GetInclusiveStartFrame();
-								auto SectionEndFrame = PromptSection->GetExclusiveEndFrame();
-								if (SectionStartFrame < FullFrameTime && FullFrameTime < SectionEndFrame) {
-									if (PromptRepeats > 0) {
-										// For the moment since we don't have normalized per-prompt weights
-										// we repeat the same prompt multiple times to increase emphasis
-										for (size_t idx = 0; idx < PromptRepeats; ++idx) {
-											Input.Options.AddPrompt(PromptSection->Prompt);
-										}
-									}
-								}
+							// Get frame range of the section
+							auto SectionStartFrame = PromptSection->GetInclusiveStartFrame();
+							auto SectionEndFrame = PromptSection->GetExclusiveEndFrame();
+							if (SectionStartFrame < FullFrameTime && FullFrameTime < SectionEndFrame) {
+								Input.Options.AddPrompt(Prompt);
 							}
 						}
 					}

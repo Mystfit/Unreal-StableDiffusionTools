@@ -35,7 +35,7 @@
 		{
 			"Name": "StableDiffusionTools",
 			"Type": "Editor",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "PostEngineInit"
 		},
 		{
 			"Name": "StableDiffusionToolsEditor",
@@ -45,7 +45,7 @@
 		{
 			"Name": "StableDiffusionSequencer",
 			"Type": "Runtime",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "PostEngineInit"
 		},
 		{
 			"Name": "StableDiffusionSequencerEditor",

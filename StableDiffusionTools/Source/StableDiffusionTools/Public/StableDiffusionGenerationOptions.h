@@ -11,16 +11,16 @@ struct STABLEDIFFUSIONTOOLS_API FStableDiffusionModelOptions
 	GENERATED_BODY()
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		FString Model;
+		FString Model = "CompVis/stable-diffusion-v1-4";
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		FString Revision;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		FString Precision;
+		FString Precision = "fp16";
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		FString CustomPipeline;
+		FString CustomPipeline = "lpw_stable_diffusion";
 
 	/* 
 	Padding mode to use for image 2D convulution. Valid options are 'zeros', 'reflect', 'replicate' or 'circular'. 
@@ -85,17 +85,6 @@ public:
 			return;
 		}
 		PositivePrompts.Add(Prompt);
-		/*TArray<FString> SplitPrompt;
-		Prompt.Prompt.ParseIntoArray(SplitPrompt, TEXT(","));
-		for (auto PromptS : SplitPrompt) {
-			PromptS.TrimStartAndEndInline();
-			if (Prompt.Sentiment == EPromptSentiment::Negative) {
-				NegativePrompts.Add(FPrompt{ PromptS, Prompt.Sentiment, Prompt.Weight });
-			}
-			else {
-				PositivePrompts.Add(FPrompt{ PromptS, Prompt.Sentiment, Prompt.Weight });
-			}
-		}*/
 	}
 };
 
