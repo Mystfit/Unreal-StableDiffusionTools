@@ -50,7 +50,7 @@ After you click the `Generate image` button, the in-progress image will display 
 
 ### Saving results
 
-The Image outputs section contains options for saving a generated image to either a texture or an external file. Check the boxes for the assets you would like to export, enter the destination paths and the name of the image and click the `Save` button.
+The Image outputs section contains options for saving a generated image to either a texture or an external file as well as upsampling options. Enter the destination paths and the name of the image and click the `Save` button for the asset type of your choice, or upsample the output 4x first using Real-ESRGAN.
 
 ### Sequencer and exporting animations
 
@@ -64,7 +64,7 @@ The options track has 3 animatable channels, Iterations, Seed and Strength. All 
 
 To add prompts, you can create multiple prompt tracks containing multiple prompt sections. To set the prompt text, right-click on a prompt section, go to properties, and set the prompt text as well as the sentiment. A positive sentiment will tell Stable Diffusion that this prompt is something we would like to see in our generated output, whilst negative sentiments will instruct it to exclude unwanted prompts from the output.
 
-Prompt tracks have two animatable parameters. `Weight` currently does not do anything (coming in a future release) but `Repeats` will repeat a prompt section *n* times when the prompt is submitted to the generator, thus increasing its liklihood of occuing in the output.
+Prompt tracks have a single animatable parameters, `Weight`. Increasing or decreasing this value will increase or decrease the influence of the prompt in your animation.
 
 To render your animation, click the `Render movie` button to open the movie pipeline panel for your sequence. Add a `SDMoviePipelineConfig` config asset to instruct the pipeline to export a Stable Diffusion image sequence. Rendered frames by default will show up in `YourProjectFolder/Saved/MovieRenders`.
 
