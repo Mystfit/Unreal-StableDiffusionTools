@@ -16,10 +16,10 @@ class STABLEDIFFUSIONSEQUENCER_API UStableDiffusionOptionsSection : public UMovi
 	UStableDiffusionOptionsSection(const FObjectInitializer& ObjectInitializer);
 public:
 
-	UPROPERTY(EditAnywhere, meta = (Multiline = true, ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer", meta = (Multiline = true, ShowOnlyInnerProperties))
 	FStableDiffusionGenerationOptions GenerationOptions;
 
-	UPROPERTY(EditAnywhere, meta = (Multiline = true, ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer", meta = (Multiline = true, ShowOnlyInnerProperties))
 	FStableDiffusionModelOptions ModelOptions;
 
 	/**
@@ -32,13 +32,8 @@ public:
 protected:
 
 	/** Float data */
-	UPROPERTY()
 	FMovieSceneFloatChannel StrengthCurve;
-
-	UPROPERTY()
 	FMovieSceneIntegerChannel IterationsCurve;
-
-	UPROPERTY()
 	FMovieSceneIntegerChannel SeedCurve;
 	
 

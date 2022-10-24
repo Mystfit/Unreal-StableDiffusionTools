@@ -18,7 +18,7 @@ public class StableDiffusionSequencer: ModuleRules
 		PrivateIncludePaths.AddRange(
 			new string[] {
 				// ... add other private include paths required here ...
-				"../StableDiffusionTools/Public"
+				//"../StableDiffusionTools/Public"
 			}
 			);
 			

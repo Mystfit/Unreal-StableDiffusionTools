@@ -29,6 +29,6 @@ public:
 
 	static const FName GetDataTrackName();
 
-	UPROPERTY()
-		TArray<UMovieSceneSection*> Sections;
+	UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Sequencer")
+	TArray<UMovieSceneSection*> Sections;
 };

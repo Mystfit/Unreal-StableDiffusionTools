@@ -21,13 +21,13 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionBridge : public UObject
 	GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintCallable, Category = Python)
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Python")
     static UStableDiffusionBridge* Get();
 
 
     /** Python stable diffusion implementable functions */
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
-        bool InitModel(const FStableDiffusionModelOptions& ModelOptions);
+    bool InitModel(const FStableDiffusionModelOptions& ModelOptions);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void ReleaseModel();
@@ -38,7 +38,7 @@ public:
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     FStableDiffusionImageResult UpsampleImage(const FStableDiffusionImageResult& input_result) const;
 
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
     void UpdateImageProgress(FString prompt, int32 step, int32 timestep, int32 width, int32 height, const TArray<FColor>& FrameColors);
 
     FImageProgress OnImageProgress;

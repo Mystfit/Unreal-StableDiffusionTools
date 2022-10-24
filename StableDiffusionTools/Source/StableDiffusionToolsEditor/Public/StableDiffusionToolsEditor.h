@@ -27,7 +27,7 @@ private:
 
 	TSharedRef<class SDockTab> OnSpawnPluginTab(const class FSpawnTabArgs& SpawnTabArgs);
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|UI")
 	TSubclassOf<UStableDiffusionViewportWidget> ViewportWidget;
 
 

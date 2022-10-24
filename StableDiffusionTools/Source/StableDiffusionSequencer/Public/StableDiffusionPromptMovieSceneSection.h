@@ -18,10 +18,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer", meta = (Multiline = true, ShowOnlyInnerProperties))
 	FPrompt Prompt;
 
+	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Sequencer")
 	const FMovieSceneFloatChannel& GetWeightChannel() const { return Weight; }
 
 private:
-	UPROPERTY()
 	FMovieSceneFloatChannel Weight;
 	virtual EMovieSceneChannelProxyType CacheChannelProxy() override;
 };

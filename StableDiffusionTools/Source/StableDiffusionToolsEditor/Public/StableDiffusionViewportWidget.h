@@ -15,10 +15,10 @@ class STABLEDIFFUSIONTOOLSEDITOR_API UStableDiffusionViewportWidget : public UEd
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Subsystem")
 	UStableDiffusionSubsystem* GetStableDiffusionSubsystem();
 
-	UPROPERTY(BlueprintReadOnly, meta = (BindWidget))
+	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|UI", meta = (BindWidget))
 	UImage* ViewportImage;
 
 private:
