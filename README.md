@@ -24,7 +24,7 @@ Usage
 [Video walkthrough for v0.1](https://youtu.be/dihSydSkd4I)
 
 ### Enabling the plugin
-After installing the plugin, access the Stable Diffusion Tools window in your editor via `Windows->StableDiffusionTools`.
+After installing the plugin, activate it through `Windows->Plugins`. To open the main tool window for the plugin, go to `Windows->StableDiffusionTools`.
 
 ### Dependencies
 The first time you use the plugin you will need to install the required python dependencies using the `Update/Install dependencies` button in the Dependencies section. You may need to restart the Unreal Editor the first time you install dependencies.
@@ -77,12 +77,11 @@ Click `Render (local)` to render your stable diffusion animation. If you haven't
 * Fix texture memory usage.
 * Panning the generated image only works when grabbing it from the upper right quarter.
 * You may have to restart the editor after installing dependencies.
+* When restarting the editor the may be in a broken state with `Install dependencies` the only option available to select. If this is the case, then close the StableDiffusionTools panel and re-open it.
 * No persistence for fields in the editor. These will eventually be stored in a data asset.
 
 ## Roadmap
 
-* Add prompt weighting for sequencer and standalone animations.
 * Add data assets to hold input information like prompt and seed along with the generated textures.
-* Add image upscaling.
 * Add input image masking using layers and stencil buffers.
    
