@@ -29,15 +29,13 @@ public:
 	const FMovieSceneIntegerChannel& GetIterationsChannel() const { return IterationsCurve; }
 	const FMovieSceneIntegerChannel& GetSeedChannel() const { return SeedCurve; }
 
-protected:
 
-	/** Float data */
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer")
 	FMovieSceneFloatChannel StrengthCurve;
+
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer")
 	FMovieSceneIntegerChannel IterationsCurve;
+
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer")
 	FMovieSceneIntegerChannel SeedCurve;
-	
-
-private:
-
-	//virtual EMovieSceneChannelProxyType CacheChannelProxy() override;
 };

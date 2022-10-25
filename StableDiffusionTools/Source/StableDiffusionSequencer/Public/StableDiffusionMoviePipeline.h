@@ -23,7 +23,9 @@ public:
 	{
 		PassIdentifier = FMoviePipelinePassIdentifier("StableDiffusion");
 	}
-	virtual void SetupForPipelineImpl(UMoviePipeline* InPipeline);
+	virtual void SetupForPipelineImpl(UMoviePipeline* InPipeline) override;
+	virtual void TeardownForPipelineImpl(UMoviePipeline* InPipeline) override;
+
 
 #if WITH_EDITOR
 	virtual FText GetDisplayText() const override { return NSLOCTEXT("MovieRenderPipeline", "DeferredBasePassSetting_DisplayName_StableDiffusion", "Stable Diffusion"); }

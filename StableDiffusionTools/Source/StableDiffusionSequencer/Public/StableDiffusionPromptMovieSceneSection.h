@@ -20,7 +20,9 @@ public:
 
 	const FMovieSceneFloatChannel& GetWeightChannel() const { return Weight; }
 
-private:
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer")
 	FMovieSceneFloatChannel Weight;
+
+private:
 	virtual EMovieSceneChannelProxyType CacheChannelProxy() override;
 };

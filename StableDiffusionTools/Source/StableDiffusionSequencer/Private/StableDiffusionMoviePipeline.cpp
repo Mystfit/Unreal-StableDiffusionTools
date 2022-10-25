@@ -53,6 +53,12 @@ void UStableDiffusionMoviePipeline::SetupForPipelineImpl(UMoviePipeline* InPipel
 	}
 }
 
+void UStableDiffusionMoviePipeline::TeardownForPipelineImpl(UMoviePipeline* InPipeline)
+{
+	PromptTracks.Reset();
+}
+
+
 void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipelineRenderPassMetrics& InSampleState)
 {
 	UMoviePipelineImagePassBase::RenderSample_GameThreadImpl(InSampleState);
@@ -122,10 +128,13 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			RenderTarget->ReadPixels(Input.InputImagePixels);
 
 			// Get frame time for curve evaluation
-			auto EffectiveFrame = FFrameTime(FFrameNumber(this->GetPipeline()->GetOutputState().EffectiveFrameNumber));
+			auto EffectiveFrame = FFrameNumber(this->GetPipeline()->GetOutputState().EffectiveFrameNumber);
+			auto TargetSequencer = this->GetPipeline()->GetTargetSequence();
+			auto OriginalSeqFramerateRatio = TargetSequencer->GetMovieScene()->GetDisplayRate().AsDecimal() / this->GetPipeline()->GetPipelineMasterConfig()->GetEffectiveFrameRate(TargetSequencer).AsDecimal();
 
-			// Frame number for curves includes subframes so we divide by 1000 to get the frame number
-			auto FullFrameTime = EffectiveFrame * 1000.0f;
+			// To evaluate curves we need to use the original sequence frame number. 
+			// Frame number for curves includes subframes so we also mult by 1000 to get the subframe number
+			auto FullFrameTime = EffectiveFrame * OriginalSeqFramerateRatio * 1000.0f;
 
 			if (OptionsTrack) {
 				for (auto Section : OptionsTrack->Sections) {
