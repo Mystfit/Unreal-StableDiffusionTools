@@ -7,6 +7,8 @@
 #include "IPythonScriptPlugin.h"
 #include "PythonScriptTypes.h"
 #include "LevelEditorSubsystem.h"
+#include "Subsystems/UnrealEditorSubsystem.h"
+#include "LevelEditorViewport.h"
 #include "StableDiffusionImageResult.h"
 #include "AssetRegistryModule.h"
 #include "ImageUtils.h"
@@ -200,6 +202,24 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool 
 
 	// Forward image updated event from bridge to subsystem
 	this->GeneratorBridge->OnImageProgressEx.AddUniqueDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
+
+	// Cache the camera info for decal projection later
+	auto EditorSubsystem = GEditor->GetEditorSubsystem<UUnrealEditorSubsystem>();
+	FVector3d CameraLocation = FVector::ZeroVector;
+	FRotator CameraRotation = FRotator::ZeroRotator;
+	float CameraFOV;
+	bool FoundViewport = false;
+	for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
+	{
+		if (LevelVC && LevelVC->IsPerspective())
+		{
+			CameraLocation = LevelVC->GetViewLocation();
+			CameraRotation = LevelVC->GetViewRotation();
+			CameraFOV = LevelVC->ViewFOV;
+			FoundViewport = true;
+			break;
+		}
+	}
 
 	// Create a frame payload we will wait on to be filled with a frame
 	auto framePtr = MakeShared<FCapturedFramePayload>();

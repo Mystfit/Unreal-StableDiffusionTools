@@ -1,0 +1,5 @@
+Adapted from the following sources:
+
+_Scibbler from https://forums.unrealengine.com/t/projection-mapping-technique-to-projects-video-files-on-objects/80217 for the original implementation 
+
+Dementium4ever for packaging and improving the implementation - https://github.com/ChristopherRemde/Projection_shadow
