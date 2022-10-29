@@ -155,20 +155,42 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.update_image_progress("inprogress", step, 0, image.width, image.height, pixels)
 
     @unreal.ufunction(override=True)
-    def UpsampleImage(self, image_result):
-        upsampled_image = None
-        upsampler = self.InitUpsampler()
-        
-        if upsampler:
-            image = FColorAsPILImage(image_result.pixel_data, image_result.out_width,image_result.out_height).convert("RGB")
-            
-            print(f"Upscaling image result from {image_result.out_width}:{image_result.out_height} to {image_result.out_width * 4}:{image_result.out_height * 4}")
-            upsampled_image = upsampler(image)
-     
+    def StartUpsample(self):
+        if not hasattr(self, "upsampler"):
+            self.upsampler = self.InitUpsampler()
+
+    @unreal.ufunction(override=True)
+    def StopUpsample(self):
+        if hasattr(self, "upsampler"):
             # Free VRAM after upsample
-            del upsampler
+            del self.upsampler
             torch.cuda.empty_cache()
 
+    @unreal.ufunction(override=True)
+    def UpsampleImage(self, image_result: unreal.StableDiffusionImageResult):
+        upsampled_image = None
+        active_upsampler = None
+        local_upsampler = None
+        if not self.upsampler:
+            local_upsampler = self.InitUpsampler()
+            active_upsampler = local_upsampler
+        else:
+            active_upsampler = self.upsampler
+
+        if active_upsampler:
+            if not isinstance(image_result, unreal.StableDiffusionImageResult):
+                raise ValueError(f"Wrong type passed to upscale. Expected {type(StableDiffusionImageResult)} or List. Received {type(image_result)}")
+                
+            image = FColorAsPILImage(image_result.pixel_data, image_result.out_width,image_result.out_height).convert("RGB")
+            print(f"Upscaling image result from {image_result.out_width}:{image_result.out_height} to {image_result.out_width * 4}:{image_result.out_height * 4}")
+            upsampled_image = active_upsampler(image)
+        
+        # Free local upsampler to restore VRAM
+        if local_upsampler:
+            del local_upsampler
+            torch.cuda.empty_cache()
+
+        # Build result
         result = unreal.StableDiffusionImageResult()
         result.input = image_result.input
         result.pixel_data =  PILImageToFColorArray(upsampled_image.convert("RGBA"))

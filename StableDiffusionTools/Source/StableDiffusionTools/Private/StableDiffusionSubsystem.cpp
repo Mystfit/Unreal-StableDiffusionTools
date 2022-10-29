@@ -114,6 +114,7 @@ void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Mo
 void UStableDiffusionSubsystem::ReleaseModel()
 {
 	GeneratorBridge->ReleaseModel();
+	ModelInitialised = false;
 }
 
 void UStableDiffusionSubsystem::StartCapturingViewport(FIntPoint Size)

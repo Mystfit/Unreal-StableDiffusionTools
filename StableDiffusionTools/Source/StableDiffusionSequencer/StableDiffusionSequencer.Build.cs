@@ -52,6 +52,7 @@ public class StableDiffusionSequencer: ModuleRules
 				"MovieScene",
 				"MovieSceneTracks",
 				"ImageWriteQueue",
+				"ImageWrapper",
 				"RHI",
 				"RenderCore",
 				"StableDiffusionTools"

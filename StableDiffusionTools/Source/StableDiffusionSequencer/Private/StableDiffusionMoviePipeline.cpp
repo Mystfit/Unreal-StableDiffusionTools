@@ -8,10 +8,15 @@
 #include "MoviePipeline.h"
 #include "ImageUtils.h"
 #include "EngineModule.h"
+#include "IImageWrapperModule.h"
 #include "LevelSequence.h"
+#include "Misc/FileHelper.h"
+#include "MoviePipelineOutputSetting.h"
 #include "Channels/MovieSceneChannelProxy.h"
 #include "RenderingThread.h"
 #include "GenericPlatform/GenericPlatformProcess.h"
+#include "ImageWriteTask.h"
+#include "ImageWriteQueue.h"
 
 #if WITH_EDITOR
 FText UStableDiffusionMoviePipeline::GetFooterText(UMoviePipelineExecutorJob* InJob) const {
@@ -142,7 +147,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 						auto OptionSection = Cast<UStableDiffusionOptionsSection>(Section);
 						if (OptionSection) {
 							//Reload model if it doesn't match the current options track
-							if (SDSubsystem->ModelOptions != OptionSection->ModelOptions) {
+							if (SDSubsystem->ModelOptions != OptionSection->ModelOptions || !SDSubsystem->ModelInitialised) {
 								SDSubsystem->InitModel(FStableDiffusionModelOptions{
 									OptionSection->ModelOptions.Model,
 									OptionSection->ModelOptions.Revision,
@@ -206,5 +211,77 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 
 		// Readback + Accumulate.
 		PostRendererSubmission(InSampleState, LayerPassIdentifier, GetOutputFileSortingOrder() + 1, Canvas);
+	}
+}
+
+
+void UStableDiffusionMoviePipeline::BeginExportImpl(){
+	if (!bUpscale) {
+		return;
+	}
+
+	UMoviePipelineOutputSetting* OutputSettings = GetPipeline()->GetPipelineMasterConfig()->FindSetting<UMoviePipelineOutputSetting>();
+	check(OutputSettings);
+
+	auto SDSubsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
+	check(SDSubsystem);
+
+	// Free up loaded model so we have enough VRAM to upsample
+	SDSubsystem->ReleaseModel();
+
+	auto OutputData = GetPipeline()->GetOutputDataParams();
+	for (auto shot : OutputData.ShotData) {
+		for (auto renderpass : shot.RenderPassData) {
+			// We want to persist the upsampler model so we don't have to keep reloading it every frame
+			SDSubsystem->GeneratorBridge->StartUpsample();
+
+			for (auto file : renderpass.Value.FilePaths) {
+				// Reload image from disk
+				UTexture2D* Image = FImageUtils::ImportFileAsTexture2D(file);
+				FFloat16Color* MipData = reinterpret_cast<FFloat16Color*>(Image->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_ONLY));
+				TArrayView64<FFloat16Color> SourceColors(MipData, Image->GetSizeX() * Image->GetSizeY());
+
+				// Build our upsample parameters
+				FStableDiffusionImageResult UpsampleInput;
+
+				// Convert pixels from FFloat16Color to FColor
+				UpsampleInput.PixelData.InsertUninitialized(0, SourceColors.Num());
+				for (int idx = 0; idx < SourceColors.Num(); ++idx) {
+					UpsampleInput.PixelData[idx] = SourceColors[idx].GetFloats().ToFColor(true);
+				}
+				Image->GetPlatformData()->Mips[0].BulkData.Unlock();
+
+				// Upsample the image data
+				UpsampleInput.OutWidth = Image->GetPlatformData()->SizeX;
+				UpsampleInput.OutHeight = Image->GetPlatformData()->SizeY;
+				auto UpsampleResult = SDSubsystem->GeneratorBridge->UpsampleImage(UpsampleInput);
+
+				// Build an export task that will async write the upsampled image to disk
+				TUniquePtr<FImageWriteTask> ExportTask = MakeUnique<FImageWriteTask>();
+				ExportTask->Format = EImageFormat::EXR;
+				ExportTask->CompressionQuality = (int32)EImageCompressionQuality::Default;
+				FString OutputName = FString::Printf(TEXT("%s%s.%s"), *UpscaledFramePrefix, *FPaths::GetBaseFilename(file), *FPaths::GetExtension(file));
+				FString OutputDirectory = OutputSettings->OutputDirectory.Path;
+				FString OutputPath = FPaths::Combine(OutputDirectory,OutputName);
+				ExportTask->Filename = OutputPath;
+				
+				// Convert RGBA pixels back to FloatRGBA
+				TArray64<FFloat16Color> ConvertedSrcPixels;
+				ConvertedSrcPixels.InsertUninitialized(0, UpsampleResult.PixelData.Num());
+				for (size_t idx = 0; idx < UpsampleResult.PixelData.Num(); ++idx) {
+					ConvertedSrcPixels[idx] = FFloat16Color(UpsampleResult.PixelData[idx]);
+				}
+				TUniquePtr<TImagePixelData<FFloat16Color>> UpscaledPixelData = MakeUnique<TImagePixelData<FFloat16Color>>(
+					FIntPoint(UpsampleResult.OutWidth, UpsampleResult.OutHeight),
+					MoveTemp(ConvertedSrcPixels)
+				);
+				ExportTask->PixelData = MoveTemp(UpscaledPixelData);
+
+				// Enque image write
+				GetPipeline()->ImageWriteQueue->Enqueue(MoveTemp(ExportTask));
+			}
+
+			SDSubsystem->GeneratorBridge->StopUpsample();
+		}
 	}
 }

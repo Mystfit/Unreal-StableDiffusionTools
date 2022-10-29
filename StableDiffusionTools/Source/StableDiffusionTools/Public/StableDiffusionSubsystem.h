@@ -26,7 +26,6 @@ struct FCapturedFramePayload : public IFramePayload {
 	FFrameCaptureComplete OnFrameCapture;
 };
 
-
 /**
  * 
  */
@@ -101,6 +100,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
 	UTexture2D* ColorBufferToTexture(const FString& FrameName, const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture);
 
+	TArray<FColor> CopyFrameData(FIntPoint TargetSize, FIntPoint BufferSize, FColor* ColorBuffer);
+
 protected:
 	UFUNCTION(Category = "StableDiffusion|Generation")
 	void UpdateImageProgress(int32 Step, int32 Timestep, FIntPoint Size, const TArray<FColor>& PixelData);
@@ -111,6 +112,5 @@ private:
 	TSharedPtr<FFrameGrabber> ViewportCapture;
 	FDelegateHandle ActiveEndframeHandler;
 
-	TArray<FColor> CopyFrameData(FIntPoint TargetSize, FIntPoint BufferSize, FColor* ColorBuffer);
 	UTexture2D* ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTexture);
 };

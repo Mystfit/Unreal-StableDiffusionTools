@@ -36,7 +36,13 @@ public:
     FStableDiffusionImageResult GenerateImageFromStartImage(const FStableDiffusionInput& InputOptions) const;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    void StartUpsample();
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     FStableDiffusionImageResult UpsampleImage(const FStableDiffusionImageResult& input_result) const;
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    void StopUpsample();
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
     void UpdateImageProgress(FString prompt, int32 step, int32 timestep, int32 width, int32 height, const TArray<FColor>& FrameColors);

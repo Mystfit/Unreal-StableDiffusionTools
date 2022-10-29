@@ -20,7 +20,4 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|UI", meta = (BindWidget))
 	UImage* ViewportImage;
-
-private:
-	TObjectPtr<UTexture2D> DisplayedTexture;
 };

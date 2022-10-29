@@ -41,10 +41,25 @@ public:
 
 	virtual bool IsAntiAliasingSupported() const { return false; }
 
+	/**
+	* If true, each generated frame will be upscaled.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Outputs")
+	bool bUpscale;
+
+	/**
+	* The prefix to add to each upscaled frame. If empty, the upscaled frame will overwrite the source frame.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Outputs")
+	FString UpscaledFramePrefix;
+
+
 protected:
 	virtual void RenderSample_GameThreadImpl(const FMoviePipelineRenderPassMetrics& InSampleState) override;
 
 private:
+	virtual void BeginExportImpl() override;
+
 	UStableDiffusionOptionsTrack* OptionsTrack;
 	TArray<UStableDiffusionPromptMovieSceneTrack*> PromptTracks;
 };
