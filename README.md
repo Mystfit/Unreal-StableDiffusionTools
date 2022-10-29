@@ -54,6 +54,8 @@ The Image outputs section contains options for saving a generated image to eithe
 
 ### Sequencer and exporting animations
 
+https://user-images.githubusercontent.com/795851/198834362-5d6e31eb-9a06-4092-adb0-ee5f8bbf1094.mov
+
 ![image](https://user-images.githubusercontent.com/795851/196573891-09b07713-5a29-4bde-8592-f028c28b32f3.png)
 
 The plugin will add two new types of tracks to the Sequencer which can be added using the `+Track` button, a `Stable Diffusion Options` track and `Stable Diffusion Prompt` tracks. 
