@@ -29,6 +29,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		FString PaddingMode = "zeros";
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+		bool AllowNSFW = false;
+
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
 	{
 		return Model.Equals(Other.Model) && Revision.Equals(Other.Revision) && Precision.Equals(Other.Precision);

@@ -3,7 +3,7 @@ from subprocess import CalledProcessError
 import unreal
 
 pip_dependencies = [
-    "torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu116",
+    "torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu117",
     "diffusers",
     "transformers",
     "scipy",

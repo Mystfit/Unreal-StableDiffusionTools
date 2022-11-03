@@ -73,6 +73,17 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
             self.pipe = self.pipe.to("cuda")
             self.pipe.enable_attention_slicing()
+            if model_options.allow_nsfw:
+                # Backup original NSFW filter
+                if not hasattr(self, "orig_NSFW_filter"):
+                    self.orig_NSFW_filter = self.pipe.safety_checker
+
+                # Passthrough filter
+                self.pipe.safety_checker = lambda images, **kwargs: (images, False)
+            else:
+                if hasattr(self, "orig_NSFW_filter"):
+                    self.pipe.safety_checker = self.orig_NSFW_filter
+            
             self.model_options = model_options
             self.model_loaded = True
             print("Loaded Stable Diffusion model " + modelname)
