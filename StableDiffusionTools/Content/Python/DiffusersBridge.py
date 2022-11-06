@@ -69,27 +69,33 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         patch_conv(padding_mode=model_options.padding_mode)
 
         # Load model
-        try:
-            self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
-            self.pipe = self.pipe.to("cuda")
-            self.pipe.enable_attention_slicing()
-            if model_options.allow_nsfw:
-                # Backup original NSFW filter
-                if not hasattr(self, "orig_NSFW_filter"):
-                    self.orig_NSFW_filter = self.pipe.safety_checker
+        #try:
+        self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
+        self.pipe = self.pipe.to("cuda")
 
-                # Passthrough filter
-                self.pipe.safety_checker = lambda images, **kwargs: (images, False)
-            else:
-                if hasattr(self, "orig_NSFW_filter"):
-                    self.pipe.safety_checker = self.orig_NSFW_filter
+        # Performance options for low VRAM gpus
+        #self.pipe.enable_sequential_cpu_offload()
+        self.pipe.enable_attention_slicing(1)
+        self.pipe.enable_xformers_memory_efficient_attention()
+
+        # NSFW filter
+        if model_options.allow_nsfw:
+            # Backup original NSFW filter
+            if not hasattr(self, "orig_NSFW_filter"):
+                self.orig_NSFW_filter = self.pipe.safety_checker
+
+            # Dummy passthrough filter
+            self.pipe.safety_checker = lambda images, **kwargs: (images, False)
+        else:
+            if hasattr(self, "orig_NSFW_filter"):
+                self.pipe.safety_checker = self.orig_NSFW_filter
             
-            self.model_options = model_options
-            self.model_loaded = True
-            print("Loaded Stable Diffusion model " + modelname)
-        except Exception as e:
-            print("Failed to init Stable Diffusion Img2Image pipeline. Exception was {0}".format(e))
-            result &= False
+        self.model_options = model_options
+        self.model_loaded = True
+        print("Loaded Stable Diffusion model " + modelname)
+        #except Exception as e:
+            #print("Failed to init Stable Diffusion Img2Image pipeline. Exception was {0}".format(e))
+            #result &= False
 
         return result
 
@@ -131,28 +137,29 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         print(positive_prompts)
         print(negative_prompts)
 
-        with autocast("cuda"):
-            generator = torch.Generator("cuda")
-            generator.manual_seed(seed)
-            images = self.pipe.img2img(
-                prompt=positive_prompts, 
-                negative_prompt=negative_prompts,
-                init_image=guide_img, 
-                width=input.options.out_size_x,
-                height=input.options.out_size_y,
-                strength=input.options.strength, 
-                num_inference_steps=input.options.iterations, 
-                generator=generator, 
-                guidance_scale=input.options.guidance_scale, 
-                callback=self.ImageProgressStep, 
-                callback_steps=10).images
-            image = images[0]
+        with torch.inference_mode():
+            with autocast("cuda"):
+                generator = torch.Generator(device="cuda")
+                generator.manual_seed(seed)
+                images = self.pipe.img2img(
+                    prompt=positive_prompts, 
+                    negative_prompt=negative_prompts,
+                    init_image=guide_img, 
+                    width=input.options.out_size_x,
+                    height=input.options.out_size_y,
+                    strength=input.options.strength, 
+                    num_inference_steps=input.options.iterations, 
+                    generator=generator, 
+                    guidance_scale=input.options.guidance_scale, 
+                    callback=self.ImageProgressStep, 
+                    callback_steps=25).images
+                image = images[0]
 
-            result.input = input
-            result.pixel_data =  PILImageToFColorArray(image.convert("RGBA"))
-            result.out_width = image.width
-            result.out_height = image.height
-            result.generated_texture = None
+                result.input = input
+                result.pixel_data =  PILImageToFColorArray(image.convert("RGBA"))
+                result.out_width = image.width
+                result.out_height = image.height
+                result.generated_texture = None
 
         return result
 
