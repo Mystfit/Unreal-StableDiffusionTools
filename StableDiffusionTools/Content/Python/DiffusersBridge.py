@@ -152,7 +152,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     generator=generator, 
                     guidance_scale=input.options.guidance_scale, 
                     callback=self.ImageProgressStep, 
-                    callback_steps=10).images
+                    callback_steps=25).images
                 image = images[0]
 
                 result.input = input
