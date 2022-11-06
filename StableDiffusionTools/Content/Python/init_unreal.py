@@ -1,8 +1,12 @@
 import importlib.util
 import unreal
+import signal
 
 # Replace print() command to fix Unreal flagging every Python print call as an error 
 print = unreal.log
+
+# Redirect missing SIGKILL signal on windows to SIGTERM
+signal.SIGKILL = signal.SIGTERM
 
 modules = [
     "diffusers",
