@@ -29,28 +29,24 @@ bool UStableDiffusionSubsystem::DependenciesAreInstalled()
 
 void UStableDiffusionSubsystem::InstallDependencies() 
 {
-	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this]() {
-		FPythonCommandEx PythonCommand;
-		PythonCommand.Command = FString("install_dependencies.py");
-		PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
-		PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
+		FPythonCommandEx DepInstallCommand;
+		DepInstallCommand.Command = FString("install_dependencies.py");
+		DepInstallCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
+		DepInstallCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
 		
-		bool install_result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
+		bool install_result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(DepInstallCommand);
 		if (!install_result) {
 			// Dependency installation failed - log result
 			OnDependenciesInstalled.Broadcast(install_result);
 			return;
 		}
 
-		AsyncTask(ENamedThreads::GameThread, [this]() {
-			FPythonCommandEx PythonCommand;
-			PythonCommand.Command = FString("load_diffusers_bridge.py");
-			PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
-			PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
-			bool reload_result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
-			OnDependenciesInstalled.Broadcast(reload_result);
-		});
-	});
+		FPythonCommandEx LoadBridgeCommand;
+		LoadBridgeCommand.Command = FString("load_diffusers_bridge.py");
+		LoadBridgeCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
+		LoadBridgeCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
+		bool reload_result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(LoadBridgeCommand);
+		OnDependenciesInstalled.Broadcast(reload_result);
 }
 
 bool UStableDiffusionSubsystem::HasHuggingFaceToken()
