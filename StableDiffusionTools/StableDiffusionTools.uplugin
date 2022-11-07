@@ -29,6 +29,10 @@
 		{
 			"Name": "MovieRenderPipeline",
 			"Enabled": true
+		},
+		{
+			"Name": "ActorLayerUtilities",
+			"Enabled":  true
 		}
 	],
 	"Modules": [

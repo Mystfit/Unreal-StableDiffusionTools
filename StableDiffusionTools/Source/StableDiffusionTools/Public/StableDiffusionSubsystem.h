@@ -6,6 +6,8 @@
 #include "EditorSubsystem.h"
 #include "FrameGrabber.h"
 #include "Slate/SceneViewport.h"
+#include "Engine/SceneCapture2D.h"
+#include "LevelEditorViewport.h"
 #include "StableDiffusionBridge.h"
 #include "StableDiffusionImageResult.h"
 #include "StableDiffusionSubsystem.generated.h"
@@ -26,6 +28,11 @@ struct FCapturedFramePayload : public IFramePayload {
 	FFrameCaptureComplete OnFrameCapture;
 };
 
+struct FViewportSceneCapture {
+	TObjectPtr<ASceneCapture2D> SceneCapture;
+	TObjectPtr<FLevelEditorViewportClient> ViewportClient;
+};
+
 /**
  * 
  */
@@ -34,7 +41,9 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionSubsystem : public UEditorSubsyst
 {
 	GENERATED_BODY()
 public:
-	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
+	static FString StencilLayerMaterialAsset;
+
+		UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
 	bool DependenciesAreInstalled();
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
@@ -54,9 +63,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	void ReleaseModel();
-
-	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
-	void StartCapturingViewport(FIntPoint Size);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
 	void GenerateImage(FStableDiffusionInput Input, bool FromViewport = true);
@@ -108,9 +114,14 @@ protected:
 
 private:
 	// Viewport capture
+	TSharedPtr<FSceneViewport> GetCapturingViewport();
 	void SetCaptureViewport(TSharedRef<FSceneViewport> Viewport, FIntPoint FrameSize);
 	TSharedPtr<FFrameGrabber> ViewportCapture;
 	FDelegateHandle ActiveEndframeHandler;
+
+	void CreateSceneCaptureCamera();
+	void UpdateSceneCaptureCamera();
+	FViewportSceneCapture CurrentSceneCapture;
 
 	UTexture2D* ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTexture);
 };

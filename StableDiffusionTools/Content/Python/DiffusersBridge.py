@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch import autocast
 from PIL import Image
-from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline
+from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline
 from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray
 
 try:
@@ -24,22 +24,22 @@ def patch_conv(padding_mode):
     cls.__init__ = __init__
 
 
-def preprocess_init_image(image: Image, width: int, height: int):
-    image = image.resize((width, height), resample=Image.LANCZOS)
-    image = np.array(image).astype(np.float32) / 255.0
-    image = image[None].transpose(0, 3, 1, 2)
-    image = torch.from_numpy(image)
-    return 2.0 * image - 1.0
+#def preprocess_init_image(image: Image, width: int, height: int):
+#    image = image.resize((width, height), resample=Image.LANCZOS)
+#    image = np.array(image).astype(np.float32) / 255.0
+#    image = image[None].transpose(0, 3, 1, 2)
+#    image = torch.from_numpy(image)
+#    return 2.0 * image - 1.0
 
 
-def preprocess_mask(mask: Image, width: int, height: int):
-    mask = mask.convert("L")
-    mask = mask.resize((width // 8, height // 8), resample=Image.LANCZOS)
-    mask = np.array(mask).astype(np.float32) / 255.0
-    mask = np.tile(mask, (4, 1, 1))
-    mask = mask[None].transpose(0, 1, 2, 3)  # what does this step do?
-    mask = torch.from_numpy(mask)
-    return mask
+#def preprocess_mask(mask: Image, width: int, height: int):
+#    mask = mask.convert("L")
+#    mask = mask.resize((width // 8, height // 8), resample=Image.LANCZOS)
+#    mask = np.array(mask).astype(np.float32) / 255.0
+#    mask = np.tile(mask, (4, 1, 1))
+#    mask = mask[None].transpose(0, 1, 2, 3)  # what does this step do?
+#    mask = torch.from_numpy(mask)
+#    return mask
 
 
 @unreal.uclass()
@@ -54,7 +54,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.model_loaded = False
 
         result = True
-        ActivePipeline = StableDiffusionImg2ImgPipeline
+        ActivePipeline = StableDiffusionInpaintPipeline
         modelname = model_options.model if model_options.model else "CompVis/stable-diffusion-v1-4"
         kwargs = {
             "torch_dtype": torch.float32 if model_options.precision == "fp32" else torch.float16,
@@ -118,8 +118,12 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
     @unreal.ufunction(override=True)
     def GenerateImageFromStartImage(self, input):
         result = unreal.StableDiffusionImageResult()
-        guide_img = preprocess_init_image(FColorAsPILImage(input.input_image_pixels, input.options.size_x, input.options.size_y).convert("RGB"), input.options.out_size_x, input.options.out_size_y) if input.input_image_pixels else None
-        mask_img = preprocess_mask(FColorAsPILImage(input.options.mask_image_pixels, input.options.size_x, input.options.size_y).convert("RGB"), input.options.out_size_x, input.options.out_size_y) if input.mask_image_pixels else None
+        #guide_img = preprocess_init_image(FColorAsPILImage(input.input_image_pixels, input.options.size_x, input.options.size_y).convert("RGB"), input.options.out_size_x, input.options.out_size_y) if input.input_image_pixels else None
+        guide_img = FColorAsPILImage(input.input_image_pixels, input.options.size_x, input.options.size_y).convert("RGB") if input.input_image_pixels else None
+        #mask_img = preprocess_mask(mask, input.options.out_size_x, input.options.out_size_y) if input.mask_image_pixels else None
+        mask_img = FColorAsPILImage(input.mask_image_pixels, input.options.size_x, input.options.size_y).convert("RGB")  if input.mask_image_pixels else None
+        mask_img.show()
+        
         seed = torch.random.seed() if input.options.seed < 0 else input.options.seed
 
         # Split prompts in case commas have snuck in
@@ -141,10 +145,11 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             with autocast("cuda"):
                 generator = torch.Generator(device="cuda")
                 generator.manual_seed(seed)
-                images = self.pipe.img2img(
+                images = self.pipe(
                     prompt=positive_prompts, 
                     negative_prompt=negative_prompts,
                     init_image=guide_img, 
+                    mask_image=mask_img,
                     width=input.options.out_size_x,
                     height=input.options.out_size_y,
                     strength=input.options.strength, 

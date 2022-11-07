@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "PromptAsset.h"
+#include "ActorLayerUtilities.h"
 #include "StableDiffusionGenerationOptions.generated.h"
 
 
@@ -72,6 +73,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	int32 OutSizeY = 512;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	TArray<FActorLayer> InpaintLayers;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	TArray<FPrompt> PositivePrompts;

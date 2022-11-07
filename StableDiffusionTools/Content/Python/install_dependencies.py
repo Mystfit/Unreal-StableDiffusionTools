@@ -5,9 +5,11 @@ from urllib.parse import urlparse
 from subprocess import CalledProcessError
 import unreal
 
-pip_dependencies = {
-    "gitpython": {},
-    "torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu117": {},
+dependencies = {
+    "gitpython": {"module": "git"},
+    "torch": {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
+    "torchvision":  {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
+    "torchaudio":  {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
     "diffusers": {},
     "transformers": {},
     "scipy":{},
@@ -31,12 +33,12 @@ def install_dependencies(pip_dependencies):
         for dep_name, dep_options in pip_dependencies.items():
             dep_path = dep_options["url"] if "url" in dep_options.keys() else ""
             dep_force_upgrade = dep_options["upgrade"] if "upgrade" in dep_options.keys() else True
+            extra_flags = dep_options["args"].split(' ') if "args" in dep_options.keys() else []
             print("Installing dependency " + dep_name)
             if slow_task.should_cancel():         # True if the user has pressed Cancel in the UI
                 break
             
             slow_task.enter_progress_frame(1.0, f"Installing dependency {dep_name}")
-            extra_flags = []
             if dep_path:
                 if dep_path.endswith(".whl"):
                     wheel_path = download_wheel(dep_name, dep_path)
@@ -52,7 +54,7 @@ def install_dependencies(pip_dependencies):
                 extra_flags.append("--upgrade")
 
             try: 
-                subprocess.check_call([f"{pythonpath}", '-m', 'pip', 'install'] + extra_flags + dep_name)
+                print(subprocess.check_output([f"{pythonpath}", '-m', 'pip', 'install'] + extra_flags + dep_name), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             except CalledProcessError as e:
                 print("Return code for dependency {0} was non-zero. Returned {1} instead".format(dep_name, str(e.returncode)))
                 print("Command:")
@@ -110,4 +112,6 @@ def download_wheel(wheel_name, wheel_url):
     return os.path.normpath(wheel_path)
 
 
-SD_dependencies_installed = install_dependencies(pip_dependencies)
+if __name__ == "__main__":
+    global SD_dependencies_installed
+    SD_dependencies_installed = install_dependencies(dependencies)
