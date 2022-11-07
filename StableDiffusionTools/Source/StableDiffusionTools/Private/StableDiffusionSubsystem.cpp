@@ -7,10 +7,18 @@
 #include "IPythonScriptPlugin.h"
 #include "PythonScriptTypes.h"
 #include "LevelEditorSubsystem.h"
+#include "ActorLayerUtilities.h"
 #include "StableDiffusionImageResult.h"
 #include "AssetRegistryModule.h"
+#include "Components/SceneCaptureComponent2D.h"
 #include "ImageUtils.h"
+#include "EngineUtils.h"
+#include "Dialogs/Dialogs.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "DesktopPlatformModule.h"
+
+#define LOCTEXT_NAMESPACE "StableDiffusionSubsystem"
 
 bool FCapturedFramePayload::OnFrameReady_RenderThread(FColor* ColorBuffer, FIntPoint BufferSize, FIntPoint TargetSize) const
 {
@@ -21,32 +29,56 @@ bool FCapturedFramePayload::OnFrameReady_RenderThread(FColor* ColorBuffer, FIntP
 bool UStableDiffusionSubsystem::DependenciesAreInstalled()
 {
 	FPythonCommandEx PythonCommand;
-	PythonCommand.Command = FString("SD_dependencies_installed");
+	PythonCommand.Command = FString("SD_dependencies_installed()");
 	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::EvaluateStatement;
 	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
 	return PythonCommand.CommandResult == "True";
 }
 
-void UStableDiffusionSubsystem::InstallDependencies() 
+void UStableDiffusionSubsystem::InstallDependencies()
 {
-		FPythonCommandEx DepInstallCommand;
-		DepInstallCommand.Command = FString("install_dependencies.py");
-		DepInstallCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
-		DepInstallCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
-		
-		bool install_result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(DepInstallCommand);
-		if (!install_result) {
-			// Dependency installation failed - log result
-			OnDependenciesInstalled.Broadcast(install_result);
-			return;
-		}
+	FPythonCommandEx DepInstallCommand;
+	DepInstallCommand.Command = FString("install_dependencies.py");
+	DepInstallCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
+	DepInstallCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
 
-		FPythonCommandEx LoadBridgeCommand;
-		LoadBridgeCommand.Command = FString("load_diffusers_bridge.py");
-		LoadBridgeCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
-		LoadBridgeCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
-		bool reload_result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(LoadBridgeCommand);
-		OnDependenciesInstalled.Broadcast(reload_result);
+	bool install_result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(DepInstallCommand);
+	if (!install_result) {
+		// Dependency installation failed - log result
+		OnDependenciesInstalled.Broadcast(install_result);
+		return;
+	}
+
+	FPythonCommandEx LoadBridgeCommand;
+	LoadBridgeCommand.Command = FString("load_diffusers_bridge.py");
+	LoadBridgeCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
+	LoadBridgeCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
+	bool reload_result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(LoadBridgeCommand);
+	OnDependenciesInstalled.Broadcast(reload_result);
+
+
+	// Present the user with a warning that changing projects has to restart the editor
+	FSuppressableWarningDialog::FSetupInfo Info(
+		LOCTEXT("RestartEditorMsg", "The editor will restart to complete the python dependency install process."),
+		LOCTEXT("RestartEditorTitle", "Restart editor"), "RestartEditorTitle_Warning");
+
+	Info.ConfirmText = LOCTEXT("Yes", "Yes");
+	Info.CancelText = LOCTEXT("No", "No");
+
+	FSuppressableWarningDialog RestartDepsDlg(Info);
+	bool bSwitch = true;
+	if (RestartDepsDlg.ShowModal() == FSuppressableWarningDialog::Cancel)
+	{
+		bSwitch = false;
+	}
+
+	// If the user wants to continue with the restart set the pending project to swtich to and close the editor
+	if (bSwitch)
+	{
+		// Close the editor.  This will prompt the user to save changes.  If they hit cancel, we abort the project switch
+		//GEngine->DeferredCommands.Add(TEXT("CLOSE_SLATE_MAINFRAME"));
+		FUnrealEdMisc::Get().RestartEditor(false);
+	}
 }
 
 bool UStableDiffusionSubsystem::HasHuggingFaceToken()
