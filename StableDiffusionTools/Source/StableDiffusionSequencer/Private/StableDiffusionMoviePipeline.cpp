@@ -56,6 +56,37 @@ void UStableDiffusionMoviePipeline::SetupForPipelineImpl(UMoviePipeline* InPipel
 			PromptTracks.Add(PromptTrack);
 		}
 	}
+
+
+}
+
+void UStableDiffusionMoviePipeline::SetupImpl(const MoviePipeline::FMoviePipelineRenderPassInitSettings& InPassInitSettings)
+{
+	// Create stencil render material
+	TSoftObjectPtr<UMaterialInterface> StencilMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(UStableDiffusionSubsystem::StencilLayerMaterialAsset));
+	auto StencilActorLayerMat = StencilMatRef.LoadSynchronous();
+	StencilMatInst = UMaterialInstanceDynamic::Create(StencilActorLayerMat, this);
+
+	// Create stencil render target
+	StencilActorLayerRenderTarget = NewObject<UTextureRenderTarget2D>(GetTransientPackage());
+	StencilActorLayerRenderTarget->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+	// Initialize to the tile size (not final size) and use a 16 bit back buffer to avoid precision issues when accumulating later
+	//StencilRenderTarget->InitCustomFormat(InPassInitSettings.BackbufferResolution.X, InPassInitSettings.BackbufferResolution.Y, EPixelFormat::PF_FloatRGBA, false);
+	StencilActorLayerRenderTarget->InitCustomFormat(InPassInitSettings.BackbufferResolution.X, InPassInitSettings.BackbufferResolution.Y, PF_FloatRGBA, false);
+	StencilActorLayerRenderTarget->UpdateResourceImmediate(true);
+
+	// OCIO: Since this is a manually created Render target we don't need Gamma to be applied.
+	// We use this render target to render to via a display extension that utilizes Display Gamma
+	// which has a default value of 2.2 (DefaultDisplayGamma), therefore we need to set Gamma on this render target to 2.2 to cancel out any unwanted effects.
+	StencilActorLayerRenderTarget->TargetGamma = FOpenColorIODisplayExtension::DefaultDisplayGamma;
+
+	// Always add one stencil layer view state for the inpainting stencil mask
+	StencilLayerViewStates.AddDefaulted();
+	StencilLayerViewStates[0].Allocate(InPassInitSettings.FeatureLevel);
+	TileRenderTargets.Add(StencilActorLayerRenderTarget);
+
+	Super::SetupImpl(InPassInitSettings);
 }
 
 void UStableDiffusionMoviePipeline::TeardownForPipelineImpl(UMoviePipeline* InPipeline)
@@ -114,10 +145,11 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 		int32 NumValidMaterials = View->FinalPostProcessSettings.BufferVisualizationPipes.Num();
 		View->FinalPostProcessSettings.bBufferVisualizationDumpRequired = NumValidMaterials > 0;
 
-		// Submit to be rendered. Main render pass always uses target 0.
+		// Setup render targets and drawing surfaces
 		FRenderTarget* RenderTarget = GetViewRenderTarget()->GameThread_GetRenderTargetResource();
+		FRenderTarget* StencilRT = StencilActorLayerRenderTarget->GameThread_GetRenderTargetResource();
 		FCanvas Canvas = FCanvas(RenderTarget, nullptr, GetPipeline()->GetWorld(), ERHIFeatureLevel::SM5, FCanvas::CDM_ImmediateDrawing, 1.0f);
-		GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.Get());
+		FCanvas StencilCanvas = FCanvas(StencilRT, nullptr, GetPipeline()->GetWorld(), ERHIFeatureLevel::SM5, FCanvas::CDM_ImmediateDrawing, 1.0f);
 
 #if WITH_EDITOR
 		auto SDSubsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
@@ -129,8 +161,8 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			Input.Options.InSizeY = RenderTarget->GetSizeXY().Y;
 			Input.Options.OutSizeX = RenderTarget->GetSizeXY().X;
 			Input.Options.OutSizeY = RenderTarget->GetSizeXY().Y;
+			Input.MaskImagePixels.InsertUninitialized(0, StencilRT->GetSizeXY().X * StencilRT->GetSizeXY().Y);
 			Input.InputImagePixels.InsertUninitialized(0, RenderTarget->GetSizeXY().X * RenderTarget->GetSizeXY().Y);
-			RenderTarget->ReadPixels(Input.InputImagePixels);
 
 			// Get frame time for curve evaluation
 			auto EffectiveFrame = FFrameNumber(this->GetPipeline()->GetOutputState().EffectiveFrameNumber);
@@ -148,11 +180,12 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 						if (OptionSection) {
 							//Reload model if it doesn't match the current options track
 							if (SDSubsystem->ModelOptions != OptionSection->ModelOptions || !SDSubsystem->ModelInitialised) {
-								SDSubsystem->InitModel(FStableDiffusionModelOptions{
-									OptionSection->ModelOptions.Model,
-									OptionSection->ModelOptions.Revision,
-									OptionSection->ModelOptions.Precision }, false
-								);
+								SDSubsystem->InitModel(OptionSection->ModelOptions, false);
+								//SDSubsystem->InitModel(FStableDiffusionModelOptions{
+								//	OptionSection->ModelOptions.Model,
+								//	OptionSection->ModelOptions.Revision,
+								//	OptionSection->ModelOptions.Precision }, false
+								//);
 							}
 						
 							// Evaluate curve values
@@ -182,6 +215,38 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 						}
 					}
 				}
+			}
+
+			// Render init image
+			// Main render pass always uses target 0.
+			GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.Get());
+			RenderTarget->ReadPixels(Input.InputImagePixels, FReadSurfaceDataFlags());
+
+			// Get new view state for our stencil render
+			CurrentLayerIndex = 0;
+			ViewFamily = CalculateViewFamily(InOutSampleState);
+			View = const_cast<FSceneView*>(ViewFamily->Views[0]);
+
+			// Set stencil material on view
+			View->FinalPostProcessSettings.bBufferVisualizationDumpRequired = true;
+			View->FinalPostProcessSettings.AddBlendable(StencilMatInst.Get(), 1.0f);
+
+			auto BufferPipe = MakeShared<FImagePixelPipe, ESPMode::ThreadSafe>();
+			BufferPipe->AddEndpoint([this](TUniquePtr<FImagePixelData>&& InPixelData)
+				{
+
+				});
+			View->FinalPostProcessSettings.BufferVisualizationPipes.Add(StencilMatInst->GetFName(), BufferPipe);
+
+			IBlendableInterface* BlendableInterface = Cast<IBlendableInterface>(StencilMatInst);
+			BlendableInterface->OverrideBlendableSettings(*View, 1.f);
+
+			// Render stencil view
+			Input.Options.InpaintLayers.Add(FActorLayer{ "InpaintTarget" });
+			for (auto layer : Input.Options.InpaintLayers) {
+				FScopedActorLayerStencil stencil_settings(layer);
+				GetRendererModule().BeginRenderingViewFamily(&StencilCanvas, ViewFamily.Get());
+				StencilRT->ReadPixels(Input.MaskImagePixels, FReadSurfaceDataFlags());
 			}
 
 			// Generate image

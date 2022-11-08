@@ -8,6 +8,7 @@
 #include "StableDiffusionOptionsTrack.h"
 #include "StableDiffusionOptionsSection.h"
 #include "MoviePipelineDeferredPasses.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "StableDiffusionMoviePipeline.generated.h"
 
 /**
@@ -25,6 +26,7 @@ public:
 	}
 	virtual void SetupForPipelineImpl(UMoviePipeline* InPipeline) override;
 	virtual void TeardownForPipelineImpl(UMoviePipeline* InPipeline) override;
+	void SetupImpl(const MoviePipeline::FMoviePipelineRenderPassInitSettings& InPassInitSettings) override;
 
 
 #if WITH_EDITOR
@@ -59,6 +61,9 @@ protected:
 
 private:
 	virtual void BeginExportImpl() override;
+
+	TObjectPtr<UMaterialInstanceDynamic> StencilMatInst;
+	TObjectPtr<UTextureRenderTarget2D> StencilActorLayerRenderTarget;
 
 	UStableDiffusionOptionsTrack* OptionsTrack;
 	TArray<UStableDiffusionPromptMovieSceneTrack*> PromptTracks;

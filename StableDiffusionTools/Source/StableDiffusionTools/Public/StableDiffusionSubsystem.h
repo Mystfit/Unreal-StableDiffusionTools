@@ -33,6 +33,34 @@ struct FViewportSceneCapture {
 	TObjectPtr<FLevelEditorViewportClient> ViewportClient;
 };
 
+struct FStencilValues
+{
+	FStencilValues()
+		: bRenderCustomDepth(false)
+		, StencilMask(ERendererStencilMask::ERSM_Default)
+		, CustomStencil(0)
+	{
+	}
+
+	bool bRenderCustomDepth;
+	ERendererStencilMask StencilMask;
+	int32 CustomStencil;
+};
+
+struct STABLEDIFFUSIONTOOLS_API FScopedActorLayerStencil {
+public:
+	FScopedActorLayerStencil() = delete;
+	FScopedActorLayerStencil(const FActorLayer& Layer);
+	~FScopedActorLayerStencil();
+
+private:
+	// Stencil values
+	TMap<UPrimitiveComponent*, FStencilValues> ActorLayerSavedStencilValues;
+
+	// Cache the custom stencil value.
+	TOptional<int32> PreviousCustomDepthValue;
+};
+
 /**
  * 
  */
