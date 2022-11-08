@@ -33,6 +33,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		bool AllowNSFW = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+		bool Inpaint = false;
+
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
 	{
 		return Model.Equals(Other.Model) && Revision.Equals(Other.Revision) && Precision.Equals(Other.Precision);
@@ -42,6 +45,16 @@ public:
 	{
 		return !Model.Equals(Other.Model) || !Revision.Equals(Other.Revision) || !Precision.Equals(Other.Precision);
 	}
+};
+
+
+UCLASS()
+class STABLEDIFFUSIONTOOLS_API UStableDiffusionModelAsset : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Model")
+	FStableDiffusionModelOptions Options;
 };
 
 
@@ -90,6 +103,16 @@ public:
 		}
 		PositivePrompts.Add(Prompt);
 	}
+};
+
+
+UCLASS()
+class STABLEDIFFUSIONTOOLS_API UStableDiffusionGenerationAsset : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Generation")
+	FStableDiffusionGenerationOptions Options;
 };
 
 

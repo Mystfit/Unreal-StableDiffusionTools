@@ -244,15 +244,13 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool 
 			CaptureComponent->bCaptureEveryFrame = true;
 			CaptureComponent->bCaptureOnMovement = false;
 			CaptureComponent->CompositeMode = SCCM_Overwrite;
-			CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+			CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalToneCurveHDR;
 
 			// Create render target to hold our scene capture data
 			UTextureRenderTarget2D* FullFrameRT = NewObject<UTextureRenderTarget2D>(CaptureComponent);
 			check(FullFrameRT);
 			FullFrameRT->InitCustomFormat(ViewportSize.X, ViewportSize.Y, PF_R8G8B8A8, false);
-			FullFrameRT->ClearColor = FLinearColor::White; // White will be untouched, black will be inpainted
 			FullFrameRT->UpdateResourceImmediate(true);
-			FullFrameRT->TargetGamma = 2.2f;
 			CaptureComponent->TextureTarget = FullFrameRT;
 
 			// Create destination pixel arrays
@@ -271,6 +269,9 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool 
 			auto StencilLayerMaterial = StencilMatRef.LoadSynchronous();
 			UMaterialInstanceDynamic* StencilMatInst = UMaterialInstanceDynamic::Create(StencilLayerMaterial, CaptureComponent);
 			CaptureComponent->AddOrUpdateBlendable(StencilMatInst);
+			
+			// Disable bloom to stop it bleeding from the stencil mask
+			CaptureComponent->ShowFlags.SetBloom(false);
 
 			// Set custom depth variable to allow for stencil masks
 			IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth"));
