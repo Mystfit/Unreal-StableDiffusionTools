@@ -6,6 +6,7 @@
 #include "StableDiffusionSubsystem.h"
 #include "MoviePipelineQueue.h"
 #include "MoviePipeline.h"
+#include "Async/Async.h"
 #include "ImageUtils.h"
 #include "EngineModule.h"
 #include "IImageWrapperModule.h"
@@ -14,6 +15,7 @@
 #include "MoviePipelineOutputSetting.h"
 #include "Channels/MovieSceneChannelProxy.h"
 #include "RenderingThread.h"
+#include "MoviePipelineImageQuantization.h"
 #include "GenericPlatform/GenericPlatformProcess.h"
 #include "ImageWriteTask.h"
 #include "ImageWriteQueue.h"
@@ -43,11 +45,10 @@ void UStableDiffusionMoviePipeline::SetupForPipelineImpl(UMoviePipeline* InPipel
 					// Use the first found SD options section to pull model info from
 					auto OptionsSection = Cast<UStableDiffusionOptionsSection>(Sections[0]);
 					if (OptionsSection) {
-						if (SDSubsystem->ModelOptions != OptionsSection->ModelOptions) {
-							SDSubsystem->InitModel(FStableDiffusionModelOptions{ 
-								OptionsSection->ModelOptions.Model, 
-								OptionsSection->ModelOptions.Revision, 
-								OptionsSection->ModelOptions.Precision}, false);
+						if (OptionsSection->ModelAsset) {
+							if (SDSubsystem->ModelOptions != OptionsSection->ModelAsset->Options) {
+								SDSubsystem->InitModel(OptionsSection->ModelAsset->Options, false);
+							}
 						}
 					}
 				}
@@ -65,7 +66,7 @@ void UStableDiffusionMoviePipeline::SetupImpl(const MoviePipeline::FMoviePipelin
 	// Create stencil render material
 	TSoftObjectPtr<UMaterialInterface> StencilMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(UStableDiffusionSubsystem::StencilLayerMaterialAsset));
 	auto StencilActorLayerMat = StencilMatRef.LoadSynchronous();
-	StencilMatInst = UMaterialInstanceDynamic::Create(StencilActorLayerMat, this);
+	StencilMatInst = StencilMatRef.LoadSynchronous();
 
 	// Create stencil render target
 	StencilActorLayerRenderTarget = NewObject<UTextureRenderTarget2D>(GetTransientPackage());
@@ -82,8 +83,7 @@ void UStableDiffusionMoviePipeline::SetupImpl(const MoviePipeline::FMoviePipelin
 	StencilActorLayerRenderTarget->TargetGamma = FOpenColorIODisplayExtension::DefaultDisplayGamma;
 
 	// Always add one stencil layer view state for the inpainting stencil mask
-	StencilLayerViewStates.AddDefaulted();
-	StencilLayerViewStates[0].Allocate(InPassInitSettings.FeatureLevel);
+	StencilLayerViewStates.Add(FSceneViewStateReference());
 	TileRenderTargets.Add(StencilActorLayerRenderTarget);
 
 	Super::SetupImpl(InPassInitSettings);
@@ -92,6 +92,12 @@ void UStableDiffusionMoviePipeline::SetupImpl(const MoviePipeline::FMoviePipelin
 void UStableDiffusionMoviePipeline::TeardownForPipelineImpl(UMoviePipeline* InPipeline)
 {
 	PromptTracks.Reset();
+}
+
+void UStableDiffusionMoviePipeline::GatherOutputPassesImpl(TArray<FMoviePipelinePassIdentifier>& ExpectedRenderPasses) {
+	Super::GatherOutputPassesImpl(ExpectedRenderPasses);
+
+	ExpectedRenderPasses.Add(StencilPassIdentifier);
 }
 
 
@@ -112,6 +118,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 
 		CurrentLayerIndex = INDEX_NONE;
 		TSharedPtr<FSceneViewFamilyContext> ViewFamily = CalculateViewFamily(InOutSampleState);
+		ViewFamily->bIsFirstViewInMultipleViewFamily = true;
 
 		// Add post-processing materials if needed
 		FSceneView* View = const_cast<FSceneView*>(ViewFamily->Views[0]);
@@ -179,19 +186,24 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 						auto OptionSection = Cast<UStableDiffusionOptionsSection>(Section);
 						if (OptionSection) {
 							//Reload model if it doesn't match the current options track
-							if (SDSubsystem->ModelOptions != OptionSection->ModelOptions || !SDSubsystem->ModelInitialised) {
-								SDSubsystem->InitModel(OptionSection->ModelOptions, false);
-								//SDSubsystem->InitModel(FStableDiffusionModelOptions{
-								//	OptionSection->ModelOptions.Model,
-								//	OptionSection->ModelOptions.Revision,
-								//	OptionSection->ModelOptions.Precision }, false
-								//);
+							if (OptionSection->ModelAsset) {
+								if (SDSubsystem->ModelOptions != OptionSection->ModelAsset->Options || !SDSubsystem->ModelInitialised) {
+									SDSubsystem->InitModel(OptionSection->ModelAsset->Options, false);
+								}
 							}
-						
+							else if (!SDSubsystem->ModelInitialised) {
+								UE_LOG(LogTemp, Error, TEXT("No model asset provided in Stable Diffusion Options section and no model loaded in StableDiffusionSubsystem. Please add a model asset to the Options track or initialize the StableDiffusionSubsystem model."))
+							}
 							// Evaluate curve values
 							OptionSection->GetStrengthChannel().Evaluate(FullFrameTime, Input.Options.Strength);
 							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Input.Options.Iterations);
 							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Input.Options.Seed);
+							
+							TArray<FActorLayer> ActorLayers;
+							for (auto LayerName : OptionSection->InpaintLayers) {
+								ActorLayers.Add(FActorLayer{ LayerName });
+							}
+							Input.Options.InpaintLayers = ActorLayers;
 						}
 					}
 				}
@@ -225,57 +237,79 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			// Get new view state for our stencil render
 			CurrentLayerIndex = 0;
 			ViewFamily = CalculateViewFamily(InOutSampleState);
+			ViewFamily->bIsRenderedImmediatelyAfterAnotherViewFamily = true;
+			ViewFamily->bIsMultipleViewFamily = true;
+			ViewFamily->EngineShowFlags.PostProcessing = 1;
 			View = const_cast<FSceneView*>(ViewFamily->Views[0]);
 
+
 			// Set stencil material on view
-			View->FinalPostProcessSettings.bBufferVisualizationDumpRequired = true;
 			View->FinalPostProcessSettings.AddBlendable(StencilMatInst.Get(), 1.0f);
-
-			auto BufferPipe = MakeShared<FImagePixelPipe, ESPMode::ThreadSafe>();
-			BufferPipe->AddEndpoint([this](TUniquePtr<FImagePixelData>&& InPixelData)
-				{
-
-				});
-			View->FinalPostProcessSettings.BufferVisualizationPipes.Add(StencilMatInst->GetFName(), BufferPipe);
-
 			IBlendableInterface* BlendableInterface = Cast<IBlendableInterface>(StencilMatInst);
+			ViewFamily->EngineShowFlags.SetPostProcessMaterial(true);
+			ViewFamily->EngineShowFlags.SetPostProcessing(true);
 			BlendableInterface->OverrideBlendableSettings(*View, 1.f);
+			View->FinalPostProcessSettings.bBufferVisualizationDumpRequired = true;
 
-			// Render stencil view
-			Input.Options.InpaintLayers.Add(FActorLayer{ "InpaintTarget" });
-			for (auto layer : Input.Options.InpaintLayers) {
-				FScopedActorLayerStencil stencil_settings(layer);
-				GetRendererModule().BeginRenderingViewFamily(&StencilCanvas, ViewFamily.Get());
-				StencilRT->ReadPixels(Input.MaskImagePixels, FReadSurfaceDataFlags());
-			}
-
-			// Generate image
-			auto SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(Input);
-
-			// Convert 8bit BGRA FColors returned from SD to 16bit BGRA
-			TArray<FFloat16Color> ConvertedResultPixels;
-			ConvertedResultPixels.InsertUninitialized(0, SDResult.PixelData.Num());
-			for (size_t idx = 0; idx < SDResult.PixelData.Num(); ++idx) {
-				ConvertedResultPixels[idx] = FFloat16Color(SDResult.PixelData[idx]);
-			}
-
-			// Blit generated image to the render target
-			ENQUEUE_RENDER_COMMAND(UpdateMoviePipelineRenderTarget)([this, RenderTarget, ConvertedResultPixels](FRHICommandListImmediate& RHICmdList){
-				if (!ConvertedResultPixels.IsEmpty()) {
-					RHICmdList.UpdateTexture2D(
-						RenderTarget->GetRenderTargetTexture(),
-						0,
-						FUpdateTextureRegion2D(0, 0, 0, 0, RenderTarget->GetSizeXY().X, RenderTarget->GetSizeXY().Y),
-						RenderTarget->GetSizeXY().X * sizeof(FFloat16Color),
-						(uint8*)ConvertedResultPixels.GetData()
-					);
+			{
+				TArray<FScopedActorLayerStencil> SavedActorStencilStates;
+				for (auto layer : Input.Options.InpaintLayers) {
+					SavedActorStencilStates.Emplace(layer);
 				}
-			});
+
+				auto Accumulate = MakeForwardingEndpoint(FMoviePipelinePassIdentifier(LayerPassIdentifier), InSampleState);
+				auto BufferPipe = MakeShared<FImagePixelPipe, ESPMode::ThreadSafe>();
+				BufferPipe->AddEndpoint([this, Input = MoveTemp(Input), Canvas, LayerPassIdentifier, Accumulate, RenderTarget, StencilRT, InSampleState, StencilCanvas](TUniquePtr<FImagePixelData>&& InPixelData) mutable
+				{
+					// Copy frame pixel data from 16 bit to 8 bit
+					Input.MaskImagePixels.InsertUninitialized(0, InPixelData->GetSize().X* InPixelData->GetSize().Y);
+					TUniquePtr<FImagePixelData> QuantizedPixelData = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(InPixelData.Get(), 8);
+					int64 OutSize;
+					const void* OutRawData = nullptr;
+					QuantizedPixelData->GetRawData(OutRawData, OutSize);
+					memcpy(Input.MaskImagePixels.GetData(), OutRawData, OutSize);
+
+					// Generate new SD frame
+					auto SDSubsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
+					auto SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(Input);
+
+					// Convert 8bit BGRA FColors returned from SD to 16bit BGRA
+					TUniquePtr<TImagePixelData<FColor>> SDImageDataBuffer8bit = MakeUnique<TImagePixelData<FColor>>(FIntPoint(SDResult.OutWidth, SDResult.OutHeight), TArray64<FColor>(MoveTemp(SDResult.PixelData)));
+					TUniquePtr<FImagePixelData> SDImageDataBuffer16bit = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(SDImageDataBuffer8bit.Get(), 16);
+
+					TArray<FFloat16Color> ConvertedResultPixels;
+					ConvertedResultPixels.InsertUninitialized(0, SDResult.PixelData.Num());
+					for (size_t idx = 0; idx < SDResult.PixelData.Num(); ++idx) {
+						ConvertedResultPixels[idx] = FFloat16Color(SDResult.PixelData[idx]);
+					}
+					ENQUEUE_RENDER_COMMAND(UpdateMoviePipelineRenderTarget)([this, &SDImageDataBuffer16bit, RenderTarget, ConvertedResultPixels](FRHICommandListImmediate& RHICmdList) {
+						int64 OutSize;
+						const void* OutRawData = nullptr;
+						SDImageDataBuffer16bit->GetRawData(OutRawData, OutSize);
+						RHICmdList.UpdateTexture2D(
+							RenderTarget->GetRenderTargetTexture(),
+							0,
+							FUpdateTextureRegion2D(0, 0, 0, 0, RenderTarget->GetSizeXY().X, RenderTarget->GetSizeXY().Y),
+							RenderTarget->GetSizeXY().X * sizeof(FFloat16Color),
+							(uint8*)OutRawData
+						);
+						RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+					});
+
+					Accumulate(MoveTemp(SDImageDataBuffer16bit));
+				});
+
+				View->FinalPostProcessSettings.BufferVisualizationPipes.Add(StencilMatInst->GetFName(), BufferPipe);
+				View->FinalPostProcessSettings.bBufferVisualizationDumpRequired = true;
+				View->FinalPostProcessSettings.BufferVisualizationOverviewMaterials.Add(StencilMatInst);
+
+				// Render stencil view
+				GetRendererModule().BeginRenderingViewFamily(&StencilCanvas, ViewFamily.Get());
+
+				PostRendererSubmission(InSampleState, StencilPassIdentifier, GetOutputFileSortingOrder() + 1, Canvas);
+			}
 		}
 #endif
-
-		// Readback + Accumulate.
-		PostRendererSubmission(InSampleState, LayerPassIdentifier, GetOutputFileSortingOrder() + 1, Canvas);
 	}
 }
 

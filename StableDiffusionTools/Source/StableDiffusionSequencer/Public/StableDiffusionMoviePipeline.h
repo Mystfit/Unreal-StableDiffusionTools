@@ -11,6 +11,8 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "StableDiffusionMoviePipeline.generated.h"
 
+
+
 /**
  * 
  */
@@ -23,11 +25,12 @@ public:
 	UStableDiffusionMoviePipeline() : UMoviePipelineDeferredPassBase()
 	{
 		PassIdentifier = FMoviePipelinePassIdentifier("StableDiffusion");
+		StencilPassIdentifier = FMoviePipelinePassIdentifier("StableDiffusion_StencilPass");
 	}
 	virtual void SetupForPipelineImpl(UMoviePipeline* InPipeline) override;
 	virtual void TeardownForPipelineImpl(UMoviePipeline* InPipeline) override;
 	void SetupImpl(const MoviePipeline::FMoviePipelineRenderPassInitSettings& InPassInitSettings) override;
-
+	virtual void GatherOutputPassesImpl(TArray<FMoviePipelinePassIdentifier>& ExpectedRenderPasses) override;
 
 #if WITH_EDITOR
 	virtual FText GetDisplayText() const override { return NSLOCTEXT("MovieRenderPipeline", "DeferredBasePassSetting_DisplayName_StableDiffusion", "Stable Diffusion"); }
@@ -62,9 +65,9 @@ protected:
 private:
 	virtual void BeginExportImpl() override;
 
-	TObjectPtr<UMaterialInstanceDynamic> StencilMatInst;
+	TObjectPtr<UMaterialInterface> StencilMatInst;
 	TObjectPtr<UTextureRenderTarget2D> StencilActorLayerRenderTarget;
-
+	FMoviePipelinePassIdentifier StencilPassIdentifier;
 	UStableDiffusionOptionsTrack* OptionsTrack;
 	TArray<UStableDiffusionPromptMovieSceneTrack*> PromptTracks;
 };

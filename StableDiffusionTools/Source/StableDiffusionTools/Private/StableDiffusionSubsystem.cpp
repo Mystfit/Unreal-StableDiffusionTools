@@ -118,6 +118,9 @@ bool UStableDiffusionSubsystem::LoginHuggingFaceUsingToken(const FString& token)
 void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, bool Async)
 {
 	if (GeneratorBridge) {
+		// Unload any loaded models first
+		ReleaseModel();
+
 		if (Async) {
 			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model]() {
 				this->ModelInitialised = this->GeneratorBridge->InitModel(Model);
@@ -245,6 +248,8 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool 
 			CaptureComponent->bCaptureOnMovement = false;
 			CaptureComponent->CompositeMode = SCCM_Overwrite;
 			CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalToneCurveHDR;
+			//CaptureComponent->PostProcessSettings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+			//CaptureComponent->PostProcessSettings.AutoExposureBias = 15;
 
 			// Create render target to hold our scene capture data
 			UTextureRenderTarget2D* FullFrameRT = NewObject<UTextureRenderTarget2D>(CaptureComponent);
@@ -467,7 +472,7 @@ TArray<FColor> UStableDiffusionSubsystem::CopyFrameData(FIntPoint TargetSize, FI
 	return std::move(CopiedFrame);
 }
 
-FScopedActorLayerStencil::FScopedActorLayerStencil(const FActorLayer& Layer)
+FScopedActorLayerStencil::FScopedActorLayerStencil(const FActorLayer& Layer, bool RestoreOnDelete) : RestoreOnDelete(RestoreOnDelete)
 {
 	// Set custom depth variable to allow for stencil masks
 	IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth"));
@@ -531,8 +536,19 @@ FScopedActorLayerStencil::FScopedActorLayerStencil(const FActorLayer& Layer)
 	}
 }
 
+FScopedActorLayerStencil::FScopedActorLayerStencil(const FScopedActorLayerStencil& ref) {
+	ActorLayerSavedStencilValues = ref.ActorLayerSavedStencilValues;
+	RestoreOnDelete = ref.RestoreOnDelete;
+	PreviousCustomDepthValue = ref.PreviousCustomDepthValue;
+}
+
 FScopedActorLayerStencil::~FScopedActorLayerStencil()
 {
+	if (RestoreOnDelete)
+		Restore();
+}
+
+void FScopedActorLayerStencil::Restore() {
 	if (PreviousCustomDepthValue.IsSet())
 	{
 		IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth"));

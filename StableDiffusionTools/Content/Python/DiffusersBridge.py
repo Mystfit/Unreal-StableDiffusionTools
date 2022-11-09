@@ -147,7 +147,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         if self.model_options.inpaint:
             guide_img = guide_img.resize((512,512))
             mask_img = mask_img.resize((512,512))
-            mask_img.show()
+            #mask_img.show()
         else:
             guide_img = preprocess_init_image(guide_img, input.options.out_size_x, input.options.out_size_y)
         

@@ -15,12 +15,12 @@ class STABLEDIFFUSIONSEQUENCER_API UStableDiffusionPromptMovieSceneSection : pub
 	UStableDiffusionPromptMovieSceneSection(const FObjectInitializer& ObjectInitializer);
 
 public:
-	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer", meta = (Multiline = true, ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion", meta = (Multiline = true))
 	FPrompt Prompt;
 
 	const FMovieSceneFloatChannel& GetWeightChannel() const { return Weight; }
 
-	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer")
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Curves")
 	FMovieSceneFloatChannel Weight;
 
 private:

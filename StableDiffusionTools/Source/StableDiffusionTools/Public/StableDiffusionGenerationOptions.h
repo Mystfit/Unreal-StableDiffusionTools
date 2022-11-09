@@ -38,12 +38,20 @@ public:
 
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
 	{
-		return Model.Equals(Other.Model) && Revision.Equals(Other.Revision) && Precision.Equals(Other.Precision);
+		return Model.Equals(Other.Model) && 
+			Revision.Equals(Other.Revision) && 
+			Precision.Equals(Other.Precision) && 
+			CustomPipeline.Equals(Other.CustomPipeline) &&
+			Inpaint == Other.Inpaint;
 	}
 
 	FORCEINLINE bool operator!=(const FStableDiffusionModelOptions& Other)
 	{
-		return !Model.Equals(Other.Model) || !Revision.Equals(Other.Revision) || !Precision.Equals(Other.Precision);
+		return !Model.Equals(Other.Model) || 
+			!Revision.Equals(Other.Revision) || 
+			!Precision.Equals(Other.Precision) ||
+			!CustomPipeline.Equals(Other.CustomPipeline) ||
+			!(Inpaint == Other.Inpaint);
 	}
 };
 

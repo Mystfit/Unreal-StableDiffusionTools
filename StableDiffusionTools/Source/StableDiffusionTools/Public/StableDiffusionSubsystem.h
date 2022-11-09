@@ -50,10 +50,15 @@ struct FStencilValues
 struct STABLEDIFFUSIONTOOLS_API FScopedActorLayerStencil {
 public:
 	FScopedActorLayerStencil() = delete;
-	FScopedActorLayerStencil(const FActorLayer& Layer);
+	FScopedActorLayerStencil(const FScopedActorLayerStencil& ref);
+	FScopedActorLayerStencil(const FActorLayer& Layer, bool RestoreOnDelete=true);
 	~FScopedActorLayerStencil();
 
+	void Restore();
+
 private:
+	bool RestoreOnDelete;
+
 	// Stencil values
 	TMap<UPrimitiveComponent*, FStencilValues> ActorLayerSavedStencilValues;
 
