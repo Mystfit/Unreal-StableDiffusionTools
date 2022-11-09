@@ -10,7 +10,7 @@ dependencies = {
     "torch": {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
     "torchvision":  {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
     "torchaudio":  {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
-    "diffusers": {},
+    "diffusers": {"url": "https://github.com/huggingface/diffusers.git"},
     "transformers": {},
     "scipy":{},
     "ftfy": {},
@@ -31,6 +31,7 @@ def install_dependencies(pip_dependencies):
     with unreal.ScopedSlowTask(len(pip_dependencies), "Installing dependencies") as slow_task:
         slow_task.make_dialog(True)
         for dep_name, dep_options in pip_dependencies.items():
+            print(dep_options)
             dep_path = dep_options["url"] if "url" in dep_options.keys() else ""
             dep_force_upgrade = dep_options["upgrade"] if "upgrade" in dep_options.keys() else True
             extra_flags = dep_options["args"].split(' ') if "args" in dep_options.keys() else []
@@ -41,12 +42,14 @@ def install_dependencies(pip_dependencies):
             slow_task.enter_progress_frame(1.0, f"Installing dependency {dep_name}")
             if dep_path:
                 if dep_path.endswith(".whl"):
+                    print("Dowloading wheel")
                     wheel_path = download_wheel(dep_name, dep_path)
                     dep_name = [f"{wheel_path}"]
                 elif dep_path.endswith(".git"):
-                    path = clone_dependency(dep_name, dep_path)
-                    dep_name = [f"{path}"]
-                    extra_flags += ["--global-option=build_ext", f"--global-option=-I'{pythonheaders}'", f"--global-option=-L'{pythonlibs}'"]
+                    print("Downloading git repository")
+                    #path = clone_dependency(dep_name, dep_path)
+                    dep_name = [f"git+{dep_path}#egg={dep_name}"]
+                    #extra_flags += ["--global-option=build_ext", f"--global-option=-I'{pythonheaders}'", f"--global-option=-L'{pythonlibs}'"]
             else:
                 dep_name = dep_name.split(' ')
                

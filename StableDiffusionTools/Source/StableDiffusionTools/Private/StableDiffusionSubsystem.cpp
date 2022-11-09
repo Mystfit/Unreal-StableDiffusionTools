@@ -20,6 +20,8 @@
 
 #define LOCTEXT_NAMESPACE "StableDiffusionSubsystem"
 
+FString UStableDiffusionSubsystem::StencilLayerMaterialAsset = TEXT("/StableDiffusionTools/Materials/SD_StencilMask.SD_StencilMask");
+
 bool FCapturedFramePayload::OnFrameReady_RenderThread(FColor* ColorBuffer, FIntPoint BufferSize, FIntPoint TargetSize) const
 {
 	OnFrameCapture.Broadcast(ColorBuffer, BufferSize, TargetSize);
@@ -116,6 +118,9 @@ bool UStableDiffusionSubsystem::LoginHuggingFaceUsingToken(const FString& token)
 void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, bool Async)
 {
 	if (GeneratorBridge) {
+		// Unload any loaded models first
+		ReleaseModel();
+
 		if (Async) {
 			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model]() {
 				this->ModelInitialised = this->GeneratorBridge->InitModel(Model);
@@ -145,7 +150,7 @@ void UStableDiffusionSubsystem::ReleaseModel()
 	ModelInitialised = false;
 }
 
-void UStableDiffusionSubsystem::StartCapturingViewport(FIntPoint Size)
+TSharedPtr<FSceneViewport> UStableDiffusionSubsystem::GetCapturingViewport()
 {
 	// Find active viewport
 	TSharedPtr<FSceneViewport> OutSceneViewport;
@@ -191,7 +196,7 @@ void UStableDiffusionSubsystem::StartCapturingViewport(FIntPoint Size)
 		OutSceneViewport = GameEngine->SceneViewport;
 	}
 
-	SetCaptureViewport(OutSceneViewport.ToSharedRef(), OutSceneViewport->GetSize());
+	return OutSceneViewport;
 }
 
 void UStableDiffusionSubsystem::SetCaptureViewport(TSharedRef<FSceneViewport> Viewport, FIntPoint FrameSize)
@@ -202,73 +207,113 @@ void UStableDiffusionSubsystem::SetCaptureViewport(TSharedRef<FSceneViewport> Vi
 
 void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool FromViewport)
 {
-	// Remember prior screen message state and disable it so our viewport is clean
-	bool bPrevGScreenMessagesEnabled = GAreScreenMessagesEnabled;
-	bool bPrevViewportGameViewEnabled = false;
-	GAreScreenMessagesEnabled = false;
-	ULevelEditorSubsystem* LevelEditorSubsystem = nullptr;
+	AsyncTask(ENamedThreads::GameThread, [this, Input, FromViewport]() mutable
+		{
+			// Remember prior screen message state and disable it so our viewport is clean
+			bool bPrevGScreenMessagesEnabled = GAreScreenMessagesEnabled;
+			bool bPrevViewportGameViewEnabled = false;
+			GAreScreenMessagesEnabled = false;
+			ULevelEditorSubsystem* LevelEditorSubsystem = nullptr;
 
 #if WITH_EDITOR
-	//Only set Game view when streaming in editor mode (so not on PIE, SIE or standalone) 
-	if (GEditor && !GEditor->IsPlaySessionInProgress())
-	{
-		LevelEditorSubsystem = GEditor->GetEditorSubsystem<ULevelEditorSubsystem>();
-		if (LevelEditorSubsystem)
-		{
-			bPrevViewportGameViewEnabled = LevelEditorSubsystem->EditorGetGameView();
-			LevelEditorSubsystem->EditorSetGameView(true);
-		}
-	}
+			//Only set Game view when streaming in editor mode (so not on PIE, SIE or standalone) 
+			if (GEditor && !GEditor->IsPlaySessionInProgress())
+			{
+				LevelEditorSubsystem = GEditor->GetEditorSubsystem<ULevelEditorSubsystem>();
+				if (LevelEditorSubsystem)
+				{
+					bPrevViewportGameViewEnabled = LevelEditorSubsystem->EditorGetGameView();
+					LevelEditorSubsystem->EditorSetGameView(true);
+				}
+			}
 
 #endif
 
-	StartCapturingViewport(FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY));
+			auto ViewportSize = GetCapturingViewport()->GetSizeXY();
 
-	if (!ViewportCapture || ActiveEndframeHandler.IsValid())
-		return;
+			// Create a SceneCapture2D that will capture our editor viewport
+			CreateSceneCaptureCamera();
 
-	// Forward image updated event from bridge to subsystem
-	this->GeneratorBridge->OnImageProgressEx.AddUniqueDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
+			// Forward image updated event from bridge to subsystem
+			this->GeneratorBridge->OnImageProgressEx.AddUniqueDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
 
-	// Create a frame payload we will wait on to be filled with a frame
-	auto framePtr = MakeShared<FCapturedFramePayload>();
-	framePtr->OnFrameCapture.AddLambda([=](FColor* Pixels, FIntPoint BufferSize, FIntPoint TargetSize) mutable
-	{
-		// Restore screen messages and UI
-		GAreScreenMessagesEnabled = bPrevGScreenMessagesEnabled;
-		if(LevelEditorSubsystem)
-			LevelEditorSubsystem->EditorSetGameView(bPrevViewportGameViewEnabled);
+			// Restore screen messages and UI
+			GAreScreenMessagesEnabled = bPrevGScreenMessagesEnabled;
+			if (LevelEditorSubsystem)
+				LevelEditorSubsystem->EditorSetGameView(bPrevViewportGameViewEnabled);
 
-		// Copy frame data
-		TArray<FColor> CopiedFrame = CopyFrameData(TargetSize, BufferSize, Pixels);
-		Input.InputImagePixels = MoveTempIfPossible(CopiedFrame);
+			// Setup scene capture component
+			auto CaptureComponent = CurrentSceneCapture.SceneCapture->GetCaptureComponent2D();
+			CaptureComponent->bCaptureEveryFrame = true;
+			CaptureComponent->bCaptureOnMovement = false;
+			CaptureComponent->CompositeMode = SCCM_Overwrite;
+			CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalToneCurveHDR;
+			//CaptureComponent->PostProcessSettings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+			//CaptureComponent->PostProcessSettings.AutoExposureBias = 15;
 
-		// Set size from viewport
-		Input.Options.InSizeX = FromViewport ? TargetSize.X : Input.Options.InSizeX;
-		Input.Options.InSizeY = FromViewport ? TargetSize.Y : Input.Options.InSizeY;
+			// Create render target to hold our scene capture data
+			UTextureRenderTarget2D* FullFrameRT = NewObject<UTextureRenderTarget2D>(CaptureComponent);
+			check(FullFrameRT);
+			FullFrameRT->InitCustomFormat(ViewportSize.X, ViewportSize.Y, PF_R8G8B8A8, false);
+			FullFrameRT->UpdateResourceImmediate(true);
+			CaptureComponent->TextureTarget = FullFrameRT;
 
-		// Generate the image on a background thread
-		AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Input]()
-		{
-			// Generate image
-			FStableDiffusionImageResult result = this->GeneratorBridge->GenerateImageFromStartImage(Input);
+			// Create destination pixel arrays
+			TArray<FColor> FinalColor;
+			TArray<FColor> InpaintMask;
+			FinalColor.AddUninitialized(ViewportSize.X * ViewportSize.Y);
+			InpaintMask.AddUninitialized(ViewportSize.X * ViewportSize.Y);
+			FTextureRenderTargetResource* FullFrameRT_TexRes = FullFrameRT->GameThread_GetRenderTargetResource();
 
-			// Create generated texture on game thread
-			AsyncTask(ENamedThreads::GameThread, [this, result]
-			{
-				this->OnImageGenerationCompleteEx.Broadcast(result);
+			// Capture scene and get main render pass
+			CaptureComponent->CaptureScene();
+			FullFrameRT_TexRes->ReadPixels(FinalColor, FReadSurfaceDataFlags());
+
+			// Create material to handle actor layers as stencil masks
+			TSoftObjectPtr<UMaterialInterface> StencilMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(StencilLayerMaterialAsset));
+			auto StencilLayerMaterial = StencilMatRef.LoadSynchronous();
+			UMaterialInstanceDynamic* StencilMatInst = UMaterialInstanceDynamic::Create(StencilLayerMaterial, CaptureComponent);
+			CaptureComponent->AddOrUpdateBlendable(StencilMatInst);
+			
+			// Disable bloom to stop it bleeding from the stencil mask
+			CaptureComponent->ShowFlags.SetBloom(false);
+
+			for (auto layer : Input.Options.InpaintLayers) {
+				FScopedActorLayerStencil stencil_settings(layer);
 				
-				// Cleanup
-				this->GeneratorBridge->OnImageProgressEx.RemoveDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
-			});
+				// Render second pass of scene as a stencil mask for inpainting
+				CaptureComponent->CaptureScene();
+				FullFrameRT_TexRes->ReadPixels(InpaintMask, FReadSurfaceDataFlags());
+
+				// Cleanup scene capture once we've captured all our pixel data
+				this->CurrentSceneCapture.SceneCapture->Destroy();
+				this->CurrentSceneCapture.ViewportClient = nullptr;
+			}
+
+			// Copy frame data
+			Input.InputImagePixels = MoveTempIfPossible(FinalColor);
+			Input.MaskImagePixels = MoveTempIfPossible(InpaintMask);
+
+			// Set size from viewport
+			Input.Options.InSizeX = FromViewport ? ViewportSize.X : Input.Options.InSizeX;
+			Input.Options.InSizeY = FromViewport ? ViewportSize.Y : Input.Options.InSizeY;
+
+			// Generate the image on a background thread
+			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Input]()
+				{
+					// Generate image
+					FStableDiffusionImageResult result = this->GeneratorBridge->GenerateImageFromStartImage(Input);
+
+					// Create generated texture on game thread
+					AsyncTask(ENamedThreads::GameThread, [this, result]
+						{
+							this->OnImageGenerationCompleteEx.Broadcast(result);
+
+							// Cleanup
+							this->GeneratorBridge->OnImageProgressEx.RemoveDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
+						});
+				});
 		});
-
-		// Don't need to keep capturing whilst generating
-		ViewportCapture->StopCapturingFrames();
-	});
-
-	// Start frame capture
-	ViewportCapture->CaptureThisFrame(framePtr);
 }
 
 void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult& input)
@@ -317,6 +362,36 @@ UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& Frame
 	if (!FrameColors.Num())
 		return nullptr;
 	return ColorBufferToTexture(FrameName, (uint8*)FrameColors.GetData(), FrameSize, OutTex);
+}
+
+void UStableDiffusionSubsystem::CreateSceneCaptureCamera()
+{
+	bool FoundViewport = false;
+	FVector CameraLocation = FVector::ZeroVector;
+	FRotator CameraRotation = FRotator::ZeroRotator;
+	float HorizFov = 0.0f;
+
+	for (FLevelEditorViewportClient* LevelVC : GEditor->GetLevelViewportClients())
+	{
+		if (LevelVC && LevelVC->IsPerspective())
+		{
+			FoundViewport = true;
+			CurrentSceneCapture.ViewportClient = LevelVC;
+			break;
+		}
+	}
+
+	if (FoundViewport){
+		CurrentSceneCapture.SceneCapture = GEditor->GetEditorWorldContext().World()->SpawnActor<ASceneCapture2D>();
+		UpdateSceneCaptureCamera();
+	}
+}
+
+void UStableDiffusionSubsystem::UpdateSceneCaptureCamera() 
+{
+	CurrentSceneCapture.SceneCapture->SetActorLocation(CurrentSceneCapture.ViewportClient->GetViewLocation());
+	CurrentSceneCapture.SceneCapture->SetActorRotation(CurrentSceneCapture.ViewportClient->GetViewRotation());
+	CurrentSceneCapture.SceneCapture->GetCaptureComponent2D()->FOVAngle = CurrentSceneCapture.ViewportClient->FOVAngle;
 }
 
 UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex)
@@ -396,3 +471,104 @@ TArray<FColor> UStableDiffusionSubsystem::CopyFrameData(FIntPoint TargetSize, FI
 
 	return std::move(CopiedFrame);
 }
+
+FScopedActorLayerStencil::FScopedActorLayerStencil(const FActorLayer& Layer, bool RestoreOnDelete) : RestoreOnDelete(RestoreOnDelete)
+{
+	// Set custom depth variable to allow for stencil masks
+	IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth"));
+	if (CVar)
+	{
+		PreviousCustomDepthValue = CVar->GetInt();
+		const int32 CustomDepthWithStencil = 3;
+		if (PreviousCustomDepthValue != CustomDepthWithStencil)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Overriding project custom depth/stencil value to support a stencil pass."));
+			// We use ECVF_SetByProjectSetting otherwise once this is set once by rendering, the UI silently fails
+			// if you try to change it afterwards. This SetByProjectSetting will fail if they have manipulated the cvar via the console
+			// during their current session but it's less likely than changing the project settings.
+			CVar->Set(CustomDepthWithStencil, EConsoleVariableFlags::ECVF_SetByProjectSetting);
+		}
+	}
+
+	// If we're going to be using stencil layers, we need to cache all of the users
+	// custom stencil/depth settings since we're changing them to do the mask.
+	for (TActorIterator<AActor> ActorItr(GEditor->GetEditorWorldContext().World()); ActorItr; ++ActorItr)
+	{
+		AActor* Actor = *ActorItr;
+		if (Actor)
+		{
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				if (Component && Component->IsA<UPrimitiveComponent>())
+				{
+					UPrimitiveComponent* PrimitiveComponent = CastChecked<UPrimitiveComponent>(Component);
+					FStencilValues& Values = ActorLayerSavedStencilValues.Add(PrimitiveComponent);
+					Values.StencilMask = PrimitiveComponent->CustomDepthStencilWriteMask;
+					Values.CustomStencil = PrimitiveComponent->CustomDepthStencilValue;
+					Values.bRenderCustomDepth = PrimitiveComponent->bRenderCustomDepth;
+				}
+			}
+
+			// The way stencil masking works is that we draw the actors on the given layer to the stencil buffer.
+			// Then we apply a post-processing material which colors pixels outside those actors black, before
+			// post processing. Then, TAA, Motion Blur, etc. is applied to all pixels. An alpha channel can preserve
+			// which pixels were the geometry and which are dead space which lets you apply that as a mask later.
+			bool bInLayer = true;
+
+			// If this a normal layer, we only add the actor if it exists on this layer.
+			bInLayer = Actor->Layers.Contains(Layer.Name);
+			if (bInLayer) {
+				UE_LOG(LogTemp, Log, TEXT("Actor found in stencil layer"));
+			}
+
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				if (Component && Component->IsA<UPrimitiveComponent>())
+				{
+					UPrimitiveComponent* PrimitiveComponent = CastChecked<UPrimitiveComponent>(Component);
+					// We want to render all objects not on the layer to stencil too so that foreground objects mask.
+					PrimitiveComponent->SetCustomDepthStencilValue(bInLayer ? 1 : 0);
+					PrimitiveComponent->SetCustomDepthStencilWriteMask(ERendererStencilMask::ERSM_Default);
+					PrimitiveComponent->SetRenderCustomDepth(true);
+				}
+			}
+		}
+	}
+}
+
+FScopedActorLayerStencil::FScopedActorLayerStencil(const FScopedActorLayerStencil& ref) {
+	ActorLayerSavedStencilValues = ref.ActorLayerSavedStencilValues;
+	RestoreOnDelete = ref.RestoreOnDelete;
+	PreviousCustomDepthValue = ref.PreviousCustomDepthValue;
+}
+
+FScopedActorLayerStencil::~FScopedActorLayerStencil()
+{
+	if (RestoreOnDelete)
+		Restore();
+}
+
+void FScopedActorLayerStencil::Restore() {
+	if (PreviousCustomDepthValue.IsSet())
+	{
+		IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth"));
+		if (CVar)
+		{
+			if (CVar->GetInt() != PreviousCustomDepthValue.GetValue())
+			{
+				UE_LOG(LogTemp, Log, TEXT("Restoring custom depth/stencil value to: %d"), PreviousCustomDepthValue.GetValue());
+				CVar->Set(PreviousCustomDepthValue.GetValue(), EConsoleVariableFlags::ECVF_SetByProjectSetting);
+			}
+		}
+	}
+
+	// Now we can restore the custom depth/stencil/etc. values so that the main render pass acts as the user expects next time.
+	for (TPair<UPrimitiveComponent*, FStencilValues>& KVP : ActorLayerSavedStencilValues)
+	{
+		KVP.Key->SetCustomDepthStencilValue(KVP.Value.CustomStencil);
+		KVP.Key->SetCustomDepthStencilWriteMask(KVP.Value.StencilMask);
+		KVP.Key->SetRenderCustomDepth(KVP.Value.bRenderCustomDepth);
+	}
+}
+
+#undef LOCTEXT_NAMESPACE

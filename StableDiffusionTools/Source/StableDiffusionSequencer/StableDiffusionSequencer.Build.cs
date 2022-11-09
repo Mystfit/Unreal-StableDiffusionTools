@@ -55,6 +55,8 @@ public class StableDiffusionSequencer: ModuleRules
 				"ImageWrapper",
 				"RHI",
 				"RenderCore",
+				"OpenColorIO",
+				"ActorLayerUtilities",
 				"StableDiffusionTools"
 				// ... add private dependencies that you statically link with here ...	
 			}

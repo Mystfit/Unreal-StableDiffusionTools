@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "PromptAsset.h"
+#include "ActorLayerUtilities.h"
 #include "StableDiffusionGenerationOptions.generated.h"
 
 
@@ -32,15 +33,36 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		bool AllowNSFW = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+		bool Inpaint = false;
+
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
 	{
-		return Model.Equals(Other.Model) && Revision.Equals(Other.Revision) && Precision.Equals(Other.Precision);
+		return Model.Equals(Other.Model) && 
+			Revision.Equals(Other.Revision) && 
+			Precision.Equals(Other.Precision) && 
+			CustomPipeline.Equals(Other.CustomPipeline) &&
+			Inpaint == Other.Inpaint;
 	}
 
 	FORCEINLINE bool operator!=(const FStableDiffusionModelOptions& Other)
 	{
-		return !Model.Equals(Other.Model) || !Revision.Equals(Other.Revision) || !Precision.Equals(Other.Precision);
+		return !Model.Equals(Other.Model) || 
+			!Revision.Equals(Other.Revision) || 
+			!Precision.Equals(Other.Precision) ||
+			!CustomPipeline.Equals(Other.CustomPipeline) ||
+			!(Inpaint == Other.Inpaint);
 	}
+};
+
+
+UCLASS()
+class STABLEDIFFUSIONTOOLS_API UStableDiffusionModelAsset : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Model")
+	FStableDiffusionModelOptions Options;
 };
 
 
@@ -74,6 +96,9 @@ public:
 	int32 OutSizeY = 512;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	TArray<FActorLayer> InpaintLayers;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	TArray<FPrompt> PositivePrompts;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
@@ -86,6 +111,16 @@ public:
 		}
 		PositivePrompts.Add(Prompt);
 	}
+};
+
+
+UCLASS()
+class STABLEDIFFUSIONTOOLS_API UStableDiffusionGenerationAsset : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Generation")
+	FStableDiffusionGenerationOptions Options;
 };
 
 

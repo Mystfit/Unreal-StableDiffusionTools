@@ -16,11 +16,17 @@ class STABLEDIFFUSIONSEQUENCER_API UStableDiffusionOptionsSection : public UMovi
 	UStableDiffusionOptionsSection(const FObjectInitializer& ObjectInitializer);
 public:
 
-	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer", meta = (Multiline = true, ShowOnlyInnerProperties))
-	FStableDiffusionGenerationOptions GenerationOptions;
+	/*UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer", meta = (Multiline = true))
+	FStableDiffusionGenerationOptions GenerationOptions;*/
 
-	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer", meta = (Multiline = true, ShowOnlyInnerProperties))
-	FStableDiffusionModelOptions ModelOptions;
+	//UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer", meta = (Multiline = true))
+	//FStableDiffusionModelOptions ModelOptions;
+
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Model", meta = (Multiline = true))
+	UStableDiffusionModelAsset* ModelAsset;
+
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Inpainting options")
+	TArray< FName > InpaintLayers;
 
 	/**
 	 * Public access to this section's internal data function
@@ -30,12 +36,12 @@ public:
 	const FMovieSceneIntegerChannel& GetSeedChannel() const { return SeedCurve; }
 
 
-	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer")
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Curves")
 	FMovieSceneFloatChannel StrengthCurve;
 
-	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer")
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Curves")
 	FMovieSceneIntegerChannel IterationsCurve;
 
-	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer")
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Curves")
 	FMovieSceneIntegerChannel SeedCurve;
 };

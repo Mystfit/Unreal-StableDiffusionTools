@@ -26,6 +26,7 @@ public class StableDiffusionTools : ModuleRules
 			new string[]
 			{
 				"Core",
+				"ActorLayerUtilities"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
