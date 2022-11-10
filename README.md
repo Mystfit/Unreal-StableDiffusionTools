@@ -7,6 +7,8 @@ This plugin feeds your editor viewport through the [Diffusers](https://github.co
 
 ![StableDiffusionPluginUnreal](https://user-images.githubusercontent.com/795851/195005569-b7b33432-a981-4f76-81d5-d9948861fd84.png)
 
+Join us on [Discord](https://discord.gg/9m6HxaDB62).
+
 Requirements
 ------------
 
