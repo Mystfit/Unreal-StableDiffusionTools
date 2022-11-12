@@ -9,7 +9,7 @@
 class FToolBarBuilder;
 class FMenuBuilder;
 
-class FStableDiffusionToolsEditorModule : public IModuleInterface
+class STABLEDIFFUSIONTOOLSEDITOR_API FStableDiffusionToolsEditorModule : public IModuleInterface
 {
 public:
 
@@ -20,12 +20,14 @@ public:
 	/** This function will be bound to Command (by default it will bring up plugin window) */
 	void PluginButtonClicked();
 
+	void OpenDependencyInstallerWindow();
 	
 private:
 
 	void RegisterMenus();
 
 	TSharedRef<class SDockTab> OnSpawnPluginTab(const class FSpawnTabArgs& SpawnTabArgs);
+	TSharedRef<SDockTab> OnSpawnDependencyInstallerTab(const FSpawnTabArgs& SpawnTabArgs);
 
 	UPROPERTY(EditAnywhere, Category = "StableDiffusion|UI")
 	TSubclassOf<UStableDiffusionViewportWidget> ViewportWidget;
