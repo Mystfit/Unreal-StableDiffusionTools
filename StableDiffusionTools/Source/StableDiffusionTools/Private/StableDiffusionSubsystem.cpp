@@ -101,7 +101,7 @@ bool UStableDiffusionSubsystem::LoginHuggingFaceUsingToken(const FString& token)
 	PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
 	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
 
-	PythonCommand.Command = FString::Format(TEXT("utils.HfFolder.save_token('{0}')"), { token });
+	PythonCommand.Command = FString::Format(TEXT("HfFolder.save_token('{0}')"), { token });
 	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
 	return IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
 }
