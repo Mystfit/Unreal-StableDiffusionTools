@@ -9,6 +9,7 @@
 #include "Engine/SceneCapture2D.h"
 #include "LevelEditorViewport.h"
 #include "StableDiffusionBridge.h"
+#include "DependencyManager.h"
 #include "StableDiffusionImageResult.h"
 #include "StableDiffusionSubsystem.generated.h"
 
@@ -76,11 +77,28 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionSubsystem : public UEditorSubsyst
 public:
 	static FString StencilLayerMaterialAsset;
 
-		UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
+
+	// Python classes
+	// --------------
+
+	UPROPERTY(EditAnywhere, Category="StableDiffusion|Generation")
+	TObjectPtr<UStableDiffusionBridge> GeneratorBridge;
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "StableDiffusion|Dependencies")
+	TObjectPtr<UDependencyManager> DependencyManager;
+
+
+	// Subsystem functions
+	// -------------------
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
 	bool DependenciesAreInstalled();
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
-	void InstallDependencies();
+		void RestartEditor();
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
+	void InstallDependency(FName Dependency, bool ForceReinstall);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	bool HasHuggingFaceToken();
@@ -120,9 +138,6 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Model")
 	FStableDiffusionModelOptions ModelOptions;
-
-	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Generation")
-	TObjectPtr<UStableDiffusionBridge> GeneratorBridge;
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Generation")
 	FImageGenerationCompleteEx OnImageGenerationCompleteEx;

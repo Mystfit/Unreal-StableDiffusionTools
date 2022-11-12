@@ -13,7 +13,8 @@
 #include "AssetRegistryModule.h"
 #include "EditorUtilityWidget.h"
 
-static const FName StableDiffusionToolsTabName("StableDiffusionTools");
+static const FName StableDiffusionToolsTabName("Stable Diffusion Tools");
+static const FName StableDiffusionDependencyInstallerTabName("Stable Diffusion Dependency Installer");
 
 #define LOCTEXT_NAMESPACE "FStableDiffusionToolsEditorModule"
 
@@ -31,8 +32,14 @@ void FStableDiffusionToolsEditorModule::StartupModule()
 
 	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FStableDiffusionToolsEditorModule::RegisterMenus));
 	
+	// Main plugin UI tab
 	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(StableDiffusionToolsTabName, FOnSpawnTab::CreateRaw(this, &FStableDiffusionToolsEditorModule::OnSpawnPluginTab))
 		.SetDisplayName(LOCTEXT("FStableDiffusionToolsTabTitle", "Stable Diffusion Tools"))
+		.SetMenuType(ETabSpawnerMenuType::Hidden);
+
+	// Dependency installer tab
+	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(StableDiffusionDependencyInstallerTabName, FOnSpawnTab::CreateRaw(this, &FStableDiffusionToolsEditorModule::OnSpawnDependencyInstallerTab))
+		.SetDisplayName(LOCTEXT("FStableDiffusionToolsDependencyInstallerTabTitle", "Stable Diffusion Dependency Installer"))
 		.SetMenuType(ETabSpawnerMenuType::Hidden);
 }
 
@@ -74,7 +81,7 @@ TSharedRef<SDockTab> FStableDiffusionToolsEditorModule::OnSpawnPluginTab(const F
 	UWorld* World = GEditor->GetEditorWorldContext().World();
 	check(World);
 
-	UEditorUtilityWidget* CreatedUMGWidget = CreateWidget<UStableDiffusionViewportWidget>(World, WidgetClass);
+	UEditorUtilityWidget* CreatedUMGWidget = CreateWidget<UStableDiffusionViewportWidget>(GEditor->GetEditorWorldContext().World(), WidgetClass);
 	if (CreatedUMGWidget)
 	{
 		DockTab->SetContent(CreatedUMGWidget->TakeWidget());
@@ -83,9 +90,50 @@ TSharedRef<SDockTab> FStableDiffusionToolsEditorModule::OnSpawnPluginTab(const F
 	return DockTab;
 }
 
+
+TSharedRef<SDockTab> FStableDiffusionToolsEditorModule::OnSpawnDependencyInstallerTab(const FSpawnTabArgs& SpawnTabArgs)
+{
+	auto DockTab = SNew(SDockTab).TabRole(ETabRole::NomadTab);// .ShouldAutosize(true);
+
+	const FAssetRegistryModule& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	FString EditorUIPackage = "/StableDiffusionTools/UI/Widgets/BP_StableDiffusionDependencyInstallerWidget";
+	AssetRegistry.Get().ScanFilesSynchronous({ FPackageName::LongPackageNameToFilename(EditorUIPackage, FPackageName::GetAssetPackageExtension()) });
+	auto Data = AssetRegistry.Get().GetAssetByObjectPath(FName(EditorUIPackage.Append(".BP_StableDiffusionDependencyInstallerWidget")));
+	check(Data.IsValid());
+
+	TSubclassOf<UEditorUtilityWidget> WidgetClass;
+	if (Data.AssetName.ToString().Equals(TEXT("BP_StableDiffusionDependencyInstallerWidget"), ESearchCase::CaseSensitive))
+	{
+		UBlueprint* BP = Cast<UBlueprint>(Data.GetAsset());
+		if (BP && BP->GeneratedClass.Get())
+		{
+			if (!BP->GeneratedClass.Get()->HasAnyClassFlags(CLASS_Deprecated | CLASS_Hidden)) {
+				WidgetClass = BP->GeneratedClass.Get();
+			}
+		}
+	}
+
+	UWorld* World = GEditor->GetEditorWorldContext().World();
+	check(World);
+
+	UEditorUtilityWidget* CreatedUMGWidget = CreateWidget<UEditorUtilityWidget>(GEditor->GetEditorWorldContext().World(), WidgetClass);
+	if (CreatedUMGWidget)
+	{
+		DockTab->SetContent(CreatedUMGWidget->TakeWidget());
+	}
+
+	return DockTab;
+}
+
+
 void FStableDiffusionToolsEditorModule::PluginButtonClicked()
 {
 	FGlobalTabmanager::Get()->TryInvokeTab(StableDiffusionToolsTabName);
+}
+
+void FStableDiffusionToolsEditorModule::OpenDependencyInstallerWindow() 
+{
+	FGlobalTabmanager::Get()->TryInvokeTab(StableDiffusionDependencyInstallerTabName);
 }
 
 void FStableDiffusionToolsEditorModule::RegisterMenus()

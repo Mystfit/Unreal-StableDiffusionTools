@@ -30,35 +30,11 @@ bool FCapturedFramePayload::OnFrameReady_RenderThread(FColor* ColorBuffer, FIntP
 
 bool UStableDiffusionSubsystem::DependenciesAreInstalled()
 {
-	FPythonCommandEx PythonCommand;
-	PythonCommand.Command = FString("SD_dependencies_installed()");
-	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::EvaluateStatement;
-	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
-	return PythonCommand.CommandResult == "True";
+	return (DependencyManager) ? DependencyManager->AllDependenciesInstalled() : false;
 }
 
-void UStableDiffusionSubsystem::InstallDependencies()
+void UStableDiffusionSubsystem::RestartEditor()
 {
-	FPythonCommandEx DepInstallCommand;
-	DepInstallCommand.Command = FString("install_dependencies.py");
-	DepInstallCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
-	DepInstallCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
-
-	bool install_result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(DepInstallCommand);
-	if (!install_result) {
-		// Dependency installation failed - log result
-		OnDependenciesInstalled.Broadcast(install_result);
-		return;
-	}
-
-	FPythonCommandEx LoadBridgeCommand;
-	LoadBridgeCommand.Command = FString("load_diffusers_bridge.py");
-	LoadBridgeCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
-	LoadBridgeCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
-	bool reload_result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(LoadBridgeCommand);
-	OnDependenciesInstalled.Broadcast(reload_result);
-
-
 	// Present the user with a warning that changing projects has to restart the editor
 	FSuppressableWarningDialog::FSetupInfo Info(
 		LOCTEXT("RestartEditorMsg", "The editor will restart to complete the python dependency install process."),
@@ -77,10 +53,21 @@ void UStableDiffusionSubsystem::InstallDependencies()
 	// If the user wants to continue with the restart set the pending project to swtich to and close the editor
 	if (bSwitch)
 	{
-		// Close the editor.  This will prompt the user to save changes.  If they hit cancel, we abort the project switch
-		//GEngine->DeferredCommands.Add(TEXT("CLOSE_SLATE_MAINFRAME"));
 		FUnrealEdMisc::Get().RestartEditor(false);
 	}
+}
+
+void UStableDiffusionSubsystem::InstallDependency(FName Dependency, bool ForceReinstall)
+{
+	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Dependency, ForceReinstall]() {
+		if (this->DependencyManager) {
+			FDependencyStatus result = this->DependencyManager->InstallDependency(Dependency, ForceReinstall);
+
+			AsyncTask(ENamedThreads::GameThread, [this, result]() {
+				this->DependencyManager->OnDependencyInstalled.Broadcast(result);
+			});
+		}
+	});
 }
 
 bool UStableDiffusionSubsystem::HasHuggingFaceToken()
@@ -92,25 +79,29 @@ bool UStableDiffusionSubsystem::HasHuggingFaceToken()
 FString UStableDiffusionSubsystem::GetHuggingfaceToken()
 {
 	FPythonCommandEx PythonCommand;
-	PythonCommand.Command = FString("import huggingface_hub");
+	PythonCommand.Command = FString("from huggingface_hub.utils import HfFolder");
 	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
 	PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
 	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
 
-	PythonCommand.Command = FString("huggingface_hub.utils.HfFolder.get_token()");
+	PythonCommand.Command = FString("HfFolder.get_token()");
 	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::EvaluateStatement;
 	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
 
 	//Python evaluation is wrapped in single quotes
 	bool trimmed = false;
-	auto result = PythonCommand.CommandResult.TrimChar(TCHAR('\''), &trimmed).TrimQuotes().TrimEnd();
-	return result;
+	return !PythonCommand.CommandResult.Contains("Traceback") ? PythonCommand.CommandResult.TrimChar(TCHAR('\''), &trimmed).TrimQuotes().TrimEnd() : "";
 }
 
 bool UStableDiffusionSubsystem::LoginHuggingFaceUsingToken(const FString& token)
 {
 	FPythonCommandEx PythonCommand;
-	PythonCommand.Command = FString::Format(TEXT("huggingface_hub.utils.HfFolder.save_token('{0}')"), { token });
+	PythonCommand.Command = FString("from huggingface_hub.utils import HfFolder");
+	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
+	PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
+	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
+
+	PythonCommand.Command = FString::Format(TEXT("utils.HfFolder.save_token('{0}')"), { token });
 	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
 	return IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
 }

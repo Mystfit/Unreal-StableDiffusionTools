@@ -1,5 +1,7 @@
 import os, sys, subprocess
 import urllib.request
+import importlib.util
+
 from urllib.parse import urlparse
 
 from subprocess import CalledProcessError
@@ -36,10 +38,12 @@ class PyDependencyManager(unreal.DependencyManager):
             install_dependency(dependency)
 
     @unreal.ufunction(override=True)
-    def install_dependency(self, dependency):
+    def install_dependency(self, dependency, force_reinstall):
+        dependency = str(dependency)
         status = unreal.DependencyStatus()
         status.name = dependency
         status.installed = False
+        status.return_code = 0
 
         if not dependency in dependencies.keys():
             return status
@@ -47,10 +51,11 @@ class PyDependencyManager(unreal.DependencyManager):
         dep_name = dependency
         dep_options = dependencies[dep_name]
 
-        print(dep_options)
         dep_path = dep_options["url"] if "url" in dep_options.keys() else ""
         dep_force_upgrade = dep_options["upgrade"] if "upgrade" in dep_options.keys() else True
         extra_flags = dep_options["args"].split(' ') if "args" in dep_options.keys() else []
+        if force_reinstall:
+            extra_flags.append("--force-reinstall")
         print("Installing dependency " + dep_name)
         
         if dep_path:
@@ -70,16 +75,29 @@ class PyDependencyManager(unreal.DependencyManager):
             extra_flags.append("--upgrade")
 
         try: 
-            print(subprocess.check_output([f"{pythonpath}", '-m', 'pip', 'install'] + extra_flags + dep_name), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            result.installed = True
+            cmd = [f"{pythonpath}", '-m', 'pip', 'install'] + extra_flags + dep_name
+            proc = subprocess.Popen(
+                cmd, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+                shell=True
+            )
+            for stdout_line in iter(proc.stdout.readline, ""):
+                print(stdout_line)
+                self.update_dependency_progress(dependency, str(stdout_line))
+                # yield stdout_line
+            proc.stdout.close()
+            return_code = proc.wait()
+            if return_code:
+                raise subprocess.CalledProcessError(return_code, " ".join(cmd))
+            status.installed = True
         except CalledProcessError as e:
-            #print("Return code for dependency {0} was non-zero. Returned {1} instead".format(dep_name, str(e.returncode)))
-            #print("Command:")
-            #print(" ".join([f"{pythonpath}", '-m', 'pip', 'install'] + extra_flags + dep_name))
-            result.installed = False
-            result.message = e.output
-            result.status = e.returncode
-        return result
+            status.installed = False
+            status.message = e.output if e.output else ""
+            status.return_code = e.returncode
+
+        return status
 
     @unreal.ufunction(override=True)
     def get_dependency_names(self):
@@ -87,16 +105,30 @@ class PyDependencyManager(unreal.DependencyManager):
 
     @unreal.ufunction(override=True)
     def get_dependency_status(self, dependency):
+        dependency = str(dependency)
         status = unreal.DependencyStatus()
-        status.name = dependency       
-        modules = [package_opts["module"] if "module" in package_opts else package_name for package_name, package_opts in dependencies.items()]
-        if dependency in modules:
-            print(f"Looking for module {dependency}")
-            module_status = importlib.util.find_spec(dependency)
-            status.installed = True if module_status else False
-            status.version = "None"
-            status.message = module_status
+        status.name = dependency
+        status.version = "None"
+        if not dependency in dependencies:
+            return status
 
+        module_name = dependencies[dependency]["module"] if "module" in dependencies[dependency] else dependency
+        module_status = importlib.util.find_spec(module_name)
+        status.installed = True if module_status else False
+        print(f"Module {module_name} installed for dependency {dependency}: {status.installed}")
+
+        return status
+
+    @unreal.ufunction(override=True)
+    def all_dependencies_installed(self):
+        dependencies = self.get_dependency_names()
+        dependencies_installed = True
+        for dependency in dependencies:
+            status = self.get_dependency_status(dependency)
+            if not status.installed:
+                dependencies_installed = False
+        print(f"All dependencies installed? {dependencies_installed}")
+        return dependencies_installed
 
 
 def clone_dependency(repo_name, repo_url):
