@@ -25,47 +25,78 @@ pythonheaders = os.path.abspath(unreal.Paths().make_standard_filename(os.path.jo
 pythonlibs = os.path.abspath(unreal.Paths().make_standard_filename(os.path.join(unreal.Paths().engine_source_dir(), "ThirdParty", "Python3", "Win64", "libs")))
 
 
-def install_dependencies(pip_dependencies):
-    deps_installed = True
+@unreal.uclass()
+class PyDependencyManager(unreal.DependencyManager):
+    def __init__(self):
+        unreal.DependencyManager.__init__(self)
 
-    with unreal.ScopedSlowTask(len(pip_dependencies), "Installing dependencies") as slow_task:
-        slow_task.make_dialog(True)
-        for dep_name, dep_options in pip_dependencies.items():
-            print(dep_options)
-            dep_path = dep_options["url"] if "url" in dep_options.keys() else ""
-            dep_force_upgrade = dep_options["upgrade"] if "upgrade" in dep_options.keys() else True
-            extra_flags = dep_options["args"].split(' ') if "args" in dep_options.keys() else []
-            print("Installing dependency " + dep_name)
-            if slow_task.should_cancel():         # True if the user has pressed Cancel in the UI
-                break
+    @unreal.ufunction(override=True)
+    def install_all_dependencies(self, force_reinstall):
+        for dependency in dependencies.keys():
+            install_dependency(dependency)
+
+    @unreal.ufunction(override=True)
+    def install_dependency(self, dependency):
+        status = unreal.DependencyStatus()
+        status.name = dependency
+        status.installed = False
+
+        if not dependency in dependencies.keys():
+            return status
+
+        dep_name = dependency
+        dep_options = dependencies[dep_name]
+
+        print(dep_options)
+        dep_path = dep_options["url"] if "url" in dep_options.keys() else ""
+        dep_force_upgrade = dep_options["upgrade"] if "upgrade" in dep_options.keys() else True
+        extra_flags = dep_options["args"].split(' ') if "args" in dep_options.keys() else []
+        print("Installing dependency " + dep_name)
+        
+        if dep_path:
+            if dep_path.endswith(".whl"):
+                print("Dowloading wheel")
+                wheel_path = download_wheel(dep_name, dep_path)
+                dep_name = [f"{wheel_path}"]
+            elif dep_path.endswith(".git"):
+                print("Downloading git repository")
+                #path = clone_dependency(dep_name, dep_path)
+                dep_name = [f"git+{dep_path}#egg={dep_name}"]
+                #extra_flags += ["--global-option=build_ext", f"--global-option=-I'{pythonheaders}'", f"--global-option=-L'{pythonlibs}'"]
+        else:
+            dep_name = dep_name.split(' ')
             
-            slow_task.enter_progress_frame(1.0, f"Installing dependency {dep_name}")
-            if dep_path:
-                if dep_path.endswith(".whl"):
-                    print("Dowloading wheel")
-                    wheel_path = download_wheel(dep_name, dep_path)
-                    dep_name = [f"{wheel_path}"]
-                elif dep_path.endswith(".git"):
-                    print("Downloading git repository")
-                    #path = clone_dependency(dep_name, dep_path)
-                    dep_name = [f"git+{dep_path}#egg={dep_name}"]
-                    #extra_flags += ["--global-option=build_ext", f"--global-option=-I'{pythonheaders}'", f"--global-option=-L'{pythonlibs}'"]
-            else:
-                dep_name = dep_name.split(' ')
-               
-            if dep_force_upgrade:
-                extra_flags.append("--upgrade")
+        if dep_force_upgrade:
+            extra_flags.append("--upgrade")
 
-            try: 
-                print(subprocess.check_output([f"{pythonpath}", '-m', 'pip', 'install'] + extra_flags + dep_name), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            except CalledProcessError as e:
-                print("Return code for dependency {0} was non-zero. Returned {1} instead".format(dep_name, str(e.returncode)))
-                print("Command:")
-                print(" ".join([f"{pythonpath}", '-m', 'pip', 'install'] + extra_flags + dep_name))
-                print("Output:")
-                print(e.output)
-                deps_installed = False
-    return deps_installed
+        try: 
+            print(subprocess.check_output([f"{pythonpath}", '-m', 'pip', 'install'] + extra_flags + dep_name), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            result.installed = True
+        except CalledProcessError as e:
+            #print("Return code for dependency {0} was non-zero. Returned {1} instead".format(dep_name, str(e.returncode)))
+            #print("Command:")
+            #print(" ".join([f"{pythonpath}", '-m', 'pip', 'install'] + extra_flags + dep_name))
+            result.installed = False
+            result.message = e.output
+            result.status = e.returncode
+        return result
+
+    @unreal.ufunction(override=True)
+    def get_dependency_names(self):
+        return [package_name for package_name in dependencies.keys()]
+
+    @unreal.ufunction(override=True)
+    def get_dependency_status(self, dependency):
+        status = unreal.DependencyStatus()
+        status.name = dependency       
+        modules = [package_opts["module"] if "module" in package_opts else package_name for package_name, package_opts in dependencies.items()]
+        if dependency in modules:
+            print(f"Looking for module {dependency}")
+            module_status = importlib.util.find_spec(dependency)
+            status.installed = True if module_status else False
+            status.version = "None"
+            status.message = module_status
+
 
 
 def clone_dependency(repo_name, repo_url):
@@ -117,4 +148,7 @@ def download_wheel(wheel_name, wheel_url):
 
 if __name__ == "__main__":
     global SD_dependencies_installed
-    SD_dependencies_installed = install_dependencies(dependencies)
+    SD_dependencies_installed = True
+    for dep_name in dependencies.keys():
+        if not install_dependencies(dep_name):
+            SD_dependencies_installed = False
