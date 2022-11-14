@@ -20,7 +20,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FImageGenerationCompleteEx, FStableD
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FModelInitialized, bool);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FModelInitializedEx, bool, Success);
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FPythonLoaded);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDependenciesInstalled, bool, Success);
 
 
@@ -91,14 +91,23 @@ public:
 	// Subsystem functions
 	// -------------------
 
+	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion")
+	FPythonLoaded OnPythonLoaded;
+
+	UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion")
+	bool PythonLoaded = false;
+
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
 	bool DependenciesAreInstalled();
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
-		void RestartEditor();
+	void RestartEditor();
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
 	void InstallDependency(FName Dependency, bool ForceReinstall);
+
+	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Dependencies")
+	FDependenciesInstalled OnDependenciesInstalled;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	bool HasHuggingFaceToken();
@@ -144,9 +153,6 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Model")
 	FModelInitializedEx OnModelInitializedEx;
-	
-	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Dependencies")
-	FDependenciesInstalled OnDependenciesInstalled;
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Generation")
 	FImageProgressEx OnImageProgressUpdated;

@@ -18,3 +18,6 @@ if dependency_manager.all_dependencies_installed():
         import load_diffusers_bridge
     except ImportError:
         print("Skipping default Diffusers Bridge load until dependencies have been installed")
+
+subsystem.set_editor_property("PythonLoaded", True)
+subsystem.on_python_loaded.broadcast()

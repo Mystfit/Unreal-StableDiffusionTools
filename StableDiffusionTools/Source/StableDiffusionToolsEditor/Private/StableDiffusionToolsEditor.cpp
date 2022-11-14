@@ -58,7 +58,7 @@ void FStableDiffusionToolsEditorModule::ShutdownModule()
 
 TSharedRef<SDockTab> FStableDiffusionToolsEditorModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
 {
-	auto DockTab = SNew(SDockTab).TabRole(ETabRole::NomadTab);// .ShouldAutosize(true);
+	TSharedPtr<SDockTab> DockTab = SNew(SDockTab).TabRole(ETabRole::NomadTab);// .ShouldAutosize(true);
 
 	const FAssetRegistryModule & AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	FString EditorUIPackage = "/StableDiffusionTools/UI/Widgets/BP_StableDiffusionViewportWidget";
@@ -78,16 +78,10 @@ TSharedRef<SDockTab> FStableDiffusionToolsEditorModule::OnSpawnPluginTab(const F
 		}
 	}
 
-	UWorld* World = GEditor->GetEditorWorldContext().World();
-	check(World);
+	UStableDiffusionViewportWidget::CreateViewportWidget(DockTab, WidgetClass);
+	
 
-	UEditorUtilityWidget* CreatedUMGWidget = CreateWidget<UStableDiffusionViewportWidget>(GEditor->GetEditorWorldContext().World(), WidgetClass);
-	if (CreatedUMGWidget)
-	{
-		DockTab->SetContent(CreatedUMGWidget->TakeWidget());
-	}
-
-	return DockTab;
+	return DockTab.ToSharedRef();
 }
 
 
@@ -119,6 +113,27 @@ TSharedRef<SDockTab> FStableDiffusionToolsEditorModule::OnSpawnDependencyInstall
 	UEditorUtilityWidget* CreatedUMGWidget = CreateWidget<UEditorUtilityWidget>(GEditor->GetEditorWorldContext().World(), WidgetClass);
 	if (CreatedUMGWidget)
 	{
+		if (CreatedUMGWidget)
+		{
+			// Editor Utility is flagged as transient to prevent from dirty the World it's created in when a property added to the Utility Widget is changed
+			CreatedUMGWidget->SetFlags(RF_Transient);
+			FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+			LevelEditor.OnMapChanged().AddLambda([CreatedUMGWidget, DockTab, WidgetClass](UWorld* World, EMapChangeType MapChangeType) {
+				if (MapChangeType == EMapChangeType::TearDownWorld)
+				{
+					// We need to Delete the UMG widget if we are tearing down the World it was built with.
+					if (CreatedUMGWidget && World == CreatedUMGWidget->GetWorld())
+					{
+						DockTab->SetContent(SNullWidget::NullWidget);
+						CreatedUMGWidget->Rename(nullptr, GetTransientPackage());
+					}
+				}
+				else if (MapChangeType != EMapChangeType::SaveMap) {
+					//UEditorUtilityWidget* ReplacementUMGWidget = CreateWidget<UEditorUtilityWidget>(GEditor->GetEditorWorldContext().World(), WidgetClass);
+					//DockTab->SetContent(ReplacementUMGWidget->TakeWidget());
+				}
+			});
+		}
 		DockTab->SetContent(CreatedUMGWidget->TakeWidget());
 	}
 

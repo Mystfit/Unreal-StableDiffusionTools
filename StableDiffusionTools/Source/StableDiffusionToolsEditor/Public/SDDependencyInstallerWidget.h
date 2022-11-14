@@ -14,6 +14,13 @@ class STABLEDIFFUSIONTOOLSEDITOR_API USDDependencyInstallerWidget : public UEdit
 {
 	GENERATED_BODY()
 public:
+	static UEditorUtilityWidget* CreateViewportWidget(TSharedPtr<SDockTab> DockTab, TSubclassOf<UEditorUtilityWidget> NewWidgetClass);
+	void ChangeTabWorld(UWorld* World, EMapChangeType MapChangeType);
+
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Subsystem")
 	UStableDiffusionSubsystem* GetStableDiffusionSubsystem();
+
+private:
+	TSharedPtr<SDockTab> OwningDockTab;
+	TSubclassOf<UEditorUtilityWidget> WidgetClass;
 };
