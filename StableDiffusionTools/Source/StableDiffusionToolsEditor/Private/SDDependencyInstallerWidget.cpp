@@ -3,7 +3,7 @@
 #include "SDDependencyInstallerWidget.h"
 #include "LevelEditor.h"
 
-UEditorUtilityWidget* USDDependencyInstallerWidget::CreateViewportWidget(TSharedPtr<SDockTab> DockTab, TSubclassOf<UEditorUtilityWidget> NewWidgetClass)
+USDDependencyInstallerWidget* USDDependencyInstallerWidget::CreateViewportWidget(TSharedPtr<SDockTab> DockTab, TSubclassOf<UEditorUtilityWidget> NewWidgetClass)
 {
 	UWorld* World = GEditor->GetEditorWorldContext().World();
 	check(World);
