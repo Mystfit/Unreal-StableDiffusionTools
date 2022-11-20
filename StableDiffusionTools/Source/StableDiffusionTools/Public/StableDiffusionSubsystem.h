@@ -110,13 +110,13 @@ public:
 	FDependenciesInstalled OnDependenciesInstalled;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
-	bool HasHuggingFaceToken();
+	bool HasToken();
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
-	FString GetHuggingfaceToken();
+	FString GetToken();
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
-	bool LoginHuggingFaceUsingToken(const FString& token);
+	bool LoginUsingToken(const FString& token);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	void InitModel(const FStableDiffusionModelOptions& Model, bool Async);

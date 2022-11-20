@@ -21,9 +21,14 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionBridge : public UObject
 	GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Python")
-    static UStableDiffusionBridge* Get();
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
+    UStableDiffusionBridge* Get();
 
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    bool LoginUsingToken(const FString& Token);
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    FString GetToken();
 
     /** Python stable diffusion implementable functions */
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")

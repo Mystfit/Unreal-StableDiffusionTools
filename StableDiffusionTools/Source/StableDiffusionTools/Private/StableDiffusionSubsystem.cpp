@@ -70,40 +70,19 @@ void UStableDiffusionSubsystem::InstallDependency(FName Dependency, bool ForceRe
 	});
 }
 
-bool UStableDiffusionSubsystem::HasHuggingFaceToken()
+bool UStableDiffusionSubsystem::HasToken()
 {
-	auto token = GetHuggingfaceToken();
-	return token != "None" && !token.IsEmpty();
+	return !GeneratorBridge->GetToken().IsEmpty();
 }
 
-FString UStableDiffusionSubsystem::GetHuggingfaceToken()
+FString UStableDiffusionSubsystem::GetToken()
 {
-	FPythonCommandEx PythonCommand;
-	PythonCommand.Command = FString("from huggingface_hub.utils import HfFolder");
-	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
-	PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
-	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
-
-	PythonCommand.Command = FString("HfFolder.get_token()");
-	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::EvaluateStatement;
-	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
-
-	//Python evaluation is wrapped in single quotes
-	bool trimmed = false;
-	return !PythonCommand.CommandResult.Contains("Traceback") ? PythonCommand.CommandResult.TrimChar(TCHAR('\''), &trimmed).TrimQuotes().TrimEnd() : "";
+	return GeneratorBridge->GetToken();
 }
 
-bool UStableDiffusionSubsystem::LoginHuggingFaceUsingToken(const FString& token)
+bool UStableDiffusionSubsystem::LoginUsingToken(const FString& token)
 {
-	FPythonCommandEx PythonCommand;
-	PythonCommand.Command = FString("from huggingface_hub.utils import HfFolder");
-	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
-	PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
-	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
-
-	PythonCommand.Command = FString::Format(TEXT("HfFolder.save_token('{0}')"), { token });
-	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
-	return IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
+	return GeneratorBridge->LoginUsingToken(token);
 }
 
 void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, bool Async)

@@ -7,6 +7,7 @@ import PIL
 from PIL import Image
 from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline
 from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray
+from huggingface_hub.utils import HfFolder
 
 try:
     from upsampling import RealESRGANModel
@@ -71,6 +72,24 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         unreal.StableDiffusionBridge.__init__(self)
         self.pipe = None
         self.upsampler = None
+
+    @unreal.ufunction(override=True)
+    def LoginUsingToken(self, token):
+        try:
+            HfFolder.save_token(token)
+            return True
+        except Exception as e:
+             print(f"Could not save HuggingFace token. Exception was {e}")
+        return False
+
+    @unreal.ufunction(override=True)
+    def GetToken(self):
+        try:
+            return HfFolder.get_token()
+        except Exception as e:
+            print(f"Could not get HuggingFace token. Exception was {e}")
+
+        return ""
 
     @unreal.ufunction(override=True)
     def InitModel(self, model_options):
