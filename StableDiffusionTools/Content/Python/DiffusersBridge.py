@@ -134,7 +134,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def ReleaseModel(self):
-        del self.pipe
+        if self.pipe:
+            del self.pipe
+            self.pipe = None
         self.model_loaded = False
         torch.cuda.empty_cache()
 
@@ -206,7 +208,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
     def StopUpsample(self):
         if hasattr(self, "upsampler"):
             # Free VRAM after upsample
-            del self.upsampler
+            if self.upsampler:
+                del self.upsampler
+                self.upsampler = None
             torch.cuda.empty_cache()
 
     @unreal.ufunction(override=True)
@@ -230,7 +234,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         
         # Free local upsampler to restore VRAM
         if local_upsampler:
-            del local_upsampler
+            if local_upsampler:
+                del local_upsampler
             torch.cuda.empty_cache()
 
         # Build result
