@@ -20,9 +20,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FImageGenerationCompleteEx, FStableD
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FModelInitialized, bool);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FModelInitializedEx, bool, Success);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FPythonLoaded);
+DECLARE_MULTICAST_DELEGATE(FPythonLoaded);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FPythonLoadedEx);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDependenciesInstalled, bool, Success);
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FBridgeLoadedEx, UStableDiffusionBridge*, BridgeInstance);
 
 struct FCapturedFramePayload : public IFramePayload {
 	virtual bool OnFrameReady_RenderThread(FColor* ColorBuffer, FIntPoint BufferSize, FIntPoint TargetSize) const override;
@@ -75,11 +76,18 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionSubsystem : public UEditorSubsyst
 {
 	GENERATED_BODY()
 public:
+	UStableDiffusionSubsystem(const FObjectInitializer& initializer);
+
 	static FString StencilLayerMaterialAsset;
 
 
 	// Python classes
 	// --------------
+	UFUNCTION(Category = "StableDiffusion|Bridge")
+	void CreateBridge();
+
+	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Bridge")
+	FBridgeLoadedEx OnBridgeLoadedEx;
 
 	UPROPERTY(EditAnywhere, Category="StableDiffusion|Generation")
 	TObjectPtr<UStableDiffusionBridge> GeneratorBridge;
@@ -92,6 +100,8 @@ public:
 	// -------------------
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion")
+	FPythonLoadedEx OnPythonLoadedEx;
+
 	FPythonLoaded OnPythonLoaded;
 
 	UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion")
@@ -178,4 +188,7 @@ private:
 	FViewportSceneCapture CurrentSceneCapture;
 
 	UTexture2D* ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTexture);
+
+	// Python initialization
+	FScriptDelegate OnPythonLoadedDlg;
 };

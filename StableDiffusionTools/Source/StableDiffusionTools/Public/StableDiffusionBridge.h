@@ -25,6 +25,9 @@ public:
     UStableDiffusionBridge* Get();
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    UStableDiffusionBridge* CreateBridge();
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     bool LoginUsingToken(const FString& Token);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
@@ -32,7 +35,7 @@ public:
 
     /** Python stable diffusion implementable functions */
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
-    bool InitModel(const FStableDiffusionModelOptions& ModelOptions);
+    bool InitModel(const FStableDiffusionModelOptions& NewModelOptions);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void ReleaseModel();
@@ -51,6 +54,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
     void UpdateImageProgress(FString prompt, int32 step, int32 timestep, int32 width, int32 height, const TArray<FColor>& FrameColors);
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
+    FStableDiffusionModelOptions ModelOptions;
 
     FImageProgress OnImageProgress;
     FImageProgressEx OnImageProgressEx;

@@ -1,5 +1,5 @@
 import unreal
-import DiffusersBridge
+from bridges import DiffusersBridge
 import huggingface_hub
 import torch
 import transformers

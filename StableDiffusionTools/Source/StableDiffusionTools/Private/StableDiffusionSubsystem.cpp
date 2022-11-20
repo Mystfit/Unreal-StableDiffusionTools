@@ -9,6 +9,7 @@
 #include "LevelEditorSubsystem.h"
 #include "ActorLayerUtilities.h"
 #include "StableDiffusionImageResult.h"
+#include "StableDiffusionToolsSettings.h"
 #include "AssetRegistryModule.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "ImageUtils.h"
@@ -26,6 +27,41 @@ bool FCapturedFramePayload::OnFrameReady_RenderThread(FColor* ColorBuffer, FIntP
 {
 	OnFrameCapture.Broadcast(ColorBuffer, BufferSize, TargetSize);
 	return true;
+}
+
+UStableDiffusionSubsystem::UStableDiffusionSubsystem(const FObjectInitializer& initializer)
+{
+	if (PythonLoaded) {
+		CreateBridge();
+	}
+	else {
+		OnPythonLoadedDlg.BindUFunction(this, GET_FUNCTION_NAME_CHECKED(UStableDiffusionSubsystem, CreateBridge));
+		OnPythonLoadedEx.Add(OnPythonLoadedDlg);
+	}
+}
+
+
+void UStableDiffusionSubsystem::CreateBridge()
+{
+	auto BridgeClass = GetDefault<UStableDiffusionToolsSettings>()->GetGeneratorType();
+	if (BridgeClass) {
+		//BridgeClass->GetDefaultObject<UStableDiffusionBridge>()->CreateBridge();
+
+		TArray<UClass*> PythonBridgeClasses;
+		GetDerivedClasses(UStableDiffusionBridge::StaticClass(), PythonBridgeClasses);
+
+		for (auto c : PythonBridgeClasses) {
+			if (c->StaticClass() == BridgeClass->StaticClass()) {
+				//GeneratorBridge = Cast<UStableDiffusionBridge>(c->GetDefaultObject());
+			}
+		}
+
+		//GeneratorBridge = NewObject<UStableDiffusionBridge>(this, FName(*BridgeClass->GetName()), RF_Public | RF_Standalone, BridgeClass->ClassDefaultObject);
+		if (GeneratorBridge) {
+			GeneratorBridge->AddToRoot();
+			OnBridgeLoadedEx.Broadcast(GeneratorBridge);
+		}
+	}
 }
 
 bool UStableDiffusionSubsystem::DependenciesAreInstalled()
@@ -72,24 +108,33 @@ void UStableDiffusionSubsystem::InstallDependency(FName Dependency, bool ForceRe
 
 bool UStableDiffusionSubsystem::HasToken()
 {
-	return !GeneratorBridge->GetToken().IsEmpty();
+	if (GeneratorBridge) {
+		return !GeneratorBridge->GetToken().IsEmpty();
+	}
+	return false;
 }
 
 FString UStableDiffusionSubsystem::GetToken()
 {
-	return GeneratorBridge->GetToken();
+	if (GeneratorBridge) {
+		return GeneratorBridge->GetToken();
+	}
+	return "";
 }
 
 bool UStableDiffusionSubsystem::LoginUsingToken(const FString& token)
 {
-	return GeneratorBridge->LoginUsingToken(token);
+	if (GeneratorBridge) {
+		return GeneratorBridge->LoginUsingToken(token);
+	}
+	return false;
 }
 
 void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, bool Async)
 {
 	if (GeneratorBridge) {
 		// Unload any loaded models first
-		ReleaseModel();
+		//ReleaseModel();
 
 		if (Async) {
 			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model]() {
@@ -116,8 +161,10 @@ void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Mo
 
 void UStableDiffusionSubsystem::ReleaseModel()
 {
-	GeneratorBridge->ReleaseModel();
-	ModelInitialised = false;
+	if (GeneratorBridge) {
+		GeneratorBridge->ReleaseModel();
+		ModelInitialised = false;
+	}
 }
 
 TSharedPtr<FSceneViewport> UStableDiffusionSubsystem::GetCapturingViewport()
@@ -177,6 +224,9 @@ void UStableDiffusionSubsystem::SetCaptureViewport(TSharedRef<FSceneViewport> Vi
 
 void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool FromViewport)
 {
+	if (!GeneratorBridge)
+		return;
+
 	AsyncTask(ENamedThreads::GameThread, [this, Input, FromViewport]() mutable
 		{
 			// Remember prior screen message state and disable it so our viewport is clean
@@ -288,6 +338,9 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool 
 
 void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult& input)
 {
+	if (!GeneratorBridge)
+		return;
+
 	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, input](){
 		auto result = GeneratorBridge->UpsampleImage(input);
 		AsyncTask(ENamedThreads::GameThread, [this, result=MoveTemp(result)]() {
