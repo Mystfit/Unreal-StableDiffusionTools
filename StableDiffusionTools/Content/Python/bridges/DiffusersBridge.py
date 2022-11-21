@@ -74,20 +74,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
     #    self.pipe = None
     #    self.upsampler = None
 
-    #def __del__(self):
-    #    print(f"In DiffusersBridge destructor {id(self)}")
-
-    @unreal.ufunction(override=True)
-    def CreateBridge(self):
-        bridge = unreal.new_object(DiffusersBridge)
-        #bridge = DiffusersBridge()
-        #print(id(bridge))
-        #return DiffusersBridge()
-        #bridge = DiffusersBridge()
-        print(f"Setting DiffusersBridge in subsystem {id(self)}")
-        subsystem = unreal.get_editor_subsystem(unreal.StableDiffusionSubsystem)
-        subsystem.set_editor_property("GeneratorBridge", bridge)
-
     @unreal.ufunction(override=True)
     def LoginUsingToken(self, token):
         try:
@@ -126,7 +112,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         patch_conv(padding_mode=new_model_options.padding_mode)
 
         # Load model
-        #try:
         self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
         self.pipe = self.pipe.to("cuda")
 
@@ -148,14 +133,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 self.pipe.safety_checker = self.orig_NSFW_filter
         
         self.set_editor_property("ModelOptions", new_model_options)
-        #self.model_options = model_options
         self.model_loaded = True
         print("Loaded Stable Diffusion model " + modelname)
-        print(self.get_editor_property("ModelOptions"))
-        print(id(self))
-        #except Exception as e:
-            #print("Failed to init Stable Diffusion Img2Image pipeline. Exception was {0}".format(e))
-            #result &= False
 
         return result
 
@@ -292,9 +271,3 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         result.upsampled = True
 
         return result
-
-
-#bridge = DiffusersBridge.DiffusersBridge()
-#subsystem = unreal.get_editor_subsystem(unreal.StableDiffusionSubsystem)
-#subsystem.set_editor_property("GeneratorBridge", bridge)
-

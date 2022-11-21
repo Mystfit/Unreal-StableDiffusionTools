@@ -3,6 +3,7 @@
 #include "IAssetViewport.h"
 #include "Engine/GameEngine.h"
 #include "Async/Async.h"
+#include "UObject/SavePackage.h"
 #include "LevelEditor.h"
 #include "IPythonScriptPlugin.h"
 #include "PythonScriptTypes.h"
@@ -31,28 +32,55 @@ bool FCapturedFramePayload::OnFrameReady_RenderThread(FColor* ColorBuffer, FIntP
 
 UStableDiffusionSubsystem::UStableDiffusionSubsystem(const FObjectInitializer& initializer)
 {
-	if (PythonLoaded) {
-		CreateBridge();
-	}
-	else {
-		OnPythonLoadedDlg.BindUFunction(this, GET_FUNCTION_NAME_CHECKED(UStableDiffusionSubsystem, CreateBridge));
-		OnPythonLoadedEx.Add(OnPythonLoadedDlg);
-	}
+	// Wait for Python to load our derived classes before we construct the bridge
+	IPythonScriptPlugin& PythonModule = FModuleManager::LoadModuleChecked<IPythonScriptPlugin>(TEXT("PythonScriptPlugin"));
+	PythonModule.OnPythonInitialized().AddUFunction(this, GET_FUNCTION_NAME_CHECKED(UStableDiffusionSubsystem, CreateBridge));
 }
 
+bool UStableDiffusionSubsystem::IsBridgeLoaded()
+{
+	return (GeneratorBridge == nullptr) ? false : true;
+}
 
 void UStableDiffusionSubsystem::CreateBridge()
 {
+	// Make sure that we have our Python derived bridges available in the settings first
+	GetMutableDefault<UStableDiffusionToolsSettings>()->ReloadConfig(UStableDiffusionToolsSettings::StaticClass());
+
 	auto BridgeClass = GetDefault<UStableDiffusionToolsSettings>()->GetGeneratorType();
 	if (BridgeClass) {
-		//BridgeClass->GetDefaultObject<UStableDiffusionBridge>()->CreateBridge();
+
+		auto BaseClass = UStableDiffusionBridge::StaticClass();
+		if (BridgeClass == BaseClass) {
+			UE_LOG(LogTemp, Warning, TEXT("Can not create Stable Diffusion Bridge. Only classes deriving from %s can be created."), *BridgeClass->GetName())
+				return;
+		}
 
 		TArray<UClass*> PythonBridgeClasses;
 		GetDerivedClasses(UStableDiffusionBridge::StaticClass(), PythonBridgeClasses);
 
-		for (auto c : PythonBridgeClasses) {
-			if (c->StaticClass() == BridgeClass->StaticClass()) {
-				//GeneratorBridge = Cast<UStableDiffusionBridge>(c->GetDefaultObject());
+		for (auto DerivedBridgeClass : PythonBridgeClasses) {
+			if (DerivedBridgeClass->StaticClass() == BridgeClass->StaticClass()) {
+				
+				// We need to create the bridge class from inside Python so that python created objects don't get GC'd
+				FPythonCommandEx PythonCommand;
+				PythonCommand.Command = FString::Printf(
+					TEXT("from bridges import %s; "\
+					"bridge = %s.%s(); "\
+					"subsystem = unreal.get_editor_subsystem(unreal.StableDiffusionSubsystem); "\
+					"subsystem.set_editor_property('GeneratorBridge', bridge)"), 
+					*DerivedBridgeClass->GetName(),
+					*DerivedBridgeClass->GetName(),
+					*DerivedBridgeClass->GetName()
+				);
+				PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
+				PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
+				bool Result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
+				if (!Result) {
+					UE_LOG(LogTemp, Error, TEXT("Failed to load SD bridge %s"), *DerivedBridgeClass->GetName())
+				}
+
+				break;
 			}
 		}
 
@@ -356,7 +384,7 @@ bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, con
 
 	// Create package
 	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
-	UPackage* Package = CreatePackage(NULL, *FullPackagePath);
+	UPackage* Package = CreatePackage(this, *FullPackagePath);
 	Package->FullyLoad();
 
 	// Duplicate texture
@@ -369,8 +397,13 @@ bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, con
 	// Update package
 	Package->MarkPackageDirty();
 	FAssetRegistryModule::AssetCreated(NewTexture);
+	
+	// Save texture pacakge
 	FString PackageFileName = FPackageName::LongPackageNameToFilename(FullPackagePath, FPackageName::GetAssetPackageExtension());
-	bool bSaved = UPackage::SavePackage(Package, NewTexture, EObjectFlags::RF_Public | EObjectFlags::RF_Standalone, *PackageFileName, GError, nullptr, true, true, SAVE_None);
+	FSavePackageArgs PackageArgs;
+	PackageArgs.TopLevelFlags = EObjectFlags::RF_Public | EObjectFlags::RF_Standalone;
+	PackageArgs.bForceByteSwapping = true;
+	bool bSaved = UPackage::SavePackage(Package, NewTexture, *PackageFileName, PackageArgs);
 
 	return bSaved;
 }

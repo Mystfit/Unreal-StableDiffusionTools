@@ -3,7 +3,6 @@
 #include "StableDiffusionToolsEditor.h"
 #include "StableDiffusionToolsStyle.h"
 #include "StableDiffusionToolsCommands.h"
-#include "StableDiffusionToolsSettings.h"
 #include "SDDependencyInstallerWidget.h"
 #include "StableDiffusionSubsystem.h"
 #include "LevelEditor.h"
@@ -15,8 +14,6 @@
 #include "AssetRegistryModule.h"
 #include "EditorUtilityWidget.h"
 #include "EditorAssetLibrary.h"
-#include "ISettingsModule.h"
-#include "ISettingsSection.h"
 #include "EditorUtilitySubsystem.h"
 
 static const FName StableDiffusionToolsTabName("Stable Diffusion Tools");
@@ -53,34 +50,7 @@ void FStableDiffusionToolsEditorModule::StartupModule()
 		LevelEditorModule.GetMenuExtensibilityManager()->AddExtender(NewMenuExtender);
 	}
 
-	// Create settings
-#if WITH_EDITOR
-// register settings
-	ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
 
-	if (SettingsModule != nullptr)
-	{
-		ISettingsSectionPtr SettingsSection = SettingsModule->RegisterSettings("Project", "Plugins", "StableDiffusionTools",
-			LOCTEXT("StableDiffusionToolsSettingsName", "Stable Diffusion Tools"),
-			LOCTEXT("StableDiffusionToolsSettingsDescription", "Configure the Stable Diffusion tools plug-in."),
-			GetMutableDefault<UStableDiffusionToolsSettings>()
-		);
-
-		if (SettingsSection.IsValid())
-		{
-			SettingsSection->OnModified().BindRaw(this, &FStableDiffusionToolsEditorModule::HandleSettingsSaved);
-		}
-	}
-#endif // WITH_EDITOR
-}
-
-bool FStableDiffusionToolsEditorModule::HandleSettingsSaved() {
-	UStableDiffusionSubsystem* SDSubSystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
-	if (SDSubSystem) {
-		SDSubSystem->CreateBridge();
-		return true;
-	}
-	return false;
 }
 
 void FStableDiffusionToolsEditorModule::ShutdownModule()
@@ -124,6 +94,7 @@ void FStableDiffusionToolsEditorModule::AddMenuEntry(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.BeginSection("StableDiffusionToolsMenu", TAttribute<FText>(FText::FromString("Stable Diffusion Tools")));
 	MenuBuilder.AddMenuEntry(FStableDiffusionToolsCommands::Get().OpenPluginWindow);
+	MenuBuilder.AddMenuEntry(FStableDiffusionToolsCommands::Get().OpenDependenciesWindow);
 	MenuBuilder.EndSection();
 }
 

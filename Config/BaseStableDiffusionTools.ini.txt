@@ -1,0 +1,2 @@
+[/Script/StableDiffusionTools.StableDiffusionToolsSettings]
+GeneratorType=PythonGeneratedClass'/Engine/PythonTypes.DiffusersBridge'

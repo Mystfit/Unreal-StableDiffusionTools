@@ -10,7 +10,7 @@
 /**
  *
  */
-UCLASS(config = Engine)
+UCLASS(config = Engine, defaultconfig)
 class STABLEDIFFUSIONTOOLS_API UStableDiffusionToolsSettings : public UObject
 {
 	GENERATED_BODY()

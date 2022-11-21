@@ -86,6 +86,9 @@ public:
 	UFUNCTION(Category = "StableDiffusion|Bridge")
 	void CreateBridge();
 
+	UFUNCTION(Category = "StableDiffusion|Bridge")
+	bool IsBridgeLoaded();
+
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Bridge")
 	FBridgeLoadedEx OnBridgeLoadedEx;
 
