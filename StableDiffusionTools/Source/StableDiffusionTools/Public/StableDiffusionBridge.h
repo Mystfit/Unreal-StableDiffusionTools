@@ -15,7 +15,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FImageProgressEx, int32, Step, int
 /**
  * 
  */
-UCLASS()
+UCLASS(config = Engine, defaultconfig)
 class STABLEDIFFUSIONTOOLS_API UStableDiffusionBridge : public UObject
 {
 	GENERATED_BODY()
@@ -32,6 +32,12 @@ public:
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     FString GetToken();
+
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Bridge")
+    FString CachedToken;
+
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
+    void SaveProperties();
 
     /** Python stable diffusion implementable functions */
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")

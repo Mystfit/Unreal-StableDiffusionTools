@@ -18,7 +18,9 @@ dependencies = {
     "ftfy": {},
     "realesrgan": {},
     "accelerate": {},
-    "xformers": {"url": "https://github.com/Mystfit/xformers/releases/download/v0.0.14/xformers-0.0.14.dev0-cp39-cp39-win_amd64.whl", "upgrade": True}
+    "xformers": {"url": "https://github.com/Mystfit/xformers/releases/download/v0.0.14/xformers-0.0.14.dev0-cp39-cp39-win_amd64.whl", "upgrade": True},
+    "stability-sdk": {"module": "stability_sdk"},
+    "requests": {}
 }
 
 # TODO: There's an unreal function to return this path

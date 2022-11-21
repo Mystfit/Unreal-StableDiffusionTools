@@ -22,3 +22,8 @@ void UStableDiffusionBridge::UpdateImageProgress(FString prompt, int32 step, int
 		OnImageProgressEx.Broadcast(step, timestep, FIntPoint(width, height), FrameColors);
 	});
 }
+
+void UStableDiffusionBridge::SaveProperties()
+{
+    this->SaveConfig();
+}

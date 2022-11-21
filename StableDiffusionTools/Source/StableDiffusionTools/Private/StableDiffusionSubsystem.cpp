@@ -60,7 +60,7 @@ void UStableDiffusionSubsystem::CreateBridge()
 		GetDerivedClasses(UStableDiffusionBridge::StaticClass(), PythonBridgeClasses);
 
 		for (auto DerivedBridgeClass : PythonBridgeClasses) {
-			if (DerivedBridgeClass->StaticClass() == BridgeClass->StaticClass()) {
+			if (DerivedBridgeClass->IsChildOf(BridgeClass)) {
 				
 				// We need to create the bridge class from inside Python so that python created objects don't get GC'd
 				FPythonCommandEx PythonCommand;
@@ -86,7 +86,7 @@ void UStableDiffusionSubsystem::CreateBridge()
 
 		//GeneratorBridge = NewObject<UStableDiffusionBridge>(this, FName(*BridgeClass->GetName()), RF_Public | RF_Standalone, BridgeClass->ClassDefaultObject);
 		if (GeneratorBridge) {
-			GeneratorBridge->AddToRoot();
+			//GeneratorBridge->AddToRoot();
 			OnBridgeLoadedEx.Broadcast(GeneratorBridge);
 		}
 	}
