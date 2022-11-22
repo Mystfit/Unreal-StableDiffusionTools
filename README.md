@@ -29,7 +29,13 @@ Usage
 After installing the plugin, activate it through `Windows->Plugins`. To open the main tool window for the plugin, go to `Windows->StableDiffusionTools`.
 
 ### Dependencies
-The first time you use the plugin you will need to install the required python dependencies using the `Update/Install dependencies` button in the Dependencies section. You may need to restart the Unreal Editor the first time you install dependencies.
+The first time you use the plugin you will need to install the required python dependencies using the `Update/Install dependencies` button in the Dependencies section of the main plugin window or through the `Stable Diffusion Dependencies Installer` window. You may need to restart the Unreal Editor the first time you install dependencies.
+
+### Generator backends
+This plugin provides three different generator backends out of the box. Local generation using the [Diffusers library](https://github.com/huggingface/diffusers), remote generation using the Stability.AI SDK and [Dream Studio](https://beta.dreamstudio.ai/dream) and remote generation using [Stable Horde](https://stablehorde.net/). Choose a backend in `Project Settings->Stable Diffusion Tools->Generator Type` and set a token in the `Generator Tokens` map for your chosen generator. 
+- [Diffusers token](https://huggingface.co/settings/tokens)
+- [DreamStudio token](https://beta.dreamstudio.ai/membership?tab=apiKeys)
+- [Stable Horde token](https://stablehorde.net/register)
 
 ### Models
 
@@ -37,7 +43,7 @@ The first time you use the plugin you will need to install the required python d
 
 To generate images using this plugin, you will first need a model. A few model presets are provided with the plugin and you can create your own by creating a `StableDiffusionModelAsset` or you can just enter the model options in the plugin window directly.
 
-To download a model from [huggingface.co](https://huggingface.co), you will need an account and a token with read permissions. The button next to the token input in the `Models` section will open a browser window that will take you to the token creation page if you are logged in to huggingface.co, or you can visit [this link.](https://huggingface.co/settings/tokens)
+To download a model from [huggingface.co](https://huggingface.co), you will need an account and a [https://huggingface.co/settings/tokens](token) with read permissions. 
 
 You can use any diffusers based model from [the diffusers category on huggingface.co.](https://huggingface.co/models?library=diffusers) To choose a model, enter it in the format `Username/Modelname`. To use any of the default models [RunwayML Stable Diffusion 1.5](https://huggingface.co/runwayml/stable-diffusion-v1-5), [Runway inpaiting](https://huggingface.co/runwayml/stable-diffusion-inpainting), or [CompViz Stable Diffusion 1.4](https://huggingface.co/CompVis/stable-diffusion-v1-4), you will need to vist the respective model card page for each of these models and accept their usage agreement before downloading their weights otherwise you will receive an HTTP401 error. 
 
