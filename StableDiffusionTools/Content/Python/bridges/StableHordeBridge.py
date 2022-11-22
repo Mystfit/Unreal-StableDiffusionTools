@@ -47,6 +47,12 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
         seed = [random.randrange(0, 4294967295)] if input.options.seed < 0 else input.options.seed
         positive_prompts = ", ".join([f"{split_p.strip()}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")])
         print(positive_prompts)
+        if not positive_prompts:
+            unreal.log_error("Stable Horde does not work with empty prompts")
+            return result
+
+        # Round strength to two decimal places
+        strength = 0.01 * round(input.options.strength / 0.01)
 
         # Convert input images to base64 for uploading
         img_buffer = BytesIO()
@@ -69,7 +75,7 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
               4
             ],
             "cfg_scale": 5,
-            "denoising_strength": input.options.strength,
+            "denoising_strength": strength,
             "seed": str(seed),
             "height": input.options.out_size_y,
             "width": input.options.out_size_x,
@@ -102,6 +108,9 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
             image = Image.open(BytesIO(base64.b64decode(response.json()["generations"][0]["img"]))).convert("RGBA")
         else:
             unreal.log_error(f"Stable Horde returned an error. Status code was {response.status_code}. Message was {response.json()['message']}")
+            unreal.log_error(f"Error was {response.json()['errors']}")
+            unreal.log_error(f"Input headers were {headers}")
+            unreal.log_error(f"Input data was {request}")
 
         result.input = input
         result.pixel_data = PILImageToFColorArray(image) if image else []

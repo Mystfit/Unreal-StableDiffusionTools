@@ -273,34 +273,44 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 					auto SDSubsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
 					auto SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(Input);
 
+					TUniquePtr<FImagePixelData> SDImageDataBuffer16bit;
+					TArray<FFloat16Color> ConvertedResultPixels;
+
 					if (!SDResult.PixelData.Num()) {
 						UE_LOG(LogTemp, Error, TEXT("Stable diffusion generator failed to return any pixel data on frame %d. Please add a model asset to the Options track or initialize the StableDiffusionSubsystem model."), EffectiveFrame.Value);
+						
+						// Insert blank frame
+						TArray<FColor> EmptyPixels;
+						EmptyPixels.InsertUninitialized(0, Input.Options.OutSizeX * Input.Options.OutSizeY);
+						TUniquePtr<TImagePixelData<FColor>> SDImageDataBuffer8bit = MakeUnique<TImagePixelData<FColor>>(FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY), TArray64<FColor>(MoveTemp(EmptyPixels)));
+						SDImageDataBuffer16bit = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(SDImageDataBuffer8bit.Get(), 16);
 					}
 					else {
 						// Convert 8bit BGRA FColors returned from SD to 16bit BGRA
-						TUniquePtr<TImagePixelData<FColor>> SDImageDataBuffer8bit = MakeUnique<TImagePixelData<FColor>>(FIntPoint(SDResult.OutWidth, SDResult.OutHeight), TArray64<FColor>(MoveTemp(SDResult.PixelData)));
-						TUniquePtr<FImagePixelData> SDImageDataBuffer16bit = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(SDImageDataBuffer8bit.Get(), 16);
+						TUniquePtr<TImagePixelData<FColor>> SDImageDataBuffer8bit;
+						SDImageDataBuffer8bit = MakeUnique<TImagePixelData<FColor>>(FIntPoint(SDResult.OutWidth, SDResult.OutHeight), TArray64<FColor>(MoveTemp(SDResult.PixelData)));
+						SDImageDataBuffer16bit = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(SDImageDataBuffer8bit.Get(), 16);
 
-						TArray<FFloat16Color> ConvertedResultPixels;
 						ConvertedResultPixels.InsertUninitialized(0, SDResult.PixelData.Num());
 						for (size_t idx = 0; idx < SDResult.PixelData.Num(); ++idx) {
 							ConvertedResultPixels[idx] = FFloat16Color(SDResult.PixelData[idx]);
 						}
-						ENQUEUE_RENDER_COMMAND(UpdateMoviePipelineRenderTarget)([this, &SDImageDataBuffer16bit, RenderTarget, ConvertedResultPixels](FRHICommandListImmediate& RHICmdList) {
-							int64 OutSize;
-							const void* OutRawData = nullptr;
-							SDImageDataBuffer16bit->GetRawData(OutRawData, OutSize);
-							RHICmdList.UpdateTexture2D(
-								RenderTarget->GetRenderTargetTexture(),
-								0,
-								FUpdateTextureRegion2D(0, 0, 0, 0, RenderTarget->GetSizeXY().X, RenderTarget->GetSizeXY().Y),
-								RenderTarget->GetSizeXY().X * sizeof(FFloat16Color),
-								(uint8*)OutRawData
-							);
-							RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-						});
-						Accumulate(MoveTemp(SDImageDataBuffer16bit));
 					}
+
+					ENQUEUE_RENDER_COMMAND(UpdateMoviePipelineRenderTarget)([this, &SDImageDataBuffer16bit, RenderTarget](FRHICommandListImmediate& RHICmdList) {
+						int64 OutSize;
+						const void* OutRawData = nullptr;
+						SDImageDataBuffer16bit->GetRawData(OutRawData, OutSize);
+						RHICmdList.UpdateTexture2D(
+							RenderTarget->GetRenderTargetTexture(),
+							0,
+							FUpdateTextureRegion2D(0, 0, 0, 0, RenderTarget->GetSizeXY().X, RenderTarget->GetSizeXY().Y),
+							RenderTarget->GetSizeXY().X * sizeof(FFloat16Color),
+							(uint8*)OutRawData
+						);
+						RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+						});
+					Accumulate(MoveTemp(SDImageDataBuffer16bit));
 				});
 
 				View->FinalPostProcessSettings.BufferVisualizationPipes.Add(StencilMatInst->GetFName(), BufferPipe);
