@@ -7,6 +7,7 @@ import PIL
 from PIL import Image
 from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline
 from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray
+from huggingface_hub.utils import HfFolder
 
 try:
     from upsampling import RealESRGANModel
@@ -67,32 +68,27 @@ def preprocess_mask_inpaint(mask):
 
 @unreal.uclass()
 class DiffusersBridge(unreal.StableDiffusionBridge):
-    def __init__(self):
-        unreal.StableDiffusionBridge.__init__(self)
-        self.pipe = None
-        self.upsampler = None
 
     @unreal.ufunction(override=True)
-    def InitModel(self, model_options):
+    def InitModel(self, new_model_options):
         self.model_loaded = False
 
         result = True
-        ActivePipeline = StableDiffusionInpaintPipeline if model_options.inpaint else StableDiffusionImg2ImgPipeline
-        modelname = model_options.model if model_options.model else "CompVis/stable-diffusion-v1-4"
+        ActivePipeline = StableDiffusionInpaintPipeline if new_model_options.inpaint else StableDiffusionImg2ImgPipeline
+        modelname = new_model_options.model if new_model_options.model else "CompVis/stable-diffusion-v1-4"
         kwargs = {
-            "torch_dtype": torch.float32 if model_options.precision == "fp32" else torch.float16,
-            "use_auth_token": True,
+            "torch_dtype": torch.float32 if new_model_options.precision == "fp32" else torch.float16,
+            "use_auth_token": self.get_token(),
         }
         
-        if model_options.revision:
-            kwargs["revision"] = model_options.revision
-        if model_options.custom_pipeline:
-            kwargs["custom_pipeline"] = model_options.custom_pipeline
+        if new_model_options.revision:
+            kwargs["revision"] = new_model_options.revision
+        if new_model_options.custom_pipeline:
+            kwargs["custom_pipeline"] = new_model_options.custom_pipeline
 
-        patch_conv(padding_mode=model_options.padding_mode)
+        patch_conv(padding_mode=new_model_options.padding_mode)
 
         # Load model
-        #try:
         self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
         self.pipe = self.pipe.to("cuda")
 
@@ -102,7 +98,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.pipe.enable_xformers_memory_efficient_attention()
 
         # NSFW filter
-        if model_options.allow_nsfw:
+        if new_model_options.allow_nsfw:
             # Backup original NSFW filter
             if not hasattr(self, "orig_NSFW_filter"):
                 self.orig_NSFW_filter = self.pipe.safety_checker
@@ -112,13 +108,10 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         else:
             if hasattr(self, "orig_NSFW_filter"):
                 self.pipe.safety_checker = self.orig_NSFW_filter
-            
-        self.model_options = model_options
+        
+        self.set_editor_property("ModelOptions", new_model_options)
         self.model_loaded = True
         print("Loaded Stable Diffusion model " + modelname)
-        #except Exception as e:
-            #print("Failed to init Stable Diffusion Img2Image pipeline. Exception was {0}".format(e))
-            #result &= False
 
         return result
 
@@ -134,17 +127,26 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def ReleaseModel(self):
-        del self.pipe
+        if hasattr(self, "pipe"):
+            if self.pipe:
+                del self.pipe
+                self.pipe = None
         self.model_loaded = False
         torch.cuda.empty_cache()
 
     @unreal.ufunction(override=True)
     def GenerateImageFromStartImage(self, input):
+        print(id(self))
+        model_options = self.get_editor_property("ModelOptions")
+        if not hasattr(self, "pipe"):
+            print("Could not find a pipe attribute. Has it been GC'd?")
+            return
+
         result = unreal.StableDiffusionImageResult()
         guide_img = FColorAsPILImage(input.input_image_pixels, input.options.size_x, input.options.size_y).convert("RGB") if input.input_image_pixels else None
         mask_img = FColorAsPILImage(input.mask_image_pixels, input.options.size_x, input.options.size_y).convert("RGB")  if input.mask_image_pixels else None
         
-        if self.model_options.inpaint:
+        if model_options.inpaint:
             guide_img = guide_img.resize((512,512))
             mask_img = mask_img.resize((512,512))
             #mask_img.show()
@@ -152,8 +154,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             guide_img = preprocess_init_image(guide_img, input.options.out_size_x, input.options.out_size_y)
         
         seed = torch.random.seed() if input.options.seed < 0 else input.options.seed
-        positive_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" if not self.model_options.inpaint else f"{split_p.strip()}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")])
-        negative_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" if not self.model_options.inpaint else f"{split_p.strip()}" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")])
+        positive_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" if not model_options.inpaint else f"{split_p.strip()}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")])
+        negative_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" if not model_options.inpaint else f"{split_p.strip()}" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")])
         print(positive_prompts)
         print(negative_prompts)
 
@@ -164,7 +166,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 generation_args = {
                     "prompt": positive_prompts,
                     "negative_prompt": negative_prompts,
-                    "image" if self.model_options.inpaint else "init_image": guide_img,
+                    "image" if model_options.inpaint else "init_image": guide_img,
                     "width": input.options.out_size_x,
                     "height": input.options.out_size_y,
                     "strength": input.options.strength, 
@@ -174,7 +176,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     "callback": self.ImageProgressStep, 
                     "callback_steps": 25
                 }
-                if self.model_options.inpaint and mask_img:
+                if model_options.inpaint and mask_img:
                     generation_args["mask_image"] = mask_img
 
                 images = self.pipe(**generation_args).images
@@ -199,14 +201,16 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def StartUpsample(self):
-        if not hasattr(self, "upsampler"):
+        if not hasattr("upsampler", self):
             self.upsampler = self.InitUpsampler()
 
     @unreal.ufunction(override=True)
     def StopUpsample(self):
-        if hasattr(self, "upsampler"):
+        if hasattr("upsampler", self):
             # Free VRAM after upsample
-            del self.upsampler
+            if self.upsampler:
+                del self.upsampler
+                self.upsampler = None
             torch.cuda.empty_cache()
 
     @unreal.ufunction(override=True)
@@ -230,7 +234,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         
         # Free local upsampler to restore VRAM
         if local_upsampler:
-            del local_upsampler
+            if local_upsampler:
+                del local_upsampler
             torch.cuda.empty_cache()
 
         # Build result

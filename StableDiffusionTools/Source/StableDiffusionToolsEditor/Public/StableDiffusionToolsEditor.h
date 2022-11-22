@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 #include "StableDiffusionViewportWidget.h"
+#include "SDDependencyInstallerWidget.h"
 
 class FToolBarBuilder;
 class FMenuBuilder;
@@ -16,22 +17,17 @@ public:
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
+
+	bool HandleSettingsSaved();
 	
 	/** This function will be bound to Command (by default it will bring up plugin window) */
 	void PluginButtonClicked();
-
 	void OpenDependencyInstallerWindow();
+
+	void CreatePanel(const FString& BlueprintAssetPath, const FString& PanelLabel);
 	
 private:
-
-	void RegisterMenus();
-
-	TSharedRef<class SDockTab> OnSpawnPluginTab(const class FSpawnTabArgs& SpawnTabArgs);
-	TSharedRef<SDockTab> OnSpawnDependencyInstallerTab(const FSpawnTabArgs& SpawnTabArgs);
-
-	UPROPERTY(EditAnywhere, Category = "StableDiffusion|UI")
-	TSubclassOf<UStableDiffusionViewportWidget> ViewportWidget;
-
+	void AddMenuEntry(FMenuBuilder& MenuBuilder);
 
 private:
 	TSharedPtr<class FUICommandList> PluginCommands;

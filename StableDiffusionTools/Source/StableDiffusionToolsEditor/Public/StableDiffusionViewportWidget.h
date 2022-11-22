@@ -16,17 +16,17 @@ class STABLEDIFFUSIONTOOLSEDITOR_API UStableDiffusionViewportWidget : public UEd
 {
 	GENERATED_BODY()
 public:
-	static UEditorUtilityWidget* CreateViewportWidget(TSharedPtr<SDockTab> DockTab, TSubclassOf<UEditorUtilityWidget> NewWidgetClass);
+	//static UEditorUtilityWidget* CreateViewportWidget(TSharedPtr<SDockTab> DockTab, TSubclassOf<UEditorUtilityWidget> NewWidgetClass);
 
-	void ChangeTabWorld(UWorld* World, EMapChangeType MapChangeType);
+	//void ChangeTabWorld(UWorld* World, EMapChangeType MapChangeType);
 
-	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Subsystem")
-	UStableDiffusionSubsystem* GetStableDiffusionSubsystem();
+	/*UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Subsystem")
+	UStableDiffusionSubsystem* GetStableDiffusionSubsystem();*/
 
 	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|UI", meta = (BindWidget))
 	UImage* ViewportImage;
 
 private:
-	TSharedPtr<SDockTab> OwningDockTab;
-	TSubclassOf<UEditorUtilityWidget> WidgetClass;
+	//TSharedPtr<SDockTab> OwningDockTab;
+	//TSubclassOf<UEditorUtilityWidget> WidgetClass;
 };

@@ -3,12 +3,14 @@
 #include "IAssetViewport.h"
 #include "Engine/GameEngine.h"
 #include "Async/Async.h"
+#include "UObject/SavePackage.h"
 #include "LevelEditor.h"
 #include "IPythonScriptPlugin.h"
 #include "PythonScriptTypes.h"
 #include "LevelEditorSubsystem.h"
 #include "ActorLayerUtilities.h"
 #include "StableDiffusionImageResult.h"
+#include "StableDiffusionToolsSettings.h"
 #include "AssetRegistryModule.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "ImageUtils.h"
@@ -26,6 +28,68 @@ bool FCapturedFramePayload::OnFrameReady_RenderThread(FColor* ColorBuffer, FIntP
 {
 	OnFrameCapture.Broadcast(ColorBuffer, BufferSize, TargetSize);
 	return true;
+}
+
+UStableDiffusionSubsystem::UStableDiffusionSubsystem(const FObjectInitializer& initializer)
+{
+	// Wait for Python to load our derived classes before we construct the bridge
+	IPythonScriptPlugin& PythonModule = FModuleManager::LoadModuleChecked<IPythonScriptPlugin>(TEXT("PythonScriptPlugin"));
+	PythonModule.OnPythonInitialized().AddUFunction(this, GET_FUNCTION_NAME_CHECKED(UStableDiffusionSubsystem, CreateBridge));
+}
+
+bool UStableDiffusionSubsystem::IsBridgeLoaded()
+{
+	return (GeneratorBridge == nullptr) ? false : true;
+}
+
+void UStableDiffusionSubsystem::CreateBridge()
+{
+	// Make sure that we have our Python derived bridges available in the settings first
+	GetMutableDefault<UStableDiffusionToolsSettings>()->ReloadConfig(UStableDiffusionToolsSettings::StaticClass());
+
+	auto BridgeClass = GetDefault<UStableDiffusionToolsSettings>()->GetGeneratorType();
+	if (BridgeClass) {
+
+		auto BaseClass = UStableDiffusionBridge::StaticClass();
+		if (BridgeClass == BaseClass) {
+			UE_LOG(LogTemp, Warning, TEXT("Can not create Stable Diffusion Bridge. Only classes deriving from %s can be created."), *BridgeClass->GetName())
+				return;
+		}
+
+		TArray<UClass*> PythonBridgeClasses;
+		GetDerivedClasses(UStableDiffusionBridge::StaticClass(), PythonBridgeClasses);
+
+		for (auto DerivedBridgeClass : PythonBridgeClasses) {
+			if (DerivedBridgeClass->IsChildOf(BridgeClass)) {
+				
+				// We need to create the bridge class from inside Python so that python created objects don't get GC'd
+				FPythonCommandEx PythonCommand;
+				PythonCommand.Command = FString::Printf(
+					TEXT("from bridges import %s; "\
+					"bridge = %s.%s(); "\
+					"subsystem = unreal.get_editor_subsystem(unreal.StableDiffusionSubsystem); "\
+					"subsystem.set_editor_property('GeneratorBridge', bridge)"), 
+					*DerivedBridgeClass->GetName(),
+					*DerivedBridgeClass->GetName(),
+					*DerivedBridgeClass->GetName()
+				);
+				PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
+				PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
+				bool Result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
+				if (!Result) {
+					UE_LOG(LogTemp, Error, TEXT("Failed to load SD bridge %s"), *DerivedBridgeClass->GetName())
+				}
+
+				break;
+			}
+		}
+
+		//GeneratorBridge = NewObject<UStableDiffusionBridge>(this, FName(*BridgeClass->GetName()), RF_Public | RF_Standalone, BridgeClass->ClassDefaultObject);
+		if (GeneratorBridge) {
+			//GeneratorBridge->AddToRoot();
+			OnBridgeLoadedEx.Broadcast(GeneratorBridge);
+		}
+	}
 }
 
 bool UStableDiffusionSubsystem::DependenciesAreInstalled()
@@ -70,47 +134,35 @@ void UStableDiffusionSubsystem::InstallDependency(FName Dependency, bool ForceRe
 	});
 }
 
-bool UStableDiffusionSubsystem::HasHuggingFaceToken()
+bool UStableDiffusionSubsystem::HasToken()
 {
-	auto token = GetHuggingfaceToken();
-	return token != "None" && !token.IsEmpty();
+	if (GeneratorBridge) {
+		return !GeneratorBridge->GetToken().IsEmpty();
+	}
+	return false;
 }
 
-FString UStableDiffusionSubsystem::GetHuggingfaceToken()
+FString UStableDiffusionSubsystem::GetToken()
 {
-	FPythonCommandEx PythonCommand;
-	PythonCommand.Command = FString("from huggingface_hub.utils import HfFolder");
-	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
-	PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
-	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
-
-	PythonCommand.Command = FString("HfFolder.get_token()");
-	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::EvaluateStatement;
-	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
-
-	//Python evaluation is wrapped in single quotes
-	bool trimmed = false;
-	return !PythonCommand.CommandResult.Contains("Traceback") ? PythonCommand.CommandResult.TrimChar(TCHAR('\''), &trimmed).TrimQuotes().TrimEnd() : "";
+	if (GeneratorBridge) {
+		return GeneratorBridge->GetToken();
+	}
+	return "";
 }
 
-bool UStableDiffusionSubsystem::LoginHuggingFaceUsingToken(const FString& token)
+bool UStableDiffusionSubsystem::LoginUsingToken(const FString& token)
 {
-	FPythonCommandEx PythonCommand;
-	PythonCommand.Command = FString("from huggingface_hub.utils import HfFolder");
-	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
-	PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
-	IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
-
-	PythonCommand.Command = FString::Format(TEXT("HfFolder.save_token('{0}')"), { token });
-	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
-	return IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
+	if (GeneratorBridge) {
+		return GeneratorBridge->LoginUsingToken(token);
+	}
+	return false;
 }
 
 void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, bool Async)
 {
 	if (GeneratorBridge) {
 		// Unload any loaded models first
-		ReleaseModel();
+		//ReleaseModel();
 
 		if (Async) {
 			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model]() {
@@ -137,8 +189,10 @@ void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Mo
 
 void UStableDiffusionSubsystem::ReleaseModel()
 {
-	GeneratorBridge->ReleaseModel();
-	ModelInitialised = false;
+	if (GeneratorBridge) {
+		GeneratorBridge->ReleaseModel();
+		ModelInitialised = false;
+	}
 }
 
 TSharedPtr<FSceneViewport> UStableDiffusionSubsystem::GetCapturingViewport()
@@ -198,6 +252,9 @@ void UStableDiffusionSubsystem::SetCaptureViewport(TSharedRef<FSceneViewport> Vi
 
 void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool FromViewport)
 {
+	if (!GeneratorBridge)
+		return;
+
 	AsyncTask(ENamedThreads::GameThread, [this, Input, FromViewport]() mutable
 		{
 			// Remember prior screen message state and disable it so our viewport is clean
@@ -309,6 +366,9 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool 
 
 void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult& input)
 {
+	if (!GeneratorBridge)
+		return;
+
 	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, input](){
 		auto result = GeneratorBridge->UpsampleImage(input);
 		AsyncTask(ENamedThreads::GameThread, [this, result=MoveTemp(result)]() {
@@ -324,7 +384,7 @@ bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, con
 
 	// Create package
 	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
-	UPackage* Package = CreatePackage(NULL, *FullPackagePath);
+	UPackage* Package = CreatePackage(this, *FullPackagePath);
 	Package->FullyLoad();
 
 	// Duplicate texture
@@ -337,8 +397,13 @@ bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, con
 	// Update package
 	Package->MarkPackageDirty();
 	FAssetRegistryModule::AssetCreated(NewTexture);
+	
+	// Save texture pacakge
 	FString PackageFileName = FPackageName::LongPackageNameToFilename(FullPackagePath, FPackageName::GetAssetPackageExtension());
-	bool bSaved = UPackage::SavePackage(Package, NewTexture, EObjectFlags::RF_Public | EObjectFlags::RF_Standalone, *PackageFileName, GError, nullptr, true, true, SAVE_None);
+	FSavePackageArgs PackageArgs;
+	PackageArgs.TopLevelFlags = EObjectFlags::RF_Public | EObjectFlags::RF_Standalone;
+	PackageArgs.bForceByteSwapping = true;
+	bool bSaved = UPackage::SavePackage(Package, NewTexture, *PackageFileName, PackageArgs);
 
 	return bSaved;
 }

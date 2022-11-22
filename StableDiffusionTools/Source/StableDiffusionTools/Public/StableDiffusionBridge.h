@@ -12,22 +12,47 @@
 DECLARE_MULTICAST_DELEGATE_FourParams(FImageProgress, int32, int32, FIntPoint, const TArray<FColor>&);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FImageProgressEx, int32, Step, int32, Timestep, FIntPoint, size, const TArray<FColor>&, PixelData);
 
+//UCLASS(PerObjectConfig, Config = "Engine")
+//class USDBridgeToken : public UObject
+//{
+//    GENERATED_BODY()
+//public:
+//    UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Token")
+//    FString Token;
+//};
+
 /**
  * 
  */
-UCLASS()
+UCLASS(Config="Engine")
 class STABLEDIFFUSIONTOOLS_API UStableDiffusionBridge : public UObject
 {
 	GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Python")
-    static UStableDiffusionBridge* Get();
+    UStableDiffusionBridge(const FObjectInitializer& initializer);
 
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
+    UStableDiffusionBridge* Get();
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    UStableDiffusionBridge* CreateBridge();
+
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
+    bool LoginUsingToken(const FString& Token);
+
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
+    FString GetToken();
+
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Bridge")
+ //   USDBridgeToken* CachedToken;
+
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
+    void SaveProperties();
 
     /** Python stable diffusion implementable functions */
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
-    bool InitModel(const FStableDiffusionModelOptions& ModelOptions);
+    bool InitModel(const FStableDiffusionModelOptions& NewModelOptions);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void ReleaseModel();
@@ -46,6 +71,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
     void UpdateImageProgress(FString prompt, int32 step, int32 timestep, int32 width, int32 height, const TArray<FColor>& FrameColors);
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
+    FStableDiffusionModelOptions ModelOptions;
 
     FImageProgress OnImageProgress;
     FImageProgressEx OnImageProgressEx;

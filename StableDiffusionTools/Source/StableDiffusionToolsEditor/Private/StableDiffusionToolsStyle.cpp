@@ -40,8 +40,8 @@ TSharedRef< FSlateStyleSet > FStableDiffusionToolsStyle::Create()
 {
 	TSharedRef< FSlateStyleSet > Style = MakeShareable(new FSlateStyleSet("StableDiffusionToolsStyle"));
 	Style->SetContentRoot(IPluginManager::Get().FindPlugin("StableDiffusionTools")->GetBaseDir() / TEXT("Resources"));
-
-	Style->Set("StableDiffusionTools.OpenPluginWindow", new IMAGE_BRUSH_SVG(TEXT("PlaceholderButtonIcon"), Icon20x20));
+	Style->Set("StableDiffusionTools.OpenPluginWindow", new IMAGE_BRUSH_SVG(TEXT("ai-brain"), Icon20x20));
+	Style->Set("StableDiffusionTools.OpenDependenciesWindow", new IMAGE_BRUSH_SVG(TEXT("download"), Icon20x20));
 
 	return Style;
 }
