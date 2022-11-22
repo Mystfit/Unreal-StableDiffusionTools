@@ -11,24 +11,25 @@ from io import BytesIO
 
 @unreal.uclass()
 class StableHordeBridge(unreal.StableDiffusionBridge):
+    API_URL = "https://stablehorde.net/api/v2"
+
     def __init__(self):
         unreal.StableDiffusionBridge.__init__(self)
 
     @unreal.ufunction(override=True)
-    def LoginUsingToken(self, token):
-        self.set_editor_property("CachedToken", token)
-        self.save_properties()
-        return True
-
-    @unreal.ufunction(override=True)
-    def GetToken(self):
-        return self.get_editor_property("CachedToken")
-
-    @unreal.ufunction(override=True)
     def InitModel(self, new_model_options):
-        self.set_editor_property("ModelOptions", new_model_options)
         self.model_loaded = True
-        return True
+        headers = {
+            "accept": "application/json",
+            "apikey": self.get_token()
+        }
+        response = requests.get(f"{StableHordeBridge.API_URL}/find_user", headers=headers)
+        if response.status_code != 200:
+            unreal.log_error(f"No Stable Horde user found with the provided token {self.get_token()}. Response code was {response.status_code} and message was \"{response.json()['message']}\"")
+            self.model_loaded = False
+
+        self.set_editor_property("ModelOptions", new_model_options)
+        return self.model_loaded
 
     @unreal.ufunction(override=True)
     def ReleaseModel(self):
@@ -55,6 +56,8 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
         mask_buffer = BytesIO()
         mask_img.save(img_buffer, format="JPEG")
         mask_img_str = base64.b64encode(mask_buffer.getvalue()).decode("utf-8")
+
+        model_options = self.get_editor_property("ModelOptions")
         
         # Build request and authorization
         request = {
@@ -78,27 +81,30 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
             "steps": input.options.iterations,
             "n": 1
           },
-          "nsfw": False,
+          "nsfw": model_options.allow_nsfw,
           "trusted_workers": True,
-          "censor_nsfw": False,
+          "censor_nsfw": not model_options.allow_nsfw,
           "source_image": guide_img_str,
           "source_processing": "img2img"
         }
         headers = {
             "accept": "application/json",
-            "apikey": self.GetToken(),
+            "apikey": self.get_token(),
             "Content-Type": "application/json"
         }
 
         # Post to Stable Horde
-        response = requests.post('https://stablehorde.net/api/v2/generate/sync', json=request, headers=headers)
+        response = requests.post(f"{StableHordeBridge.API_URL}/generate/sync", json=request, headers=headers)
 
         # Decode returned base64 image back to a PIL iamge
-        print(response.json())
-        image = Image.open(BytesIO(base64.b64decode(response.json()["generations"][0]["img"]))).convert("RGBA")
+        image = None
+        if response.status_code == 200:
+            image = Image.open(BytesIO(base64.b64decode(response.json()["generations"][0]["img"]))).convert("RGBA")
+        else:
+            unreal.log_error(f"Stable Horde returned an error. Status code was {response.status_code}. Message was {response.json()['message']}")
 
         result.input = input
-        result.pixel_data = PILImageToFColorArray(image)
+        result.pixel_data = PILImageToFColorArray(image) if image else []
         result.out_width = image.width
         result.out_height = image.height
 

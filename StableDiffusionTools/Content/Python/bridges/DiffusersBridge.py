@@ -68,29 +68,6 @@ def preprocess_mask_inpaint(mask):
 
 @unreal.uclass()
 class DiffusersBridge(unreal.StableDiffusionBridge):
-    #def __init__(self):
-    #    unreal.StableDiffusionBridge.__init__(self)
-    #    print(f"In DiffusersBridge constructor {id(self)}")
-    #    self.pipe = None
-    #    self.upsampler = None
-
-    @unreal.ufunction(override=True)
-    def LoginUsingToken(self, token):
-        try:
-            HfFolder.save_token(token)
-            return True
-        except Exception as e:
-             print(f"Could not save HuggingFace token. Exception was {e}")
-        return False
-
-    @unreal.ufunction(override=True)
-    def GetToken(self):
-        try:
-            return HfFolder.get_token()
-        except Exception as e:
-            print(f"Could not get HuggingFace token. Exception was {e}")
-
-        return ""
 
     @unreal.ufunction(override=True)
     def InitModel(self, new_model_options):
@@ -101,7 +78,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         modelname = new_model_options.model if new_model_options.model else "CompVis/stable-diffusion-v1-4"
         kwargs = {
             "torch_dtype": torch.float32 if new_model_options.precision == "fp32" else torch.float16,
-            "use_auth_token": True,
+            "use_auth_token": self.get_token(),
         }
         
         if new_model_options.revision:

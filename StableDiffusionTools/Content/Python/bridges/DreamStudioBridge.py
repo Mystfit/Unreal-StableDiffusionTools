@@ -12,21 +12,11 @@ class DreamStudioBridge(unreal.StableDiffusionBridge):
         unreal.StableDiffusionBridge.__init__(self)
 
     @unreal.ufunction(override=True)
-    def LoginUsingToken(self, token):
-        self.set_editor_property("CachedToken", token)
-        self.save_properties()
-        return True
-
-    @unreal.ufunction(override=True)
-    def GetToken(self):
-        return self.get_editor_property("CachedToken")
-
-    @unreal.ufunction(override=True)
     def InitModel(self, new_model_options):
         self.set_editor_property("ModelOptions", new_model_options)
         self.model_loaded = True
         self.stability_api = StabilityInference(
-            "grpc.stability.ai:443", self.GetToken(), engine=new_model_options.model, verbose=True
+            "grpc.stability.ai:443", self.get_token(), engine=new_model_options.model, verbose=True
         )
         print("Loaded DreamStudio model")
         return True

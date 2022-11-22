@@ -18,9 +18,17 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionToolsSettings : public UObject
 public:
 	/** Gets the class of the Stable Diffusion generator bridge that will be constructed.*/
 	TSubclassOf<UStableDiffusionBridge> GetGeneratorType() const;
+
+	/** Gets the class of the Stable Diffusion generator bridge that will be constructed.*/
+	TMap<FName, FString> GetGeneratorTokens() const;
+
+	void AddGeneratorToken(const FName& Generator);
 private:
 
 	/** Stable Diffusion generators are local or remote providers that will create an AI-generated image based on a prompt and input image.*/
 	UPROPERTY(config, EditAnywhere, Category = "Options")
 	TSubclassOf<UStableDiffusionBridge> GeneratorType;
+
+	UPROPERTY(config, EditAnywhere, Category = "Options")
+	TMap<FName, FString> GeneratorTokens;
 };

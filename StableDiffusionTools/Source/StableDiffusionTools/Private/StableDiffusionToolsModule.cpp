@@ -39,6 +39,8 @@ void FStableDiffusionToolsModule::CreateSettingsSection() {
 bool FStableDiffusionToolsModule::HandleSettingsSaved() {
 	UStableDiffusionToolsSettings* Settings = GetMutableDefault<UStableDiffusionToolsSettings>();
 	if (Settings->GetGeneratorType()) {
+
+		Settings->AddGeneratorToken(Settings->GetGeneratorType()->GetFName());
 		if (Settings->GetGeneratorType() != UStableDiffusionBridge::StaticClass()) {
 			Settings->SaveConfig();
 		}

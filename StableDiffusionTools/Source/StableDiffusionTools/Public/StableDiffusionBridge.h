@@ -12,29 +12,40 @@
 DECLARE_MULTICAST_DELEGATE_FourParams(FImageProgress, int32, int32, FIntPoint, const TArray<FColor>&);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FImageProgressEx, int32, Step, int32, Timestep, FIntPoint, size, const TArray<FColor>&, PixelData);
 
+//UCLASS(PerObjectConfig, Config = "Engine")
+//class USDBridgeToken : public UObject
+//{
+//    GENERATED_BODY()
+//public:
+//    UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Token")
+//    FString Token;
+//};
+
 /**
  * 
  */
-UCLASS(config = Engine, defaultconfig)
+UCLASS(Config="Engine")
 class STABLEDIFFUSIONTOOLS_API UStableDiffusionBridge : public UObject
 {
 	GENERATED_BODY()
 
 public:
+    UStableDiffusionBridge(const FObjectInitializer& initializer);
+
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
     UStableDiffusionBridge* Get();
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     UStableDiffusionBridge* CreateBridge();
 
-    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
     bool LoginUsingToken(const FString& Token);
 
-    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
     FString GetToken();
 
-	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Bridge")
-    FString CachedToken;
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Bridge")
+ //   USDBridgeToken* CachedToken;
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
     void SaveProperties();
