@@ -69,6 +69,11 @@ def preprocess_mask_inpaint(mask):
 @unreal.uclass()
 class DiffusersBridge(unreal.StableDiffusionBridge):
 
+    def __init__(self):
+        unreal.StableDiffusionBridge.__init__(self)
+        self.upsampler = None
+        self.pipe = None
+
     @unreal.ufunction(override=True)
     def InitModel(self, new_model_options):
         self.model_loaded = False
@@ -201,12 +206,13 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def StartUpsample(self):
-        if not hasattr("upsampler", self):
-            self.upsampler = self.InitUpsampler()
+        if not hasattr(self, "upsampler"):
+            if not self.upsampler:
+                self.upsampler = self.InitUpsampler()
 
     @unreal.ufunction(override=True)
     def StopUpsample(self):
-        if hasattr("upsampler", self):
+        if hasattr(self, "upsampler"):
             # Free VRAM after upsample
             if self.upsampler:
                 del self.upsampler
@@ -234,9 +240,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         
         # Free local upsampler to restore VRAM
         if local_upsampler:
-            if local_upsampler:
-                del local_upsampler
-            torch.cuda.empty_cache()
+            del local_upsampler
+        torch.cuda.empty_cache()
 
         # Build result
         result = unreal.StableDiffusionImageResult()

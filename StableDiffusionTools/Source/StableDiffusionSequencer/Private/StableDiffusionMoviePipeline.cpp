@@ -19,6 +19,7 @@
 #include "GenericPlatform/GenericPlatformProcess.h"
 #include "ImageWriteTask.h"
 #include "ImageWriteQueue.h"
+#include "StableDiffusionToolsModule.h"
 #include "Runtime/Launch/Resources/Version.h"
 
 
@@ -40,6 +41,11 @@ void UStableDiffusionMoviePipeline::SetupForPipelineImpl(UMoviePipeline* InPipel
 
 	// Make sure model is loaded before we render
 	auto SDSubsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
+
+	if (!SDSubsystem->GeneratorBridge || SDSubsystem->GeneratorBridge->StaticClass()->IsChildOf(ImageGenerator)) {
+		SDSubsystem->CreateBridge(ImageGenerator);
+	}
+
 	auto Tracks = InPipeline->GetTargetSequence()->GetMovieScene()->GetMasterTracks();
 	for (auto Track : Tracks) {
 		if (auto MasterOptionsTrack = Cast<UStableDiffusionOptionsTrack>(Track)) {
@@ -73,9 +79,8 @@ void UStableDiffusionMoviePipeline::SetupImpl(const MoviePipeline::FMoviePipelin
 	auto StencilActorLayerMat = StencilMatRef.LoadSynchronous();
 	StencilMatInst = StencilMatRef.LoadSynchronous();
 
-#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION > 0
-	StencilActorLayerRenderTarget = GetOrCreateViewRenderTarget(FIntPoint(InPassInitSettings.BackbufferResolution.X, InPassInitSettings.BackbufferResolution.Y));	
-#else
+	//StencilActorLayerRenderTarget = GetOrCreateViewRenderTarget(FIntPoint(InPassInitSettings.BackbufferResolution.X, InPassInitSettings.BackbufferResolution.Y));	
+
 	// Create stencil render target
 	StencilActorLayerRenderTarget = NewObject<UTextureRenderTarget2D>(GetTransientPackage());
 	StencilActorLayerRenderTarget->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -90,9 +95,13 @@ void UStableDiffusionMoviePipeline::SetupImpl(const MoviePipeline::FMoviePipelin
 	// which has a default value of 2.2 (DefaultDisplayGamma), therefore we need to set Gamma on this render target to 2.2 to cancel out any unwanted effects.
 	StencilActorLayerRenderTarget->TargetGamma = FOpenColorIODisplayExtension::DefaultDisplayGamma;
 
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 1
 	// Always add one stencil layer view state for the inpainting stencil mask
 	StencilLayerViewStates.Add(FSceneViewStateReference());
 #endif
+
+	// Manually set preview render target so we can preview our SD output
+	GetPipeline()->SetPreviewTexture(StencilActorLayerRenderTarget.Get());
 
 	Super::SetupImpl(InPassInitSettings);
 }
@@ -105,6 +114,9 @@ void UStableDiffusionMoviePipeline::TeardownForPipelineImpl(UMoviePipeline* InPi
 void UStableDiffusionMoviePipeline::GatherOutputPassesImpl(TArray<FMoviePipelinePassIdentifier>& ExpectedRenderPasses) {
 	Super::GatherOutputPassesImpl(ExpectedRenderPasses);
 
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION > 0
+	StencilPassIdentifier.CameraName = GetCameraName(0);
+#endif
 	ExpectedRenderPasses.Add(StencilPassIdentifier);
 }
 
@@ -133,10 +145,12 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 
 	// Main Render Pass
 	{
-		FMoviePipelinePassIdentifier LayerPassIdentifier;
 		FMoviePipelineRenderPassMetrics InOutSampleState = InSampleState;
-
+		FMoviePipelinePassIdentifier LayerPassIdentifier;
 #if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION > 0
+		LayerPassIdentifier.Name = PassIdentifier.Name;
+		LayerPassIdentifier.CameraName = GetCameraName(0);
+
 		FStableDiffusionDeferredPassRenderStatePayload Payload;
 		Payload.CameraIndex = 0;
 		Payload.TileIndex = InOutSampleState.TileIndexes;
@@ -172,15 +186,22 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			{
 				continue;
 			}
-			LayerPassIdentifier = FMoviePipelinePassIdentifier(PassIdentifier.Name + VisMaterial->GetName());
+
+			FMoviePipelinePassIdentifier PostLayerPassIdentifier;
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION > 0
+			PostLayerPassIdentifier.Name = PassIdentifier.Name + VisMaterial->GetName();
+			PostLayerPassIdentifier.CameraName = GetCameraName(0);
+#else
+			PostLayerPassIdentifier = FMoviePipelinePassIdentifier(PassIdentifier.Name + VisMaterial->GetName());
+#endif
 
 			auto BufferPipe = MakeShared<FImagePixelPipe, ESPMode::ThreadSafe>();
-			BufferPipe->AddEndpoint(MakeForwardingEndpoint(LayerPassIdentifier, InSampleState));
+			BufferPipe->AddEndpoint(MakeForwardingEndpoint(PostLayerPassIdentifier, InSampleState));
 
 			View->FinalPostProcessSettings.BufferVisualizationPipes.Add(VisMaterial->GetFName(), BufferPipe);
 		}
 
-		LayerPassIdentifier  = FMoviePipelinePassIdentifier(PassIdentifier.Name);
+		//LayerPassIdentifier  = FMoviePipelinePassIdentifier(PassIdentifier.Name);
 		int32 NumValidMaterials = View->FinalPostProcessSettings.BufferVisualizationPipes.Num();
 		View->FinalPostProcessSettings.bBufferVisualizationDumpRequired = NumValidMaterials > 0;
 
@@ -303,9 +324,16 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 					SavedActorStencilStates.Emplace(layer);
 				}
 
-				auto Accumulate = MakeForwardingEndpoint(FMoviePipelinePassIdentifier(LayerPassIdentifier), InSampleState);
+//#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION > 0
+//				LayerPassIdentifier.Name = StencilPassIdentifier.Name;
+//				LayerPassIdentifier.CameraName = GetCameraName(0);
+//#else
+//				LayerPassIdentifier = StencilPassIdentifier;
+//#endif
+
+				auto Accumulate = MakeForwardingEndpoint(LayerPassIdentifier, InSampleState);
 				auto BufferPipe = MakeShared<FImagePixelPipe, ESPMode::ThreadSafe>();
-				BufferPipe->AddEndpoint([this, Input = MoveTemp(Input), Canvas, LayerPassIdentifier, Accumulate, RenderTarget, StencilRT, InSampleState, StencilCanvas, EffectiveFrame](TUniquePtr<FImagePixelData>&& InPixelData) mutable
+				BufferPipe->AddEndpoint([this, Input = MoveTemp(Input), Canvas, Accumulate, RenderTarget, StencilRT, InSampleState, StencilCanvas, EffectiveFrame](TUniquePtr<FImagePixelData>&& InPixelData) mutable
 				{
 					// Copy frame pixel data from 16 bit to 8 bit
 					Input.MaskImagePixels.InsertUninitialized(0, InPixelData->GetSize().X* InPixelData->GetSize().Y);
@@ -317,6 +345,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 
 					// Generate new SD frame
 					auto SDSubsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
+					check(SDSubsystem->GeneratorBridge);
 					auto SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(Input);
 
 					TUniquePtr<FImagePixelData> SDImageDataBuffer16bit;
@@ -343,15 +372,15 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 						}
 					}
 
-					ENQUEUE_RENDER_COMMAND(UpdateMoviePipelineRenderTarget)([this, &SDImageDataBuffer16bit, RenderTarget](FRHICommandListImmediate& RHICmdList) {
+					ENQUEUE_RENDER_COMMAND(UpdateMoviePipelineRenderTarget)([this, &SDImageDataBuffer16bit, StencilRT](FRHICommandListImmediate& RHICmdList) {
 						int64 OutSize;
 						const void* OutRawData = nullptr;
 						SDImageDataBuffer16bit->GetRawData(OutRawData, OutSize);
 						RHICmdList.UpdateTexture2D(
-							RenderTarget->GetRenderTargetTexture(),
+							StencilRT->GetRenderTargetTexture(),
 							0,
-							FUpdateTextureRegion2D(0, 0, 0, 0, RenderTarget->GetSizeXY().X, RenderTarget->GetSizeXY().Y),
-							RenderTarget->GetSizeXY().X * sizeof(FFloat16Color),
+							FUpdateTextureRegion2D(0, 0, 0, 0, StencilRT->GetSizeXY().X, StencilRT->GetSizeXY().Y),
+							StencilRT->GetSizeXY().X * sizeof(FFloat16Color),
 							(uint8*)OutRawData
 						);
 						RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
@@ -364,7 +393,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 				View->FinalPostProcessSettings.BufferVisualizationOverviewMaterials.Add(StencilMatInst);
 
 				// Render stencil view
-				GetRendererModule().BeginRenderingViewFamily(&StencilCanvas, ViewFamily.Get());
+				GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.Get());
 
 				PostRendererSubmission(InSampleState, StencilPassIdentifier, GetOutputFileSortingOrder() + 1, Canvas);
 			}
@@ -415,29 +444,38 @@ void UStableDiffusionMoviePipeline::BeginExportImpl(){
 				UpsampleInput.OutHeight = Image->GetPlatformData()->SizeY;
 				auto UpsampleResult = SDSubsystem->GeneratorBridge->UpsampleImage(UpsampleInput);
 
-				// Build an export task that will async write the upsampled image to disk
-				TUniquePtr<FImageWriteTask> ExportTask = MakeUnique<FImageWriteTask>();
-				ExportTask->Format = EImageFormat::EXR;
-				ExportTask->CompressionQuality = (int32)EImageCompressionQuality::Default;
-				FString OutputName = FString::Printf(TEXT("%s%s.%s"), *UpscaledFramePrefix, *FPaths::GetBaseFilename(file), *FPaths::GetExtension(file));
-				FString OutputDirectory = OutputSettings->OutputDirectory.Path;
-				FString OutputPath = FPaths::Combine(OutputDirectory,OutputName);
-				ExportTask->Filename = OutputPath;
-				
-				// Convert RGBA pixels back to FloatRGBA
-				TArray64<FFloat16Color> ConvertedSrcPixels;
-				ConvertedSrcPixels.InsertUninitialized(0, UpsampleResult.PixelData.Num());
-				for (size_t idx = 0; idx < UpsampleResult.PixelData.Num(); ++idx) {
-					ConvertedSrcPixels[idx] = FFloat16Color(UpsampleResult.PixelData[idx]);
-				}
-				TUniquePtr<TImagePixelData<FFloat16Color>> UpscaledPixelData = MakeUnique<TImagePixelData<FFloat16Color>>(
-					FIntPoint(UpsampleResult.OutWidth, UpsampleResult.OutHeight),
-					MoveTemp(ConvertedSrcPixels)
-				);
-				ExportTask->PixelData = MoveTemp(UpscaledPixelData);
+				if (UpsampleResult.PixelData.Num()) {
+					// Build an export task that will async write the upsampled image to disk
+					TUniquePtr<FImageWriteTask> ExportTask = MakeUnique<FImageWriteTask>();
+					ExportTask->Format = EImageFormat::EXR;
+					ExportTask->CompressionQuality = (int32)EImageCompressionQuality::Default;
+					FString OutputName = FString::Printf(TEXT("%s%s.{ext}"), *UpscaledFramePrefix, *FPaths::GetBaseFilename(file));
+					FString OutputDirectory = OutputSettings->OutputDirectory.Path;
+					FString OutputPath = FPaths::Combine(OutputDirectory, OutputName);
+					FString OutputPathResolved;
 
-				// Enque image write
-				GetPipeline()->ImageWriteQueue->Enqueue(MoveTemp(ExportTask));
+					TMap<FString, FString> FormatOverrides{ {TEXT("ext"), *FPaths::GetExtension(file)} };
+					FMoviePipelineFormatArgs OutArgs;
+					GetPipeline()->ResolveFilenameFormatArguments(OutputPath, FormatOverrides, OutputPathResolved, OutArgs);
+					ExportTask->Filename = OutputPathResolved;
+
+					// Convert RGBA pixels back to FloatRGBA
+					TArray64<FFloat16Color> ConvertedSrcPixels;
+					ConvertedSrcPixels.InsertUninitialized(0, UpsampleResult.PixelData.Num());
+					for (size_t idx = 0; idx < UpsampleResult.PixelData.Num(); ++idx) {
+						ConvertedSrcPixels[idx] = FFloat16Color(UpsampleResult.PixelData[idx]);
+					}
+					TUniquePtr<TImagePixelData<FFloat16Color>> UpscaledPixelData = MakeUnique<TImagePixelData<FFloat16Color>>(
+						FIntPoint(UpsampleResult.OutWidth, UpsampleResult.OutHeight),
+						MoveTemp(ConvertedSrcPixels)
+						);
+					ExportTask->PixelData = MoveTemp(UpscaledPixelData);
+
+					// Enque image write
+					GetPipeline()->ImageWriteQueue->Enqueue(MoveTemp(ExportTask));
+				}
+
+				
 			}
 
 			SDSubsystem->GeneratorBridge->StopUpsample();

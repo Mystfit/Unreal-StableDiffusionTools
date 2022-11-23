@@ -48,7 +48,7 @@ bool FStableDiffusionToolsModule::HandleSettingsSaved() {
 
 	UStableDiffusionSubsystem* SDSubSystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
 	if (SDSubSystem) {
-		SDSubSystem->CreateBridge();
+		SDSubSystem->CreateBridge(Settings->GetGeneratorType());
 		return true;
 	}
 	return false;
