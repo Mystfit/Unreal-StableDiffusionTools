@@ -19,6 +19,11 @@
 #include "GenericPlatform/GenericPlatformProcess.h"
 #include "ImageWriteTask.h"
 #include "ImageWriteQueue.h"
+#include "Runtime/Launch/Resources/Version.h"
+
+
+
+
 
 #if WITH_EDITOR
 FText UStableDiffusionMoviePipeline::GetFooterText(UMoviePipelineExecutorJob* InJob) const {
@@ -68,6 +73,9 @@ void UStableDiffusionMoviePipeline::SetupImpl(const MoviePipeline::FMoviePipelin
 	auto StencilActorLayerMat = StencilMatRef.LoadSynchronous();
 	StencilMatInst = StencilMatRef.LoadSynchronous();
 
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION > 0
+	StencilActorLayerRenderTarget = GetOrCreateViewRenderTarget(FIntPoint(InPassInitSettings.BackbufferResolution.X, InPassInitSettings.BackbufferResolution.Y));	
+#else
 	// Create stencil render target
 	StencilActorLayerRenderTarget = NewObject<UTextureRenderTarget2D>(GetTransientPackage());
 	StencilActorLayerRenderTarget->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -84,7 +92,7 @@ void UStableDiffusionMoviePipeline::SetupImpl(const MoviePipeline::FMoviePipelin
 
 	// Always add one stencil layer view state for the inpainting stencil mask
 	StencilLayerViewStates.Add(FSceneViewStateReference());
-	TileRenderTargets.Add(StencilActorLayerRenderTarget);
+#endif
 
 	Super::SetupImpl(InPassInitSettings);
 }
@@ -107,8 +115,20 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 
 	// Wait for a surface to be available to write to. This will stall the game thread while the RHI/Render Thread catch up.
 	{
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION > 0
+		// Wait for a all surfaces to be available to write to. This will stall the game thread while the RHI/Render Thread catch up.
+		SCOPE_CYCLE_COUNTER(STAT_MoviePipeline_WaitForAvailableSurface);
+		for (TPair<FIntPoint, TSharedPtr<FMoviePipelineSurfaceQueue, ESPMode::ThreadSafe>> SurfaceQueueIt : SurfaceQueues)
+		{
+			if (SurfaceQueueIt.Value.IsValid())
+			{
+				SurfaceQueueIt.Value->BlockUntilAnyAvailable();
+			}
+		}
+#else
 		SCOPE_CYCLE_COUNTER(STAT_MoviePipeline_WaitForAvailableSurface);
 		SurfaceQueue->BlockUntilAnyAvailable();
+#endif
 	}
 
 	// Main Render Pass
@@ -116,8 +136,20 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 		FMoviePipelinePassIdentifier LayerPassIdentifier;
 		FMoviePipelineRenderPassMetrics InOutSampleState = InSampleState;
 
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION > 0
+		FStableDiffusionDeferredPassRenderStatePayload Payload;
+		Payload.CameraIndex = 0;
+		Payload.TileIndex = InOutSampleState.TileIndexes;
+
+		// Main renders use index 0.
+		Payload.SceneViewIndex = 0;
+
+		TSharedPtr<FSceneViewFamilyContext> ViewFamily = CalculateViewFamily(InOutSampleState, &Payload);
+#else
 		CurrentLayerIndex = INDEX_NONE;
 		TSharedPtr<FSceneViewFamilyContext> ViewFamily = CalculateViewFamily(InOutSampleState);
+#endif
+
 		ViewFamily->bIsFirstViewInMultipleViewFamily = true;
 
 		// Add post-processing materials if needed
@@ -153,7 +185,13 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 		View->FinalPostProcessSettings.bBufferVisualizationDumpRequired = NumValidMaterials > 0;
 
 		// Setup render targets and drawing surfaces
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION > 0
+		TWeakObjectPtr<UTextureRenderTarget2D> ViewRenderTarget = GetOrCreateViewRenderTarget(InOutSampleState.BackbufferSize, (IViewCalcPayload*)(&Payload));
+		check(ViewRenderTarget.IsValid());
+		FRenderTarget* RenderTarget = ViewRenderTarget->GameThread_GetRenderTargetResource();
+#else
 		FRenderTarget* RenderTarget = GetViewRenderTarget()->GameThread_GetRenderTargetResource();
+#endif
 		FRenderTarget* StencilRT = StencilActorLayerRenderTarget->GameThread_GetRenderTargetResource();
 		FCanvas Canvas = FCanvas(RenderTarget, nullptr, GetPipeline()->GetWorld(), ERHIFeatureLevel::SM5, FCanvas::CDM_ImmediateDrawing, 1.0f);
 		FCanvas StencilCanvas = FCanvas(StencilRT, nullptr, GetPipeline()->GetWorld(), ERHIFeatureLevel::SM5, FCanvas::CDM_ImmediateDrawing, 1.0f);
@@ -199,11 +237,11 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Input.Options.Iterations);
 							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Input.Options.Seed);
 							
-							TArray<FActorLayer> ActorLayers;
+							TArray<FActorLayer> InpaintActorLayers;
 							for (auto LayerName : OptionSection->InpaintLayers) {
-								ActorLayers.Add(FActorLayer{ LayerName });
+								InpaintActorLayers.Add(FActorLayer{ LayerName });
 							}
-							Input.Options.InpaintLayers = ActorLayers;
+							Input.Options.InpaintLayers = InpaintActorLayers;
 						}
 					}
 				}
@@ -235,9 +273,17 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			RenderTarget->ReadPixels(Input.InputImagePixels, FReadSurfaceDataFlags());
 
 			// Get new view state for our stencil render
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION > 0
+			FStableDiffusionDeferredPassRenderStatePayload StencilPayload;
+			StencilPayload.CameraIndex = 0;
+			StencilPayload.TileIndex = InOutSampleState.TileIndexes;
+			StencilPayload.SceneViewIndex = 0;
+			ViewFamily = CalculateViewFamily(InOutSampleState, &StencilPayload);
+#else
 			CurrentLayerIndex = 0;
 			ViewFamily = CalculateViewFamily(InOutSampleState);
 			ViewFamily->bIsRenderedImmediatelyAfterAnotherViewFamily = true;
+#endif
 			ViewFamily->bIsMultipleViewFamily = true;
 			ViewFamily->EngineShowFlags.PostProcessing = 1;
 			View = const_cast<FSceneView*>(ViewFamily->Views[0]);

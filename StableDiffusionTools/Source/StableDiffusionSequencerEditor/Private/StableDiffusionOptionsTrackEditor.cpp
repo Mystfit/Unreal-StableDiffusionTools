@@ -3,6 +3,7 @@
 #include "StableDiffusionOptionsTrack.h"
 #include "StableDiffusionOptionsSection.h"
 #include "SequencerUtilities.h"
+#include "EditorStyleSet.h"
 
 #define LOCTEXT_NAMESPACE "SequencerAwesomness"
 
@@ -20,7 +21,7 @@ void FStableDiffusionOptionsTrackEditor::BuildAddTrackMenu(FMenuBuilder& MenuBui
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("AddOptionsTrack", "Stable Diffusion Generation track"), //Label
 		LOCTEXT("AddOptionsTrackTooltip", "Add a Stable Diffusion Generation track that will control the generation of SD frames over time"), //Tooltip
-		FSlateIcon(FEditorStyle::GetStyleSetName(), "ClassIcon.TextRenderComponent"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.TextRenderComponent"),
 		FUIAction(FExecuteAction::CreateRaw(this, &FStableDiffusionOptionsTrackEditor::OnAddTrack)
 		));
 }

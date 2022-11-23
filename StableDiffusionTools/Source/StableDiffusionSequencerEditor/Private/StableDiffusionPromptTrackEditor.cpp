@@ -21,7 +21,7 @@ void FStableDiffusionPromptTrackEditor::BuildAddTrackMenu(FMenuBuilder& MenuBuil
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("AddPromptTrack", "Stable Diffusion Prompt track"), //Label
 		LOCTEXT("AddPromptTrackTooltip", "Add a Stable Diffusion prompt track that will control the text prompt sent to the image generator"), //Tooltip
-		FSlateIcon(FEditorStyle::GetStyleSetName(), "ClassIcon.TextRenderComponent"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.TextRenderComponent"),
 		FUIAction(FExecuteAction::CreateRaw(this, &FStableDiffusionPromptTrackEditor::OnAddTrack)
 	));
 }

@@ -12,6 +12,13 @@
 #include "StableDiffusionMoviePipeline.generated.h"
 
 
+struct FStableDiffusionDeferredPassRenderStatePayload : public UMoviePipelineImagePassBase::IViewCalcPayload
+{
+	int32 CameraIndex;
+	FIntPoint TileIndex; // Will always be 1,1 if no history-per-tile is enabled
+	int32 SceneViewIndex;
+};
+
 
 /**
  * 
@@ -66,7 +73,7 @@ private:
 	virtual void BeginExportImpl() override;
 
 	TObjectPtr<UMaterialInterface> StencilMatInst;
-	TObjectPtr<UTextureRenderTarget2D> StencilActorLayerRenderTarget;
+	TWeakObjectPtr<UTextureRenderTarget2D> StencilActorLayerRenderTarget;
 	FMoviePipelinePassIdentifier StencilPassIdentifier;
 	UStableDiffusionOptionsTrack* OptionsTrack;
 	TArray<UStableDiffusionPromptMovieSceneTrack*> PromptTracks;
