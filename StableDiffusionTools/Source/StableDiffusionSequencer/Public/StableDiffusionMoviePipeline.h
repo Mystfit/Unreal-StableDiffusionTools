@@ -7,10 +7,18 @@
 #include "StableDiffusionPromptMovieSceneSection.h"
 #include "StableDiffusionOptionsTrack.h"
 #include "StableDiffusionOptionsSection.h"
+#include "StableDiffusionBridge.h"
 #include "MoviePipelineDeferredPasses.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "StableDiffusionMoviePipeline.generated.h"
 
+
+struct FStableDiffusionDeferredPassRenderStatePayload : public UMoviePipelineImagePassBase::IViewCalcPayload
+{
+	int32 CameraIndex;
+	FIntPoint TileIndex; // Will always be 1,1 if no history-per-tile is enabled
+	int32 SceneViewIndex;
+};
 
 
 /**
@@ -52,6 +60,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Outputs")
 	bool bUpscale;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Outputs")
+	TSubclassOf<UStableDiffusionBridge> ImageGenerator;
+
 	/**
 	* The prefix to add to each upscaled frame. If empty, the upscaled frame will overwrite the source frame.
 	*/
@@ -66,7 +77,7 @@ private:
 	virtual void BeginExportImpl() override;
 
 	TObjectPtr<UMaterialInterface> StencilMatInst;
-	TObjectPtr<UTextureRenderTarget2D> StencilActorLayerRenderTarget;
+	TWeakObjectPtr<UTextureRenderTarget2D> StencilActorLayerRenderTarget;
 	FMoviePipelinePassIdentifier StencilPassIdentifier;
 	UStableDiffusionOptionsTrack* OptionsTrack;
 	TArray<UStableDiffusionPromptMovieSceneTrack*> PromptTracks;

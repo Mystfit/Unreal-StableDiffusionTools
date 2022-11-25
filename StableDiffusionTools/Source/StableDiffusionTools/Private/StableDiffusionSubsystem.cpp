@@ -34,7 +34,13 @@ UStableDiffusionSubsystem::UStableDiffusionSubsystem(const FObjectInitializer& i
 {
 	// Wait for Python to load our derived classes before we construct the bridge
 	IPythonScriptPlugin& PythonModule = FModuleManager::LoadModuleChecked<IPythonScriptPlugin>(TEXT("PythonScriptPlugin"));
-	PythonModule.OnPythonInitialized().AddUFunction(this, GET_FUNCTION_NAME_CHECKED(UStableDiffusionSubsystem, CreateBridge));
+	PythonModule.OnPythonInitialized().AddLambda([this]() {
+		// Make sure that we have our Python derived bridges available in the settings first
+		GetMutableDefault<UStableDiffusionToolsSettings>()->ReloadConfig(UStableDiffusionToolsSettings::StaticClass());
+		auto BridgeClass = GetDefault<UStableDiffusionToolsSettings>()->GetGeneratorType();
+		this->CreateBridge(BridgeClass);
+	}); 
+	//PythonModule.OnPythonInitialized().AddUFunction(this, GET_FUNCTION_NAME_CHECKED(UStableDiffusionSubsystem, CreateBridge));
 }
 
 bool UStableDiffusionSubsystem::IsBridgeLoaded()
@@ -42,12 +48,8 @@ bool UStableDiffusionSubsystem::IsBridgeLoaded()
 	return (GeneratorBridge == nullptr) ? false : true;
 }
 
-void UStableDiffusionSubsystem::CreateBridge()
+void UStableDiffusionSubsystem::CreateBridge(TSubclassOf<UStableDiffusionBridge> BridgeClass)
 {
-	// Make sure that we have our Python derived bridges available in the settings first
-	GetMutableDefault<UStableDiffusionToolsSettings>()->ReloadConfig(UStableDiffusionToolsSettings::StaticClass());
-
-	auto BridgeClass = GetDefault<UStableDiffusionToolsSettings>()->GetGeneratorType();
 	if (BridgeClass) {
 
 		auto BaseClass = UStableDiffusionBridge::StaticClass();

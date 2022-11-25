@@ -118,3 +118,26 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
         result.out_height = image.height
 
         return result
+
+    @unreal.ufunction(override=True)
+    def StartUpsample(self):
+        pass
+
+    @unreal.ufunction(override=True)
+    def StopUpsample(self):
+        pass
+
+    @unreal.ufunction(override=True)
+    def UpsampleImage(self, image_result: unreal.StableDiffusionImageResult):
+        unreal.log_warning("Upsampler not yet implemented for Stable Horde bridge")
+
+        # Build result
+        result = unreal.StableDiffusionImageResult()
+        result.input = image_result.input
+        result.pixel_data = image_result.pixel_data
+        result.out_width = image_result.out_width
+        result.out_height = image_result.out_height
+        result.generated_texture = None
+        result.upsampled = True
+
+        return result

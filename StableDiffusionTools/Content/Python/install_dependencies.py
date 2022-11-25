@@ -92,6 +92,8 @@ class PyDependencyManager(unreal.DependencyManager):
             proc.stdout.close()
             return_code = proc.wait()
             if return_code:
+                err = proc.stderr.read()
+                self.update_dependency_progress(dependency, f"ERROR: Failed to install depdendency {dep_name}\nReturn code was {return_code}\nError was {err}")
                 raise subprocess.CalledProcessError(return_code, " ".join(cmd))
             status.installed = True
         except CalledProcessError as e:
@@ -143,6 +145,7 @@ def clone_dependency(repo_name, repo_url):
     try:
         repo = Repo.clone_from(repo_url, repo_path)
     except git.exc.GitCommandError as e:
+        print(f"Could not clone repo from {repo_url}. Reason was {e}")
         repo = Repo(repo_path)
 
     if repo:
@@ -165,6 +168,9 @@ def clone_dependency(repo_name, repo_url):
                 print(f"Command: {command}")
 
         return os.path.normpath(repo_path)
+
+    print(f"No local git repo found at {repo_path}")
+    return None
 
 
 def download_wheel(wheel_name, wheel_url):

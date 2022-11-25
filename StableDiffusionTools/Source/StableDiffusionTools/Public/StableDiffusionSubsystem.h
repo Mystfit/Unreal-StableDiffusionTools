@@ -84,7 +84,7 @@ public:
 	// Python classes
 	// --------------
 	UFUNCTION(Category = "StableDiffusion|Bridge")
-	void CreateBridge();
+	void CreateBridge(TSubclassOf<UStableDiffusionBridge> BridgeClass);
 
 	UFUNCTION(Category = "StableDiffusion|Bridge")
 	bool IsBridgeLoaded();
