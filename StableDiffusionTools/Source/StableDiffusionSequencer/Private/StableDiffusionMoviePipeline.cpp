@@ -98,6 +98,7 @@ void UStableDiffusionMoviePipeline::SetupImpl(const MoviePipeline::FMoviePipelin
 #if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 1
 	// Always add one stencil layer view state for the inpainting stencil mask
 	StencilLayerViewStates.Add(FSceneViewStateReference());
+	TileRenderTargets.Add(StencilActorLayerRenderTarget.Get());
 #endif
 
 	// Manually set preview render target so we can preview our SD output
@@ -146,7 +147,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 	// Main Render Pass
 	{
 		FMoviePipelineRenderPassMetrics InOutSampleState = InSampleState;
-		FMoviePipelinePassIdentifier LayerPassIdentifier;
+		FMoviePipelinePassIdentifier LayerPassIdentifier(PassIdentifier);
 #if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION > 0
 		LayerPassIdentifier.Name = PassIdentifier.Name;
 		LayerPassIdentifier.CameraName = GetCameraName(0);
