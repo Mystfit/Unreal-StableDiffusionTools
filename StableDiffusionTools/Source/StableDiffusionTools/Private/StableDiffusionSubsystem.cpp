@@ -50,48 +50,46 @@ bool UStableDiffusionSubsystem::IsBridgeLoaded()
 
 void UStableDiffusionSubsystem::CreateBridge(TSubclassOf<UStableDiffusionBridge> BridgeClass)
 {
-	if (BridgeClass) {
+	auto BaseClass = UStableDiffusionBridge::StaticClass();
+	if (BridgeClass == BaseClass) {
+		UE_LOG(LogTemp, Warning, TEXT("Can not create Stable Diffusion Bridge. Only classes deriving from %s can be created."), *BridgeClass->GetName())
+			return;
+	}
 
-		auto BaseClass = UStableDiffusionBridge::StaticClass();
-		if (BridgeClass == BaseClass) {
-			UE_LOG(LogTemp, Warning, TEXT("Can not create Stable Diffusion Bridge. Only classes deriving from %s can be created."), *BridgeClass->GetName())
-				return;
-		}
+	TArray<UClass*> PythonBridgeClasses;
+	GetDerivedClasses(UStableDiffusionBridge::StaticClass(), PythonBridgeClasses);
 
-		TArray<UClass*> PythonBridgeClasses;
-		GetDerivedClasses(UStableDiffusionBridge::StaticClass(), PythonBridgeClasses);
-
-		for (auto DerivedBridgeClass : PythonBridgeClasses) {
-			if (DerivedBridgeClass->IsChildOf(BridgeClass)) {
+	for (auto DerivedBridgeClass : PythonBridgeClasses) {
+		if (DerivedBridgeClass->IsChildOf(BridgeClass)) {
 				
-				// We need to create the bridge class from inside Python so that python created objects don't get GC'd
-				FPythonCommandEx PythonCommand;
-				PythonCommand.Command = FString::Printf(
-					TEXT("from bridges import %s; "\
-					"bridge = %s.%s(); "\
-					"subsystem = unreal.get_editor_subsystem(unreal.StableDiffusionSubsystem); "\
-					"subsystem.set_editor_property('GeneratorBridge', bridge)"), 
-					*DerivedBridgeClass->GetName(),
-					*DerivedBridgeClass->GetName(),
-					*DerivedBridgeClass->GetName()
-				);
-				PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
-				PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
-				bool Result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
-				if (!Result) {
-					UE_LOG(LogTemp, Error, TEXT("Failed to load SD bridge %s"), *DerivedBridgeClass->GetName())
-				}
-
-				break;
+			// We need to create the bridge class from inside Python so that python created objects don't get GC'd
+			FPythonCommandEx PythonCommand;
+			PythonCommand.Command = FString::Printf(
+				TEXT("from bridges import %s; "\
+				"bridge = %s.%s(); "\
+				"subsystem = unreal.get_editor_subsystem(unreal.StableDiffusionSubsystem); "\
+				"subsystem.set_editor_property('GeneratorBridge', bridge)"), 
+				*DerivedBridgeClass->GetName(),
+				*DerivedBridgeClass->GetName(),
+				*DerivedBridgeClass->GetName()
+			);
+			PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
+			PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Public;
+			bool Result = IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
+			if (!Result) {
+				UE_LOG(LogTemp, Error, TEXT("Failed to load SD bridge %s"), *DerivedBridgeClass->GetName())
 			}
-		}
 
-		//GeneratorBridge = NewObject<UStableDiffusionBridge>(this, FName(*BridgeClass->GetName()), RF_Public | RF_Standalone, BridgeClass->ClassDefaultObject);
-		if (GeneratorBridge) {
-			//GeneratorBridge->AddToRoot();
-			OnBridgeLoadedEx.Broadcast(GeneratorBridge);
+			break;
 		}
 	}
+
+	//GeneratorBridge = NewObject<UStableDiffusionBridge>(this, FName(*BridgeClass->GetName()), RF_Public | RF_Standalone, BridgeClass->ClassDefaultObject);
+	if (GeneratorBridge) {
+		//GeneratorBridge->AddToRoot();
+		OnBridgeLoadedEx.Broadcast(GeneratorBridge);
+	}
+	
 }
 
 bool UStableDiffusionSubsystem::DependenciesAreInstalled()
@@ -123,7 +121,7 @@ void UStableDiffusionSubsystem::RestartEditor()
 	}
 }
 
-void UStableDiffusionSubsystem::InstallDependency(FName Dependency, bool ForceReinstall)
+void UStableDiffusionSubsystem::InstallDependency(FDependencyManifestEntry Dependency, bool ForceReinstall)
 {
 	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Dependency, ForceReinstall]() {
 		if (this->DependencyManager) {

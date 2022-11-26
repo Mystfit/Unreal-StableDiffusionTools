@@ -117,7 +117,7 @@ public:
 	void RestartEditor();
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
-	void InstallDependency(FName Dependency, bool ForceReinstall);
+	void InstallDependency(FDependencyManifestEntry Dependency, bool ForceReinstall);
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Dependencies")
 	FDependenciesInstalled OnDependenciesInstalled;

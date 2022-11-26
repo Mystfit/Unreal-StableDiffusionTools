@@ -35,9 +35,6 @@ public:
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
     UStableDiffusionBridge* Get();
 
-    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
-    UStableDiffusionBridge* CreateBridge();
-
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
     bool LoginUsingToken(const FString& Token);
 
@@ -51,6 +48,7 @@ public:
     void SaveProperties();
 
     /** Python stable diffusion implementable functions */
+
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     bool InitModel(const FStableDiffusionModelOptions& NewModelOptions);
 

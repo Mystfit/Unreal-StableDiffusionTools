@@ -7,21 +7,21 @@ from urllib.parse import urlparse
 from subprocess import CalledProcessError
 import unreal
 
-dependencies = {
-    "gitpython": {"module": "git"},
-    "torch": {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
-    "torchvision":  {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
-    "torchaudio":  {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
-    "diffusers": {"url": "https://github.com/huggingface/diffusers.git"},
-    "transformers": {},
-    "scipy":{},
-    "ftfy": {},
-    "realesrgan": {},
-    "accelerate": {},
-    "xformers": {"url": "https://github.com/Mystfit/xformers/releases/download/v0.0.14/xformers-0.0.14.dev0-cp39-cp39-win_amd64.whl", "upgrade": True},
-    "stability-sdk": {"module": "stability_sdk"},
-    "requests": {}
-}
+#dependencies = {
+#    "gitpython": {"module": "git"},
+#    "torch": {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
+#    "torchvision":  {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
+#    "torchaudio":  {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
+#    "diffusers": {"url": "https://github.com/huggingface/diffusers.git"},
+#    "transformers": {},
+#    "scipy":{},
+#    "ftfy": {},
+#    "realesrgan": {},
+#    "accelerate": {},
+#    "xformers": {"url": "https://github.com/Mystfit/xformers/releases/download/v0.0.14/xformers-0.0.14.dev0-cp39-cp39-win_amd64.whl", "upgrade": True},
+#    "stability-sdk": {"module": "stability_sdk"},
+#    "requests": {}
+#}
 
 # TODO: There's an unreal function to return this path
 pythonpath = os.path.abspath(unreal.Paths().make_standard_filename(os.path.join("..", "ThirdParty", "Python3", "Win64", "python.exe")))
@@ -34,28 +34,22 @@ class PyDependencyManager(unreal.DependencyManager):
     def __init__(self):
         unreal.DependencyManager.__init__(self)
 
-    @unreal.ufunction(override=True)
-    def install_all_dependencies(self, force_reinstall):
-        for dependency in dependencies.keys():
-            install_dependency(dependency)
+    #@unreal.ufunction(override=True)
+    #def install_all_dependencies(self, force_reinstall):
+    #    for dependency in dependencies.keys():
+    #        install_dependency(dependency)
 
     @unreal.ufunction(override=True)
     def install_dependency(self, dependency, force_reinstall):
-        dependency = str(dependency)
         status = unreal.DependencyStatus()
-        status.name = dependency
+        status.name = dependency.name
         status.installed = False
         status.return_code = 0
 
-        if not dependency in dependencies.keys():
-            return status
-
-        dep_name = dependency
-        dep_options = dependencies[dep_name]
-
-        dep_path = dep_options["url"] if "url" in dep_options.keys() else ""
-        dep_force_upgrade = dep_options["upgrade"] if "upgrade" in dep_options.keys() else True
-        extra_flags = dep_options["args"].split(' ') if "args" in dep_options.keys() else []
+        dep_name = dependency.name
+        dep_path = dependency.url if dependency.url else ""
+        dep_force_upgrade = True
+        extra_flags = dependency.args.split(' ') if dependency.args else []
         if force_reinstall:
             extra_flags.append("--force-reinstall")
         print("Installing dependency " + dep_name)
@@ -87,13 +81,13 @@ class PyDependencyManager(unreal.DependencyManager):
             )
             for stdout_line in iter(proc.stdout.readline, ""):
                 print(stdout_line)
-                self.update_dependency_progress(dependency, str(stdout_line))
+                self.update_dependency_progress(dependency.name, str(stdout_line))
                 # yield stdout_line
             proc.stdout.close()
             return_code = proc.wait()
             if return_code:
                 err = proc.stderr.read()
-                self.update_dependency_progress(dependency, f"ERROR: Failed to install depdendency {dep_name}\nReturn code was {return_code}\nError was {err}")
+                self.update_dependency_progress(dependency.name, f"ERROR: Failed to install depdendency {dep_name}\nReturn code was {return_code}\nError was {err}")
                 raise subprocess.CalledProcessError(return_code, " ".join(cmd))
             status.installed = True
         except CalledProcessError as e:
@@ -105,22 +99,17 @@ class PyDependencyManager(unreal.DependencyManager):
 
     @unreal.ufunction(override=True)
     def get_dependency_names(self):
-        return [package_name for package_name in dependencies.keys()]
+        return []
+        #return [package_name for package_name in dependencies.keys()]
 
     @unreal.ufunction(override=True)
     def get_dependency_status(self, dependency):
-        dependency = str(dependency)
         status = unreal.DependencyStatus()
-        status.name = dependency
+        status.name = dependency.name
         status.version = "None"
-        if not dependency in dependencies:
-            return status
-
-        module_name = dependencies[dependency]["module"] if "module" in dependencies[dependency] else dependency
-        module_status = importlib.util.find_spec(module_name)
+        module_status = importlib.util.find_spec(dependency.module)
         status.installed = True if module_status else False
-        print(f"Module {module_name} installed for dependency {dependency}: {status.installed}")
-
+        print(f"Module {dependency.module} installed for dependency {dependency.name}: {status.installed}")
         return status
 
     @unreal.ufunction(override=True)

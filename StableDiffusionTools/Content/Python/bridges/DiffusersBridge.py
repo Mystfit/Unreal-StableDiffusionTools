@@ -1,11 +1,14 @@
 import unreal
-import os, inspect
+import os, inspect, importlib
+
 import numpy as np
 import torch
 from torch import autocast
 import PIL
 from PIL import Image
+import diffusers
 from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline
+from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray
 from huggingface_hub.utils import HfFolder
 
@@ -72,11 +75,15 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
     def __init__(self):
         unreal.StableDiffusionBridge.__init__(self)
         self.upsampler = None
-        self.pipe = None
+        self.pipe = None    
 
     @unreal.ufunction(override=True)
     def InitModel(self, new_model_options):
         self.model_loaded = False
+
+        scheduler_module = None
+        if new_model_options.scheduler:
+            scheduler_cls = getattr(diffusers, new_model_options.scheduler)
 
         result = True
         ActivePipeline = StableDiffusionInpaintPipeline if new_model_options.inpaint else StableDiffusionImg2ImgPipeline
@@ -95,6 +102,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
         # Load model
         self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
+        if scheduler_module:
+            self.pipe.scheduler = scheduler_cls.from_config(self.pipe.scheduler.config)
         self.pipe = self.pipe.to("cuda")
 
         # Performance options for low VRAM gpus

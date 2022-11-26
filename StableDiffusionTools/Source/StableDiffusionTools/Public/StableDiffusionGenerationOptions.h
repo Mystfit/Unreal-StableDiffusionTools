@@ -23,6 +23,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		FString CustomPipeline = "lpw_stable_diffusion";
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+		FString Scheduler;
+
 	/* 
 	Padding mode to use for image 2D convulution. Valid options are 'zeros', 'reflect', 'replicate' or 'circular'. 
 	See https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
