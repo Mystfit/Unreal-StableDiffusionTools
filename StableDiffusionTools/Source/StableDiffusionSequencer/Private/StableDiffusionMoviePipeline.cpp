@@ -450,7 +450,7 @@ void UStableDiffusionMoviePipeline::BeginExportImpl(){
 					TUniquePtr<FImageWriteTask> ExportTask = MakeUnique<FImageWriteTask>();
 					ExportTask->Format = EImageFormat::EXR;
 					ExportTask->CompressionQuality = (int32)EImageCompressionQuality::Default;
-					FString OutputName = FString::Printf(TEXT("%s%s.{ext}"), *UpscaledFramePrefix, *FPaths::GetBaseFilename(file));
+					FString OutputName = FString::Printf(TEXT("%s%s"), *UpscaledFramePrefix, *FPaths::GetBaseFilename(file));
 					FString OutputDirectory = OutputSettings->OutputDirectory.Path;
 					FString OutputPath = FPaths::Combine(OutputDirectory, OutputName);
 					FString OutputPathResolved;
