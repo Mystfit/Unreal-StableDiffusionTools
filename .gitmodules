@@ -1,0 +1,3 @@
+[submodule "GenericGraph"]
+	path = GenericGraph
+	url = https://github.com/Mystfit/GenericGraph.git

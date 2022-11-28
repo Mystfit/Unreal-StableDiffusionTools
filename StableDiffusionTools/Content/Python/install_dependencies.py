@@ -7,26 +7,9 @@ from urllib.parse import urlparse
 from subprocess import CalledProcessError
 import unreal
 
-#dependencies = {
-#    "gitpython": {"module": "git"},
-#    "torch": {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
-#    "torchvision":  {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
-#    "torchaudio":  {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
-#    "diffusers": {"url": "https://github.com/huggingface/diffusers.git"},
-#    "transformers": {},
-#    "scipy":{},
-#    "ftfy": {},
-#    "realesrgan": {},
-#    "accelerate": {},
-#    "xformers": {"url": "https://github.com/Mystfit/xformers/releases/download/v0.0.14/xformers-0.0.14.dev0-cp39-cp39-win_amd64.whl", "upgrade": True},
-#    "stability-sdk": {"module": "stability_sdk"},
-#    "requests": {}
-#}
-
-# TODO: There's an unreal function to return this path
-pythonpath = os.path.abspath(unreal.Paths().make_standard_filename(os.path.join("..", "ThirdParty", "Python3", "Win64", "python.exe")))
-pythonheaders = os.path.abspath(unreal.Paths().make_standard_filename(os.path.join(unreal.Paths().engine_source_dir(), "ThirdParty", "Python3", "Win64", "include")))
-pythonlibs = os.path.abspath(unreal.Paths().make_standard_filename(os.path.join(unreal.Paths().engine_source_dir(), "ThirdParty", "Python3", "Win64", "libs")))
+pythonpath = unreal.get_interpreter_executable_path()
+#pythonheaders = os.path.abspath(unreal.Paths().make_standard_filename(os.path.join(unreal.Paths().engine_source_dir(), "ThirdParty", "Python3", "Win64", "include")))
+#pythonlibs = os.path.abspath(unreal.Paths().make_standard_filename(os.path.join(unreal.Paths().engine_source_dir(), "ThirdParty", "Python3", "Win64", "libs")))
 
 
 @unreal.uclass()
@@ -71,7 +54,7 @@ class PyDependencyManager(unreal.DependencyManager):
             extra_flags.append("--upgrade")
 
         try: 
-            cmd = [f"{pythonpath}", '-m', 'pip', 'install'] + extra_flags + dep_name
+            cmd = [pythonpath, '-m', 'pip', 'install'] + extra_flags + dep_name
             proc = subprocess.Popen(
                 cmd, 
                 stdout=subprocess.PIPE, 
