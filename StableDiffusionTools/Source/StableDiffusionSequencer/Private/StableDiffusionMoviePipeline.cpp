@@ -14,6 +14,7 @@
 #include "Misc/FileHelper.h"
 #include "MoviePipelineOutputSetting.h"
 #include "Channels/MovieSceneChannelProxy.h"
+#include "MovieScene.h"
 #include "RenderingThread.h"
 #include "MoviePipelineImageQuantization.h"
 #include "GenericPlatform/GenericPlatformProcess.h"
