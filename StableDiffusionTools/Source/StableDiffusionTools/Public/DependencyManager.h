@@ -8,19 +8,19 @@ USTRUCT(BlueprintType)
 struct STABLEDIFFUSIONTOOLS_API FDependencyStatus {
     GENERATED_BODY()
 public:
-    UPROPERTY(BlueprintReadWrite)
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         FName Name;
 
-    UPROPERTY(BlueprintReadWrite)
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         bool Installed;
 
-    UPROPERTY(BlueprintReadWrite)
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         FString Message;
 
-    UPROPERTY(BlueprintReadWrite)
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         FString Version;
 
-    UPROPERTY(BlueprintReadWrite)
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         int ReturnCode;
 };
 
@@ -29,22 +29,22 @@ USTRUCT(BlueprintType)
 struct STABLEDIFFUSIONTOOLS_API FDependencyManifestEntry {
     GENERATED_BODY()
 public:
-    UPROPERTY(BlueprintReadWrite)
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         FString Name;
 
-    UPROPERTY(BlueprintReadWrite)
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         FString Module;
 
-    UPROPERTY(BlueprintReadWrite)
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         FString Args;
 
-    UPROPERTY(BlueprintReadWrite)
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         FString Url;
 
-    UPROPERTY(BlueprintReadWrite)
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         FString Version;
 
-    UPROPERTY(BlueprintReadWrite)
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         bool Upgrade;
 };
 
@@ -53,7 +53,7 @@ USTRUCT(BlueprintType)
 struct STABLEDIFFUSIONTOOLS_API FDependencyManifest {
     GENERATED_BODY()
 public:
-    UPROPERTY(BlueprintReadWrite)
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         TArray<FDependencyManifestEntry> ManifestEntries;
 };
 
