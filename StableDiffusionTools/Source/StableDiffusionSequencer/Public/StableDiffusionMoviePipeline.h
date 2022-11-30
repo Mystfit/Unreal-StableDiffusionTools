@@ -30,11 +30,8 @@ class STABLEDIFFUSIONSEQUENCER_API UStableDiffusionMoviePipeline : public UMovie
 	GENERATED_BODY()
 
 public:
-	UStableDiffusionMoviePipeline() : UMoviePipelineDeferredPassBase()
-	{
-		PassIdentifier = FMoviePipelinePassIdentifier("StableDiffusion");
-		StencilPassIdentifier = FMoviePipelinePassIdentifier("StableDiffusion_StencilPass");
-	}
+	UStableDiffusionMoviePipeline();
+	virtual void PostInitProperties();
 	virtual void SetupForPipelineImpl(UMoviePipeline* InPipeline) override;
 	virtual void TeardownForPipelineImpl(UMoviePipeline* InPipeline) override;
 	void SetupImpl(const MoviePipeline::FMoviePipelineRenderPassInitSettings& InPassInitSettings) override;
@@ -61,7 +58,7 @@ public:
 	bool bUpscale;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Outputs")
-	TSubclassOf<UStableDiffusionBridge> ImageGenerator;
+	TSubclassOf<UStableDiffusionBridge> ImageGeneratorOverride;
 
 	/**
 	* The prefix to add to each upscaled frame. If empty, the upscaled frame will overwrite the source frame.

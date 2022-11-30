@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "StableDiffusionMoviePipeline.h"
+#include "StableDiffusionToolsSettings.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "StableDiffusionSubsystem.h"
 #include "MoviePipelineQueue.h"
@@ -25,7 +25,31 @@
 
 
 
+UStableDiffusionMoviePipeline::UStableDiffusionMoviePipeline() : UMoviePipelineDeferredPassBase()
+{
+	PassIdentifier = FMoviePipelinePassIdentifier("StableDiffusion");
+	StencilPassIdentifier = FMoviePipelinePassIdentifier("StableDiffusion_StencilPass");
+}
 
+void UStableDiffusionMoviePipeline::PostInitProperties()
+{
+	Super::PostInitProperties();
+
+	auto Settings = GetMutableDefault<UStableDiffusionToolsSettings>();
+	Settings->ReloadConfig(UStableDiffusionToolsSettings::StaticClass());
+
+	if (!ImageGeneratorOverride) {
+		if (Settings->GetGeneratorType() && Settings->GetGeneratorType() != UStableDiffusionBridge::StaticClass()) {
+			ImageGeneratorOverride = Settings->GetGeneratorType();
+		}
+	}
+	else {
+		// We don't want to include the base bridge class as it has no implementation
+		if (ImageGeneratorOverride->StaticClass() == UStableDiffusionBridge::StaticClass()) {
+			ImageGeneratorOverride = nullptr;
+		}
+	}
+}
 
 #if WITH_EDITOR
 FText UStableDiffusionMoviePipeline::GetFooterText(UMoviePipelineExecutorJob* InJob) const {
@@ -43,8 +67,8 @@ void UStableDiffusionMoviePipeline::SetupForPipelineImpl(UMoviePipeline* InPipel
 	// Make sure model is loaded before we render
 	auto SDSubsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
 
-	if (!SDSubsystem->GeneratorBridge || SDSubsystem->GeneratorBridge->StaticClass()->IsChildOf(ImageGenerator)) {
-		SDSubsystem->CreateBridge(ImageGenerator);
+	if (!SDSubsystem->GeneratorBridge || SDSubsystem->GeneratorBridge->StaticClass()->IsChildOf(ImageGeneratorOverride)) {
+		SDSubsystem->CreateBridge(ImageGeneratorOverride);
 	}
 
 	auto Tracks = InPipeline->GetTargetSequence()->GetMovieScene()->GetMasterTracks();
@@ -349,9 +373,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 					auto SDSubsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
 					check(SDSubsystem->GeneratorBridge);
 					auto SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(Input);
-
 					TUniquePtr<FImagePixelData> SDImageDataBuffer16bit;
-					TArray<FFloat16Color> ConvertedResultPixels;
 
 					if (!SDResult.PixelData.Num()) {
 						UE_LOG(LogTemp, Error, TEXT("Stable diffusion generator failed to return any pixel data on frame %d. Please add a model asset to the Options track or initialize the StableDiffusionSubsystem model."), EffectiveFrame.Value);
@@ -367,11 +389,6 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 						TUniquePtr<TImagePixelData<FColor>> SDImageDataBuffer8bit;
 						SDImageDataBuffer8bit = MakeUnique<TImagePixelData<FColor>>(FIntPoint(SDResult.OutWidth, SDResult.OutHeight), TArray64<FColor>(MoveTemp(SDResult.PixelData)));
 						SDImageDataBuffer16bit = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(SDImageDataBuffer8bit.Get(), 16);
-
-						ConvertedResultPixels.InsertUninitialized(0, SDResult.PixelData.Num());
-						for (size_t idx = 0; idx < SDResult.PixelData.Num(); ++idx) {
-							ConvertedResultPixels[idx] = FFloat16Color(SDResult.PixelData[idx]);
-						}
 					}
 
 					ENQUEUE_RENDER_COMMAND(UpdateMoviePipelineRenderTarget)([this, &SDImageDataBuffer16bit, StencilRT](FRHICommandListImmediate& RHICmdList) {
