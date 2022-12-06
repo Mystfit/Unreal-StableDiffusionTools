@@ -11,7 +11,7 @@ def GetDependencies():
         MakeDependency({"name":"torch", "args": torch_index_url}),
         MakeDependency({"name":"torchvision", "args": torch_index_url}),
         MakeDependency({"name":"torchaudio", "args": torch_index_url}),
-        MakeDependency({"name":"diffusers"}), #"url": "https://github.com/huggingface/diffusers.git"
+        MakeDependency({"name":"diffusers", "url": "https://github.com/huggingface/diffusers.git"}),
         MakeDependency({"name":"transformers"}),
         MakeDependency({"name":"numpy"}),
         MakeDependency({"name":"scipy"}),
