@@ -181,8 +181,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     "prompt": positive_prompts,
                     "negative_prompt": negative_prompts,
                     "image" if model_options.inpaint else "image": guide_img,
-                    "width": input.options.out_size_x,
-                    "height": input.options.out_size_y,
                     "strength": input.options.strength, 
                     "num_inference_steps": input.options.iterations, 
                     "generator": generator, 

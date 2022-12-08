@@ -7,21 +7,6 @@ from urllib.parse import urlparse
 from subprocess import CalledProcessError
 import unreal
 
-#dependencies = {
-#    "gitpython": {"module": "git"},
-#    "torch": {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
-#    "torchvision":  {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
-#    "torchaudio":  {"args": "--extra-index-url https://download.pytorch.org/whl/cu117"},
-#    "diffusers": {"url": "https://github.com/huggingface/diffusers.git"},
-#    "transformers": {},
-#    "scipy":{},
-#    "ftfy": {},
-#    "realesrgan": {},
-#    "accelerate": {},
-#    "xformers": {"url": "https://github.com/Mystfit/xformers/releases/download/v0.0.14/xformers-0.0.14.dev0-cp39-cp39-win_amd64.whl", "upgrade": True},
-#    "stability-sdk": {"module": "stability_sdk"},
-#    "requests": {}
-#}
 
 # TODO: There's an unreal function to return this path
 pythonpath = os.path.abspath(unreal.Paths().make_standard_filename(os.path.join("..", "ThirdParty", "Python3", "Win64", "python.exe")))
@@ -33,11 +18,6 @@ pythonlibs = os.path.abspath(unreal.Paths().make_standard_filename(os.path.join(
 class PyDependencyManager(unreal.DependencyManager):
     def __init__(self):
         unreal.DependencyManager.__init__(self)
-
-    #@unreal.ufunction(override=True)
-    #def install_all_dependencies(self, force_reinstall):
-    #    for dependency in dependencies.keys():
-    #        install_dependency(dependency)
 
     @unreal.ufunction(override=True)
     def install_dependency(self, dependency, force_reinstall):
@@ -59,11 +39,9 @@ class PyDependencyManager(unreal.DependencyManager):
                 print("Dowloading wheel")
                 wheel_path = download_wheel(dep_name, dep_path)
                 dep_name = [f"{wheel_path}"]
-            elif dep_path.endswith(".git"):
+            elif ".git" in dep_path:
                 print("Downloading git repository")
-                #path = clone_dependency(dep_name, dep_path)
                 dep_name = [f"git+{dep_path}#egg={dep_name}"]
-                #extra_flags += ["--global-option=build_ext", f"--global-option=-I'{pythonheaders}'", f"--global-option=-L'{pythonlibs}'"]
         else:
             dep_name = dep_name.split(' ')
             
