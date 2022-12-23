@@ -79,6 +79,8 @@ public:
 	UStableDiffusionSubsystem(const FObjectInitializer& initializer);
 
 	static FString StencilLayerMaterialAsset;
+	static FString DepthMaterialAsset;
+	
 
 
 	// Python classes
@@ -186,8 +188,8 @@ private:
 	TSharedPtr<FFrameGrabber> ViewportCapture;
 	FDelegateHandle ActiveEndframeHandler;
 
-	void CreateSceneCaptureCamera();
-	void UpdateSceneCaptureCamera();
+	FViewportSceneCapture CreateSceneCaptureCamera();
+	void UpdateSceneCaptureCamera(FViewportSceneCapture& SceneCapture);
 	FViewportSceneCapture CurrentSceneCapture;
 
 	UTexture2D* ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTexture);

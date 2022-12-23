@@ -288,7 +288,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 							for (auto LayerName : OptionSection->InpaintLayers) {
 								InpaintActorLayers.Add(FActorLayer{ LayerName });
 							}
-							Input.Options.InpaintLayers = InpaintActorLayers;
+							Input.InpaintLayers = InpaintActorLayers;
 						}
 					}
 				}
@@ -346,7 +346,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 
 			{
 				TArray<FScopedActorLayerStencil> SavedActorStencilStates;
-				for (auto layer : Input.Options.InpaintLayers) {
+				for (auto layer : Input.InpaintLayers) {
 					SavedActorStencilStates.Emplace(layer);
 				}
 

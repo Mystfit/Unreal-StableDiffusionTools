@@ -13,12 +13,6 @@ def FColorAsPILImage(color_arr, image_width, image_height):
 
     pix_arr = np.array(pixels, dtype=np.uint8)
     return Image.fromarray(pix_arr)
-    #for color in color_arr:
-    #    byte_colors.append(color.r.to_bytes(1, "little"))
-    #    byte_colors.append(color.g.to_bytes(1, "little"))
-    #    byte_colors.append(color.b.to_bytes(1, "little"))
-    #    byte_colors.append(color.a.to_bytes(1, "little"))
-    #return Image.frombytes("RGBA", (image_width, image_height), byte_colors, 'raw', 'RGBA')
 
 def PILImageToFColorArray(image):
     output_pixels = []

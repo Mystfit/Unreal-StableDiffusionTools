@@ -4,10 +4,13 @@ import os, inspect, importlib
 import numpy as np
 import torch
 from torch import autocast
+from torchvision.transforms.functional import rgb_to_grayscale
 import PIL
 from PIL import Image
+from transformers import CLIPFeatureExtractor
 import diffusers
-from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline
+from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionDepth2ImgPipeline
+from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray
 from huggingface_hub.utils import HfFolder
@@ -55,6 +58,21 @@ def preprocess_image_inpaint(image):
     image = torch.from_numpy(image)
     return 2.0 * image - 1.0
 
+def preprocess_image_depth(image):
+    w, h = image.size
+    w, h = map(lambda x: x - x % 32, (w, h))  # resize to integer multiple of 32
+    image = image.convert("RGB")
+    image = image.resize((w, h), resample=PIL.Image.LANCZOS)
+    image = np.array(image).astype(np.float32) / 255.0
+    image = image[None].transpose(0, 3, 1, 2)
+    #image = 1 - image
+    image = torch.from_numpy(image)
+    image = rgb_to_grayscale(image, 1)
+    print(f"Presqueeze: Depthmap has shape {image.shape}")
+    image = image.squeeze(1)
+    print(f"Postqueeze: Depthmap has shape {image.shape}")
+    return image
+
 
 def preprocess_mask_inpaint(mask):
     mask = mask.convert("L")
@@ -86,11 +104,22 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             scheduler_cls = getattr(diffusers, new_model_options.scheduler)
 
         result = True
-        ActivePipeline = StableDiffusionInpaintPipeline if new_model_options.inpaint else StableDiffusionImg2ImgPipeline
-        modelname = new_model_options.model if new_model_options.model else "CompVis/stable-diffusion-v1-4"
+
+        # Set pipeline
+        ActivePipeline = StableDiffusionImg2ImgPipeline
+        if new_model_options.inpaint:
+            ActivePipeline = StableDiffusionInpaintPipeline  
+        elif new_model_options.depth:
+            ActivePipeline = StableDiffusionDepth2ImgPipeline
+        
+        print(ActivePipeline)
+        
+        modelname = new_model_options.model if new_model_options.model else "CompVis/stable-diffusion-v1-5"
         kwargs = {
             "torch_dtype": torch.float32 if new_model_options.precision == "fp32" else torch.float16,
             "use_auth_token": self.get_token(),
+            "safety_checker": None,     # TODO: Init safety checker - this is included to stop models complaining about the missing module
+            "feature_extractor": None,  # TODO: Init feature extractor - this is included to stop models complaining about the missing module
         }
         
         if new_model_options.revision:
@@ -102,6 +131,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
         # Load model
         self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
+
         if scheduler_module:
             self.pipe.scheduler = scheduler_cls.from_config(self.pipe.scheduler.config)
         self.pipe = self.pipe.to("cuda")
@@ -164,6 +194,12 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             guide_img = guide_img.resize((512,512))
             mask_img = mask_img.resize((512,512))
             #mask_img.show()
+        elif model_options.depth:
+            #guide_img = guide_img.resize((512,512))
+            #mask_img = mask_img.resize((512,512))
+            mask_img.show()
+            mask_img = preprocess_image_depth(mask_img)
+            guide_img = preprocess_init_image(guide_img, input.options.out_size_x, input.options.out_size_y)
         else:
             guide_img = preprocess_init_image(guide_img, input.options.out_size_x, input.options.out_size_y)
         
@@ -188,8 +224,10 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     "callback": self.ImageProgressStep, 
                     "callback_steps": 25
                 }
-                if model_options.inpaint and mask_img:
+                if model_options.inpaint:
                     generation_args["mask_image"] = mask_img
+                if model_options.depth:
+                    generation_args["depth_map"] = mask_img
 
                 images = self.pipe(**generation_args).images
                 image = images[0]

@@ -14,6 +14,8 @@
 #include "AssetRegistryModule.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "ImageUtils.h"
+#include "MoviePipelineImageQuantization.h"
+#include "ImagePixelData.h"
 #include "EngineUtils.h"
 #include "Dialogs/Dialogs.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -23,6 +25,8 @@
 #define LOCTEXT_NAMESPACE "StableDiffusionSubsystem"
 
 FString UStableDiffusionSubsystem::StencilLayerMaterialAsset = TEXT("/StableDiffusionTools/Materials/SD_StencilMask.SD_StencilMask");
+FString UStableDiffusionSubsystem::DepthMaterialAsset = TEXT("/StableDiffusionTools/Materials/M_Depth.M_Depth");
+
 
 bool FCapturedFramePayload::OnFrameReady_RenderThread(FColor* ColorBuffer, FIntPoint BufferSize, FIntPoint TargetSize) const
 {
@@ -279,8 +283,17 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool 
 
 			auto ViewportSize = GetCapturingViewport()->GetSizeXY();
 
-			// Create a SceneCapture2D that will capture our editor viewport
-			CreateSceneCaptureCamera();
+
+			// Use chosen scene capture component or create a default one
+			USceneCaptureComponent2D* CaptureComponent = nullptr;
+			if (!Input.CaptureSource) {
+				// Create a default SceneCapture2D that will capture our editor viewport
+				CurrentSceneCapture = CreateSceneCaptureCamera();
+				CaptureComponent = CurrentSceneCapture.SceneCapture->GetCaptureComponent2D();
+			}
+			else {
+				CaptureComponent = Input.CaptureSource;
+			}
 
 			// Forward image updated event from bridge to subsystem
 			this->GeneratorBridge->OnImageProgressEx.AddUniqueDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
@@ -291,7 +304,6 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool 
 				LevelEditorSubsystem->EditorSetGameView(bPrevViewportGameViewEnabled);
 
 			// Setup scene capture component
-			auto CaptureComponent = CurrentSceneCapture.SceneCapture->GetCaptureComponent2D();
 			CaptureComponent->bCaptureEveryFrame = true;
 			CaptureComponent->bCaptureOnMovement = false;
 			CaptureComponent->CompositeMode = SCCM_Overwrite;
@@ -304,6 +316,12 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool 
 			check(FullFrameRT);
 			FullFrameRT->InitCustomFormat(ViewportSize.X, ViewportSize.Y, PF_R8G8B8A8, false);
 			FullFrameRT->UpdateResourceImmediate(true);
+
+			UTextureRenderTarget2D* FullFrameDepthRT = NewObject<UTextureRenderTarget2D>(CaptureComponent);
+			check(FullFrameDepthRT);
+			FullFrameDepthRT->InitCustomFormat(ViewportSize.X, ViewportSize.Y, PF_FloatRGBA, true);
+			FullFrameDepthRT->UpdateResourceImmediate(true);
+
 			CaptureComponent->TextureTarget = FullFrameRT;
 
 			// Create destination pixel arrays
@@ -312,28 +330,55 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool 
 			FinalColor.AddUninitialized(ViewportSize.X * ViewportSize.Y);
 			InpaintMask.AddUninitialized(ViewportSize.X * ViewportSize.Y);
 			FTextureRenderTargetResource* FullFrameRT_TexRes = FullFrameRT->GameThread_GetRenderTargetResource();
+			FTextureRenderTargetResource* FullFrameDepthRT_TexRes = FullFrameDepthRT->GameThread_GetRenderTargetResource();
 
 			// Capture scene and get main render pass
 			CaptureComponent->CaptureScene();
 			FullFrameRT_TexRes->ReadPixels(FinalColor, FReadSurfaceDataFlags());
-
-			// Create material to handle actor layers as stencil masks
-			TSoftObjectPtr<UMaterialInterface> StencilMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(StencilLayerMaterialAsset));
-			auto StencilLayerMaterial = StencilMatRef.LoadSynchronous();
-			UMaterialInstanceDynamic* StencilMatInst = UMaterialInstanceDynamic::Create(StencilLayerMaterial, CaptureComponent);
-			CaptureComponent->AddOrUpdateBlendable(StencilMatInst);
 			
 			// Disable bloom to stop it bleeding from the stencil mask
 			CaptureComponent->ShowFlags.SetBloom(false);
 
-			for (auto layer : Input.Options.InpaintLayers) {
-				FScopedActorLayerStencil stencil_settings(layer);
-				
-				// Render second pass of scene as a stencil mask for inpainting
-				CaptureComponent->CaptureScene();
-				FullFrameRT_TexRes->ReadPixels(InpaintMask, FReadSurfaceDataFlags());
+			if (ModelOptions.Inpaint) {
+				// Create material to handle actor layers as stencil masks
+				TSoftObjectPtr<UMaterialInterface> StencilMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(StencilLayerMaterialAsset));
+				auto StencilLayerMaterial = StencilMatRef.LoadSynchronous();
+				UMaterialInstanceDynamic* StencilMatInst = UMaterialInstanceDynamic::Create(StencilLayerMaterial, CaptureComponent);
+				CaptureComponent->AddOrUpdateBlendable(StencilMatInst);
 
-				// Cleanup scene capture once we've captured all our pixel data
+				for (auto layer : Input.InpaintLayers) {
+					FScopedActorLayerStencil stencil_settings(layer);
+				
+					// Render second pass of scene as a stencil mask for inpainting
+					CaptureComponent->CaptureScene();
+					FullFrameRT_TexRes->ReadPixels(InpaintMask, FReadSurfaceDataFlags());
+				}
+			}
+			else if (ModelOptions.Depth) {
+				// Create material to handle actor layers as stencil masks
+				TSoftObjectPtr<UMaterialInterface> DepthMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(DepthMaterialAsset));
+				auto DepthMaterial = DepthMatRef.LoadSynchronous();
+				UMaterialInstanceDynamic* DepthMatInst = UMaterialInstanceDynamic::Create(DepthMaterial, CaptureComponent);
+				DepthMatInst->SetScalarParameterValue("DepthScale", Input.SceneDepthScale);
+				DepthMatInst->SetScalarParameterValue("StartDepth", Input.SceneDepthOffset);
+				CaptureComponent->AddOrUpdateBlendable(DepthMatInst);
+
+				// Render second pass containing scene depth
+				CaptureComponent->TextureTarget = FullFrameDepthRT;
+				CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalColorHDR;
+				CaptureComponent->CaptureScene();
+
+				// Read depthmap and convert to 8bit
+				TArray<FLinearColor> DepthMap32bit;
+				FullFrameDepthRT_TexRes->ReadLinearColorPixels(DepthMap32bit);
+				for (size_t idx = 0; idx < DepthMap32bit.Num(); ++idx) {
+					int NormalizedDepth = DepthMap32bit[idx].R * 255;
+					InpaintMask[idx] = FColor(NormalizedDepth, NormalizedDepth, NormalizedDepth, 255);
+				}
+			}
+
+			// Cleanup scene capture once we've captured all our pixel data
+			if (this->CurrentSceneCapture.SceneCapture) {
 				this->CurrentSceneCapture.SceneCapture->Destroy();
 				this->CurrentSceneCapture.ViewportClient = nullptr;
 			}
@@ -420,8 +465,10 @@ UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& Frame
 	return ColorBufferToTexture(FrameName, (uint8*)FrameColors.GetData(), FrameSize, OutTex);
 }
 
-void UStableDiffusionSubsystem::CreateSceneCaptureCamera()
+FViewportSceneCapture UStableDiffusionSubsystem::CreateSceneCaptureCamera()
 {
+	FViewportSceneCapture SceneCapture;
+
 	bool FoundViewport = false;
 	FVector CameraLocation = FVector::ZeroVector;
 	FRotator CameraRotation = FRotator::ZeroRotator;
@@ -432,22 +479,24 @@ void UStableDiffusionSubsystem::CreateSceneCaptureCamera()
 		if (LevelVC && LevelVC->IsPerspective())
 		{
 			FoundViewport = true;
-			CurrentSceneCapture.ViewportClient = LevelVC;
+			SceneCapture.ViewportClient = LevelVC;
 			break;
 		}
 	}
 
 	if (FoundViewport){
-		CurrentSceneCapture.SceneCapture = GEditor->GetEditorWorldContext().World()->SpawnActor<ASceneCapture2D>();
-		UpdateSceneCaptureCamera();
+		SceneCapture.SceneCapture = GEditor->GetEditorWorldContext().World()->SpawnActor<ASceneCapture2D>();
+		UpdateSceneCaptureCamera(SceneCapture);
 	}
+
+	return SceneCapture;
 }
 
-void UStableDiffusionSubsystem::UpdateSceneCaptureCamera() 
+void UStableDiffusionSubsystem::UpdateSceneCaptureCamera(FViewportSceneCapture& SceneCapture)
 {
-	CurrentSceneCapture.SceneCapture->SetActorLocation(CurrentSceneCapture.ViewportClient->GetViewLocation());
-	CurrentSceneCapture.SceneCapture->SetActorRotation(CurrentSceneCapture.ViewportClient->GetViewRotation());
-	CurrentSceneCapture.SceneCapture->GetCaptureComponent2D()->FOVAngle = CurrentSceneCapture.ViewportClient->FOVAngle;
+	SceneCapture.SceneCapture->SetActorLocation(SceneCapture.ViewportClient->GetViewLocation());
+	SceneCapture.SceneCapture->SetActorRotation(SceneCapture.ViewportClient->GetViewRotation());
+	SceneCapture.SceneCapture->GetCaptureComponent2D()->FOVAngle = SceneCapture.ViewportClient->FOVAngle;
 }
 
 UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex)

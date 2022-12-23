@@ -26,10 +26,13 @@ class PyDependencyManager(unreal.DependencyManager):
         status.installed = False
         status.return_code = 0
 
-        dep_name = dependency.name
+        dep_name = f"{dependency.name}=={dependency.version}" if dependency.version else dependency.name
         dep_path = dependency.url if dependency.url else ""
+
         dep_force_upgrade = True
         extra_flags = dependency.args.split(' ') if dependency.args else []
+        post_flags = ["--no-cache"] if dependency.no_cache else []
+
         if force_reinstall:
             extra_flags.append("--force-reinstall")
         print("Installing dependency " + dep_name)
@@ -49,7 +52,7 @@ class PyDependencyManager(unreal.DependencyManager):
             extra_flags.append("--upgrade")
 
         try: 
-            cmd = [f"{pythonpath}", '-m', 'pip', 'install'] + extra_flags + dep_name
+            cmd = [f"{pythonpath}", '-m', 'pip', 'install'] + extra_flags + dep_name + post_flags
             proc = subprocess.Popen(
                 cmd, 
                 stdout=subprocess.PIPE, 

@@ -46,6 +46,9 @@ public:
 
     UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         bool Upgrade;
+
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
+        bool NoCache;
 };
 
 

@@ -39,22 +39,28 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		bool Inpaint = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+		bool Depth = false;
+
+
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
 	{
-		return Model.Equals(Other.Model) && 
-			Revision.Equals(Other.Revision) && 
-			Precision.Equals(Other.Precision) && 
+		return Model.Equals(Other.Model) &&
+			Revision.Equals(Other.Revision) &&
+			Precision.Equals(Other.Precision) &&
 			CustomPipeline.Equals(Other.CustomPipeline) &&
-			Inpaint == Other.Inpaint;
+			Inpaint == Other.Inpaint &&
+			Depth == Other.Depth;
 	}
 
 	FORCEINLINE bool operator!=(const FStableDiffusionModelOptions& Other)
 	{
-		return !Model.Equals(Other.Model) || 
-			!Revision.Equals(Other.Revision) || 
+		return !Model.Equals(Other.Model) ||
+			!Revision.Equals(Other.Revision) ||
 			!Precision.Equals(Other.Precision) ||
 			!CustomPipeline.Equals(Other.CustomPipeline) ||
-			!(Inpaint == Other.Inpaint);
+			!(Inpaint == Other.Inpaint) ||
+			!(Depth == Other.Inpaint);
 	}
 };
 
@@ -99,9 +105,6 @@ public:
 	int32 OutSizeY = 512;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
-	TArray<FActorLayer> InpaintLayers;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	TArray<FPrompt> PositivePrompts;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
@@ -135,6 +138,18 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	FStableDiffusionGenerationOptions Options;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	TArray<FActorLayer> InpaintLayers;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	float SceneDepthScale = 2048.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	float SceneDepthOffset = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	USceneCaptureComponent2D* CaptureSource;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	TArray<FColor> InputImagePixels;
