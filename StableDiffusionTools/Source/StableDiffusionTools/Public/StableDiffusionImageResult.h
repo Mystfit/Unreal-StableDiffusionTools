@@ -22,8 +22,21 @@ public:
     int32 OutHeight;
 
     UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
-    UTexture2D* GeneratedTexture;
+    bool Upsampled = false;
+};
 
-    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
+
+UCLASS(BlueprintType)
+class STABLEDIFFUSIONTOOLS_API UStableDiffusionImageResultAsset : public UPrimaryDataAsset
+{
+    GENERATED_BODY()
+public:
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Outputs")
+    FStableDiffusionGenerationOptions ImageInputs;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Outputs")
+    UTexture2D* ImageOutput;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Outputs")
     bool Upsampled = false;
 };

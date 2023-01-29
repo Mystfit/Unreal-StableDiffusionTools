@@ -422,7 +422,7 @@ void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult&
 	});
 }
 
-bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture)
+bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, const FStableDiffusionGenerationOptions& ImageInputs, bool Upsampled)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty() || !Texture)
 		return false;
@@ -434,10 +434,18 @@ bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, con
 
 	// Duplicate texture
 	auto SrcMipData = Texture->Source.LockMip(0);// GetPlatformMips()[0].BulkData;
-	UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *Name, RF_Public | RF_Standalone | RF_MarkAsRootSet);
+	FString TexName = "T_" + Name;
+	UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *TexName, RF_Public | RF_Standalone | RF_MarkAsRootSet);
 	NewTexture->AddToRoot();
 	NewTexture = ColorBufferToTexture(Name, SrcMipData, FIntPoint(Texture->GetSizeX(), Texture->GetSizeY()), NewTexture);
 	Texture->Source.UnlockMip(0);
+
+	// Create data asset
+	FString AssetName = "DA_" + Name;
+	UStableDiffusionImageResultAsset* NewImageResultAsset = NewObject<UStableDiffusionImageResultAsset>(Package, *AssetName, RF_Public | RF_Standalone | RF_MarkAsRootSet);
+	NewImageResultAsset->ImageInputs = ImageInputs;
+	NewImageResultAsset->Upsampled = Upsampled;
+	NewImageResultAsset->ImageOutput = NewTexture;
 
 	// Update package
 	Package->MarkPackageDirty();

@@ -282,7 +282,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 							// Evaluate curve values
 							OptionSection->GetStrengthChannel().Evaluate(FullFrameTime, Input.Options.Strength);
 							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Input.Options.Iterations);
-							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Input.Options.Seed);
+							OptionSection->GetSeedChannel().Evaluate(FullFrameTime, Input.Options.Seed);
 							
 							TArray<FActorLayer> InpaintActorLayers;
 							for (auto LayerName : OptionSection->InpaintLayers) {

@@ -1,5 +1,5 @@
 import unreal
-import os, inspect, importlib
+import os, inspect, importlib, random
 
 import numpy as np
 import torch
@@ -184,7 +184,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def GenerateImageFromStartImage(self, input):
-        print(id(self))
         model_options = self.get_editor_property("ModelOptions")
         if not hasattr(self, "pipe"):
             print("Could not find a pipe attribute. Has it been GC'd?")
@@ -214,7 +213,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         else:
             guide_img = preprocess_init_image(guide_img, input.options.out_size_x, input.options.out_size_y)
         
-        seed = torch.random.seed() if input.options.seed < 0 else input.options.seed
+        max_seed = abs(int((2**31) / 2) - 1)
+        seed = random.randrange(0, max_seed) if input.options.seed < 0 else input.options.seed
         positive_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" if not inpaint_active else f"{split_p.strip()}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")])
         negative_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" if not inpaint_active else f"{split_p.strip()}" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")])
         print(positive_prompts)
@@ -246,10 +246,11 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 image = images[0]
 
                 result.input = input
+                result.input.options.seed = seed
+                print(f"Seed was {seed}. Saved as {result.input.options.seed}")
                 result.pixel_data =  PILImageToFColorArray(image.convert("RGBA"))
                 result.out_width = image.width
                 result.out_height = image.height
-                result.generated_texture = None
 
         return result
 
@@ -307,7 +308,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         result.pixel_data =  PILImageToFColorArray(upsampled_image.convert("RGBA"))
         result.out_width = upsampled_image.width
         result.out_height = upsampled_image.height
-        result.generated_texture = None
         result.upsampled = True
 
         return result
