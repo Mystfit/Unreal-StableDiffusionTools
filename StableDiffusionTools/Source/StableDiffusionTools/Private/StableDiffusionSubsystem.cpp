@@ -339,7 +339,7 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool 
 			// Disable bloom to stop it bleeding from the stencil mask
 			CaptureComponent->ShowFlags.SetBloom(false);
 
-			if (ModelOptions.Inpaint) {
+			if ((ModelOptions.Capabilities & (int32)EModelCapabilities::INPAINT) == (int32)EModelCapabilities::INPAINT) {
 				// Create material to handle actor layers as stencil masks
 				TSoftObjectPtr<UMaterialInterface> StencilMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(StencilLayerMaterialAsset));
 				auto StencilLayerMaterial = StencilMatRef.LoadSynchronous();
@@ -354,7 +354,7 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, bool 
 					FullFrameRT_TexRes->ReadPixels(InpaintMask, FReadSurfaceDataFlags());
 				}
 			}
-			else if (ModelOptions.Depth) {
+			else if ((ModelOptions.Capabilities & (int32)EModelCapabilities::DEPTH) == (int32)EModelCapabilities::DEPTH) {
 				// Create material to handle actor layers as stencil masks
 				TSoftObjectPtr<UMaterialInterface> DepthMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(DepthMaterialAsset));
 				auto DepthMaterial = DepthMatRef.LoadSynchronous();

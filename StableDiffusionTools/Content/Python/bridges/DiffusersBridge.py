@@ -103,16 +103,20 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         if new_model_options.scheduler:
             scheduler_cls = getattr(diffusers, new_model_options.scheduler)
 
+        print(f"Requested pipeline: {new_model_options.diffusion_pipeline}")
+        if new_model_options.diffusion_pipeline:
+            ActivePipeline = getattr(diffusers, new_model_options.diffusion_pipeline)
+        print(f"Loaded pipeline: {ActivePipeline}")
+
         result = True
 
         # Set pipeline
-        ActivePipeline = StableDiffusionImg2ImgPipeline
-        if new_model_options.inpaint:
-            ActivePipeline = StableDiffusionInpaintPipeline  
-        elif new_model_options.depth:
-            ActivePipeline = StableDiffusionDepth2ImgPipeline
+        #ActivePipeline = StableDiffusionImg2ImgPipeline
+        #if new_model_options.inpaint:
+        #    ActivePipeline = StableDiffusionInpaintPipeline  
+        #elif new_model_options.depth:
+        #    ActivePipeline = StableDiffusionDepth2ImgPipeline
         
-        print(ActivePipeline)
         
         modelname = new_model_options.model if new_model_options.model else "CompVis/stable-diffusion-v1-5"
         kwargs = {
@@ -190,11 +194,18 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         guide_img = FColorAsPILImage(input.input_image_pixels, input.options.size_x, input.options.size_y).convert("RGB") if input.input_image_pixels else None
         mask_img = FColorAsPILImage(input.mask_image_pixels, input.options.size_x, input.options.size_y).convert("RGB")  if input.mask_image_pixels else None
         
-        if model_options.inpaint:
+        inpaint_active = (model_options.capabilities & unreal.ModelCapabilities.INPAINT.value) == unreal.ModelCapabilities.INPAINT.value
+        depth_active = (model_options.capabilities & unreal.ModelCapabilities.DEPTH.value)  == unreal.ModelCapabilities.DEPTH.value
+        strength_active = (model_options.capabilities & unreal.ModelCapabilities.STRENGTH.value)  == unreal.ModelCapabilities.STRENGTH.value
+        print(f"Capabilities value {model_options.capabilities}, Depth map value: {unreal.ModelCapabilities.DEPTH.value}, Using depthmap? {depth_active}")
+        print(f"Capabilities value {model_options.capabilities}, Inpaint value: {unreal.ModelCapabilities.INPAINT.value}, Using inpaint? {inpaint_active}")
+        print(f"Capabilities value {model_options.capabilities}, Strength value: {unreal.ModelCapabilities.STRENGTH.value}, Using strength? {strength_active}")
+
+        if inpaint_active:
             guide_img = guide_img.resize((512,512))
             mask_img = mask_img.resize((512,512))
             #mask_img.show()
-        elif model_options.depth:
+        elif depth_active:
             #guide_img = guide_img.resize((512,512))
             #mask_img = mask_img.resize((512,512))
             mask_img.show()
@@ -204,8 +215,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             guide_img = preprocess_init_image(guide_img, input.options.out_size_x, input.options.out_size_y)
         
         seed = torch.random.seed() if input.options.seed < 0 else input.options.seed
-        positive_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" if not model_options.inpaint else f"{split_p.strip()}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")])
-        negative_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" if not model_options.inpaint else f"{split_p.strip()}" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")])
+        positive_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" if not inpaint_active else f"{split_p.strip()}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")])
+        negative_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" if not inpaint_active else f"{split_p.strip()}" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")])
         print(positive_prompts)
         print(negative_prompts)
 
@@ -216,18 +227,20 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 generation_args = {
                     "prompt": positive_prompts,
                     "negative_prompt": negative_prompts,
-                    "image" if model_options.inpaint else "image": guide_img,
-                    "strength": input.options.strength, 
+                    "image" if  inpaint_active else "image": guide_img,                
                     "num_inference_steps": input.options.iterations, 
                     "generator": generator, 
                     "guidance_scale": input.options.guidance_scale, 
                     "callback": self.ImageProgressStep, 
                     "callback_steps": 25
                 }
-                if model_options.inpaint:
+
+                if  inpaint_active:
                     generation_args["mask_image"] = mask_img
-                if model_options.depth:
+                if  depth_active:
                     generation_args["depth_map"] = mask_img
+                if strength_active:
+                    generation_args["strength"] = input.options.strength
 
                 images = self.pipe(**generation_args).images
                 image = images[0]

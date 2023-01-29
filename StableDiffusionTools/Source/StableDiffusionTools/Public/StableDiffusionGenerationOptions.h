@@ -5,6 +5,22 @@
 #include "ActorLayerUtilities.h"
 #include "StableDiffusionGenerationOptions.generated.h"
 
+UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
+enum class EModelCapabilities : uint8 {
+	None = 0 UMETA(Hidden),
+	INPAINT = 0x01,
+	DEPTH = 0x02,
+	STRENGTH = 0x04
+};
+ENUM_CLASS_FLAGS(EModelCapabilities);
+
+UENUM(BlueprintType)
+enum class EInputImageSource : uint8 {
+	Viewport UMETA(DisplayName = "Viewport"),
+	SceneCapture2D UMETA(DisplayName = "Scene Capture Actor")
+};
+ENUM_CLASS_FLAGS(EInputImageSource);
+
 
 USTRUCT(BlueprintType)
 struct STABLEDIFFUSIONTOOLS_API FStableDiffusionModelOptions
@@ -19,6 +35,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		FString Precision = "fp16";
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+		FString DiffusionPipeline = "StableDiffusionImg2ImgPipeline";
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		FString CustomPipeline = "lpw_stable_diffusion";
@@ -36,11 +55,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		bool AllowNSFW = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model", meta = (Bitmask, BitmaskEnum = EModelCapabilities))
+		int32 Capabilities = (int32)(EModelCapabilities::STRENGTH);
+	/*UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		bool Inpaint = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		bool Depth = false;
+		bool Depth = false;*/
 
 
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
@@ -49,8 +70,7 @@ public:
 			Revision.Equals(Other.Revision) &&
 			Precision.Equals(Other.Precision) &&
 			CustomPipeline.Equals(Other.CustomPipeline) &&
-			Inpaint == Other.Inpaint &&
-			Depth == Other.Depth;
+			Capabilities == Other.Capabilities;
 	}
 
 	FORCEINLINE bool operator!=(const FStableDiffusionModelOptions& Other)
@@ -59,8 +79,7 @@ public:
 			!Revision.Equals(Other.Revision) ||
 			!Precision.Equals(Other.Precision) ||
 			!CustomPipeline.Equals(Other.CustomPipeline) ||
-			!(Inpaint == Other.Inpaint) ||
-			!(Depth == Other.Inpaint);
+			!(Capabilities == Other.Capabilities);
 	}
 };
 
