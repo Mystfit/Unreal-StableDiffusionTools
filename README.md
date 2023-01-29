@@ -103,9 +103,11 @@ To fix this change the following change the following options on a global post p
 * Fix texture memory usage.
 * Panning the generated image only works when grabbing it from the upper right quarter.
 * You will have to restart the editor after installing dependencies.
-* No persistence for fields in the editor. These will eventually be stored in a data asset.
 
 ## Roadmap
 
-* Add data assets to hold input information like prompt and seed along with the generated textures.
+* Serialisable fields for the plugin UI.
+* Re-use the last generated image in the viewport for img2img and instructpix2pix.
+* Previz support for the sequencer using frame holds.
+* Generate multiple image iterations in the viewport.
    
