@@ -140,7 +140,7 @@ public:
 	void ReleaseModel();
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
-	void GenerateImage(FStableDiffusionInput Input, bool FromViewport = true);
+	void GenerateImage(FStableDiffusionInput Input, EInputImageSource ImageSourceType);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
 	void UpsampleImage(const FStableDiffusionImageResult& input);
@@ -184,6 +184,7 @@ protected:
 private:
 	// Viewport capture
 	TSharedPtr<FSceneViewport> GetCapturingViewport();
+	void StartCapturingViewport();
 	void SetCaptureViewport(TSharedRef<FSceneViewport> Viewport, FIntPoint FrameSize);
 	TSharedPtr<FFrameGrabber> ViewportCapture;
 	FDelegateHandle ActiveEndframeHandler;
@@ -191,6 +192,8 @@ private:
 	FViewportSceneCapture CreateSceneCaptureCamera();
 	void UpdateSceneCaptureCamera(FViewportSceneCapture& SceneCapture);
 	FViewportSceneCapture CurrentSceneCapture;
+
+	void StartImageGeneration(FStableDiffusionInput Input);
 
 	UTexture2D* ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTexture);
 
