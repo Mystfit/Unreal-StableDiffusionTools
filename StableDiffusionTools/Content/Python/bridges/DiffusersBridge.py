@@ -232,7 +232,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     "generator": generator, 
                     "guidance_scale": input.options.guidance_scale, 
                     "callback": self.ImageProgressStep, 
-                    "callback_steps": 25
+                    "callback_steps": input.preview_iteration_rate
                 }
 
                 if  inpaint_active:

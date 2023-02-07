@@ -175,4 +175,7 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	TArray<FColor> MaskImagePixels;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	int32 PreviewIterationRate = 25;
 };

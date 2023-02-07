@@ -3,6 +3,7 @@
 #include "IAssetViewport.h"
 #include "Engine/GameEngine.h"
 #include "Async/Async.h"
+#include "Async/TaskGraphInterfaces.h"
 #include "UObject/SavePackage.h"
 #include "LevelEditor.h"
 #include "IPythonScriptPlugin.h"
@@ -267,6 +268,8 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, EInpu
 	if (!GeneratorBridge)
 		return;
 
+	bIsGenerating = true;
+
 	AsyncTask(ENamedThreads::GameThread, [this, Input, ImageSourceType]() mutable
 		{
 			// Remember prior screen message state and disable it so our viewport is clean
@@ -288,171 +291,11 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, EInpu
 			}
 
 #endif
-			auto ViewportSize = GetCapturingViewport()->GetSizeXY();
-
 			if (ImageSourceType == EInputImageSource::Viewport) {
-				// Make sure viewport capture objects are available
-				StartCapturingViewport();
-
-				// Create a frame payload we will wait on to be filled with a frame
-				auto framePtr = MakeShared<FCapturedFramePayload>();
-				framePtr->OnFrameCapture.AddLambda([=](FColor* Pixels, FIntPoint BufferSize, FIntPoint TargetSize) mutable {
-					// Copy frame data
-					TArray<FColor> CopiedFrame = CopyFrameData(TargetSize, BufferSize, Pixels);
-					Input.InputImagePixels = MoveTempIfPossible(CopiedFrame);
-
-					// Don't need to keep capturing whilst generating
-					ViewportCapture->StopCapturingFrames();
-
-					// Set size from viewport
-					Input.Options.InSizeX = ViewportSize.X;
-					Input.Options.InSizeY = ViewportSize.Y;
-
-					// Only start image generation when we have a frame
-					StartImageGeneration(Input);
-				});
-
-				// Start frame capture
-				ViewportCapture->CaptureThisFrame(framePtr);
+				CaptureFromViewportSource(MoveTempIfPossible(Input));
 			}
 			else if (ImageSourceType == EInputImageSource::SceneCapture2D) {
-				// Use chosen scene capture component or create a default one
-				USceneCaptureComponent2D* CaptureComponent = nullptr;
-				if (!Input.CaptureSource) {
-					// Create a default SceneCapture2D that will capture our editor viewport
-					CurrentSceneCapture = CreateSceneCaptureCamera();
-					CaptureComponent = CurrentSceneCapture.SceneCapture->GetCaptureComponent2D();
-				}
-				else {
-					CaptureComponent = Input.CaptureSource;
-				}
-
-				FIntPoint CaptureSize = (CaptureComponent->TextureTarget) ? FIntPoint(CaptureComponent->TextureTarget->SizeX, CaptureComponent->TextureTarget->SizeY) : ViewportSize;
-
-				// Remember original properties we're overriding in the capture component
-				auto LastCaptureEveryFrame = CaptureComponent->bCaptureEveryFrame;
-				auto LastCaptureOnMovement = CaptureComponent->bCaptureOnMovement;
-				auto LastCompositeMode = CaptureComponent->CompositeMode;
-				auto LastCaptureSource = CaptureComponent->CaptureSource;
-				auto LastTextureTarget = CaptureComponent->TextureTarget;
-				auto LastBloom = CaptureComponent->ShowFlags.Bloom;
-				auto LastBlendables = CaptureComponent->PostProcessSettings.WeightedBlendables;
-
-				// Set capture overrides
-				CaptureComponent->bCaptureEveryFrame = true;
-				CaptureComponent->bCaptureOnMovement = false;
-				CaptureComponent->CompositeMode = SCCM_Overwrite;
-				CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalToneCurveHDR;
-				CaptureComponent->ShowFlags.SetBloom(false);
-				//CaptureComponent->PostProcessSettings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
-				//CaptureComponent->PostProcessSettings.AutoExposureBias = 15;
-
-				// Create render target to hold our scene capture data
-				UTextureRenderTarget2D* FullFrameRT = NewObject<UTextureRenderTarget2D>(CaptureComponent);
-				check(FullFrameRT);
-				FullFrameRT->InitCustomFormat(CaptureSize.X, CaptureSize.Y, PF_R8G8B8A8, false);
-				FullFrameRT->UpdateResourceImmediate(true);
-				CaptureComponent->TextureTarget = FullFrameRT;
-
-				// Create destination pixel arrays
-				TArray<FColor> FinalColor;
-				TArray<FColor> InpaintMask;
-				FinalColor.AddUninitialized(CaptureSize.X * CaptureSize.Y);
-				InpaintMask.AddUninitialized(CaptureSize.X * CaptureSize.Y);
-				FTextureRenderTargetResource* FullFrameRT_TexRes = FullFrameRT->GameThread_GetRenderTargetResource();
-
-				// Capture scene and get main render pass
-				CaptureComponent->CaptureScene();
-				FullFrameRT_TexRes->ReadPixels(FinalColor, FReadSurfaceDataFlags());
-
-				// Capture stencil layer for inpaint models
-				if ((ModelOptions.Capabilities & (int32)EModelCapabilities::INPAINT) == (int32)EModelCapabilities::INPAINT) {
-					// Create material to handle actor layers as stencil masks
-					TSoftObjectPtr<UMaterialInterface> StencilMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(StencilLayerMaterialAsset));
-					auto StencilLayerMaterial = StencilMatRef.LoadSynchronous();
-					UMaterialInstanceDynamic* StencilMatInst = UMaterialInstanceDynamic::Create(StencilLayerMaterial, CaptureComponent);
-					CaptureComponent->AddOrUpdateBlendable(StencilMatInst);
-
-					for (auto layer : Input.InpaintLayers) {
-						FScopedActorLayerStencil stencil_settings(layer);
-
-						// Render second pass of scene as a stencil mask for inpainting
-						CaptureComponent->CaptureScene();
-						FullFrameRT_TexRes->ReadPixels(InpaintMask, FReadSurfaceDataFlags());
-
-						// Cleanup render target and resources
-						FullFrameRT->ConditionalBeginDestroy();
-						FullFrameRT = nullptr;
-						FullFrameRT_TexRes = nullptr;
-
-						StencilMatInst->ConditionalBeginDestroy();
-						StencilMatInst = nullptr;
-					}
-				}
-				
-				// Capture depth map layer for depth models
-				if ((ModelOptions.Capabilities & (int32)EModelCapabilities::DEPTH) == (int32)EModelCapabilities::DEPTH) {
-					// Create material to render depth postprocess mat
-					TSoftObjectPtr<UMaterialInterface> DepthMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(DepthMaterialAsset));
-					auto DepthMaterial = DepthMatRef.LoadSynchronous();
-					UMaterialInstanceDynamic* DepthMatInst = UMaterialInstanceDynamic::Create(DepthMaterial, CaptureComponent);
-					DepthMatInst->SetScalarParameterValue("DepthScale", Input.SceneDepthScale);
-					DepthMatInst->SetScalarParameterValue("StartDepth", Input.SceneDepthOffset);
-					CaptureComponent->AddOrUpdateBlendable(DepthMatInst);
-
-					// Create depth render target
-					UTextureRenderTarget2D* FullFrameDepthRT = NewObject<UTextureRenderTarget2D>();
-					check(FullFrameDepthRT);
-					FullFrameDepthRT->InitCustomFormat(CaptureSize.X, CaptureSize.Y, PF_FloatRGBA, true);
-					FullFrameDepthRT->UpdateResourceImmediate(true);
-					FTextureRenderTargetResource* FullFrameDepthRT_TexRes = FullFrameDepthRT->GameThread_GetRenderTargetResource();
-
-					// Render second pass containing scene depth
-					CaptureComponent->TextureTarget = FullFrameDepthRT;
-					CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalColorHDR;
-					CaptureComponent->CaptureScene();
-
-					// Read depthmap and convert to 8bit
-					TArray<FLinearColor> DepthMap32bit;
-					FullFrameDepthRT_TexRes->ReadLinearColorPixels(DepthMap32bit);
-					for (size_t idx = 0; idx < DepthMap32bit.Num(); ++idx) {
-						int NormalizedDepth = DepthMap32bit[idx].R * 255;
-						InpaintMask[idx] = FColor(NormalizedDepth, NormalizedDepth, NormalizedDepth, 255);
-					}
-
-					FullFrameDepthRT->ConditionalBeginDestroy();
-					FullFrameDepthRT = nullptr;
-					FullFrameDepthRT_TexRes = nullptr;
-
-					DepthMatInst->ConditionalBeginDestroy();
-					DepthMatInst = nullptr;
-				}
-
-				// Copy frame data
-				Input.InputImagePixels = MoveTempIfPossible(FinalColor);
-				Input.MaskImagePixels = MoveTempIfPossible(InpaintMask);
-
-				// Set size from scene capture
-				Input.Options.InSizeX = CaptureSize.X;
-				Input.Options.InSizeY = CaptureSize.Y;
-
-				if (!Input.CaptureSource && this->CurrentSceneCapture.SceneCapture) {
-					// Cleanup created scene capture once we've captured all our pixel data
-					this->CurrentSceneCapture.SceneCapture->Destroy();
-					this->CurrentSceneCapture.ViewportClient = nullptr;
-				}
-				else {
-					// Restore original capture component properties
-					CaptureComponent->bCaptureEveryFrame = LastCaptureEveryFrame;
-					CaptureComponent->bCaptureOnMovement = LastCaptureOnMovement;
-					CaptureComponent->CompositeMode = LastCompositeMode;
-					CaptureComponent->CaptureSource = LastCaptureSource;
-					CaptureComponent->TextureTarget = LastTextureTarget;
-					CaptureComponent->ShowFlags.Bloom = LastBloom;
-					CaptureComponent->PostProcessSettings.WeightedBlendables = LastBlendables;
-				}
-
-				StartImageGeneration(Input);
+				CaptureFromSceneCaptureSource(MoveTempIfPossible(Input));
 			}
 
 			// Restore screen messages and UI
@@ -465,6 +308,7 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, EInpu
 void UStableDiffusionSubsystem::StartImageGeneration(FStableDiffusionInput Input)
 {
 	// Generate the image on a background thread
+	//CurrentRenderTask = TGraphTask<FSDRenderTask>::CreateTask().ConstructAndDispatchWhenReady(ENamedThreads::AnyBackgroundHiPriTask, MoveTemp([this, Input]()
 	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Input]()
 		{
 			// Forward image updated event from bridge to subsystem
@@ -472,16 +316,19 @@ void UStableDiffusionSubsystem::StartImageGeneration(FStableDiffusionInput Input
 
 			// Generate image
 			FStableDiffusionImageResult result = this->GeneratorBridge->GenerateImageFromStartImage(Input);
+			
 
 			// Create generated texture on game thread
 			AsyncTask(ENamedThreads::GameThread, [this, result]
-				{
-					this->OnImageGenerationCompleteEx.Broadcast(result);
+			{
+				bIsGenerating = false;
+				this->OnImageGenerationCompleteEx.Broadcast(result);
 
-					// Cleanup
-					this->GeneratorBridge->OnImageProgressEx.RemoveDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
-				});
-		});
+				// Cleanup
+				this->GeneratorBridge->OnImageProgressEx.RemoveDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
+			});
+	});
+	//);
 }
 
 void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult& input)
@@ -541,6 +388,36 @@ void UStableDiffusionSubsystem::UpdateImageProgress(int32 Step, int32 Timestep, 
 	OnImageProgressUpdated.Broadcast(Step, Timestep, Size, PixelData);
 }
 
+void UStableDiffusionSubsystem::SetLivePreviewEnabled(bool Enabled, float Delay)
+{
+	if (Enabled && !OnEditorCameraUpdatedDlgHandle.IsValid()) {
+		OnEditorCameraUpdatedDlgHandle = FEditorDelegates::OnEditorCameraMoved.AddLambda([this, Delay](const FVector& Location, const FRotator& Rotation, ELevelViewportType ViewportType, int32 ViewportIndex) {
+			UE_LOG(LogTemp, Log, TEXT("Moving editor camera to %s %s"), *Location.ToString(), *Rotation.ToString())
+
+			FEditorCameraLivePreview CameraInfo;
+			CameraInfo.Location = Location;
+			CameraInfo.Rotation = Rotation;
+			CameraInfo.ViewportType = ViewportType;
+			CameraInfo.ViewportIndex = ViewportIndex;
+
+			// Only broadcast when the camera is not moving
+			if (!(LastPreviewCameraInfo == CameraInfo)) {
+				GEditor->GetTimerManager()->SetTimer(IdleCameraTimer, this, &UStableDiffusionSubsystem::LivePreviewUpdate, Delay, false);
+			}
+
+			LastPreviewCameraInfo = CameraInfo;
+		});
+	}
+	else if (!Enabled && OnEditorCameraUpdatedDlgHandle.IsValid()) {
+		FEditorDelegates::OnEditorCameraMoved.Remove(OnEditorCameraUpdatedDlgHandle);
+		OnEditorCameraUpdatedDlgHandle.Reset();
+	}
+	
+	/*FEditorDelegates::RefreshEditor.AddLambda([]() {
+		UE_LOG(LogTemp, Log, TEXT("Editor refreshed"));
+	});*/
+}
+
 UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& FrameName, const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTex)
 {
 	if (!FrameColors.Num())
@@ -579,7 +456,235 @@ void UStableDiffusionSubsystem::UpdateSceneCaptureCamera(FViewportSceneCapture& 
 {
 	SceneCapture.SceneCapture->SetActorLocation(SceneCapture.ViewportClient->GetViewLocation());
 	SceneCapture.SceneCapture->SetActorRotation(SceneCapture.ViewportClient->GetViewRotation());
-	SceneCapture.SceneCapture->GetCaptureComponent2D()->FOVAngle = SceneCapture.ViewportClient->FOVAngle;
+	
+	auto CaptureComponent = SceneCapture.SceneCapture->GetCaptureComponent2D();
+	CaptureComponent->FOVAngle = SceneCapture.ViewportClient->FOVAngle;
+	CaptureComponent->bCaptureEveryFrame = true;
+	CaptureComponent->bCaptureOnMovement = false;
+	CaptureComponent->CompositeMode = SCCM_Overwrite;
+	CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalToneCurveHDR;
+	//CaptureComponent->ShowFlags.SetBloom(false);
+}
+
+void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput Input)
+{
+	auto ViewportSize = GetCapturingViewport()->GetSizeXY();
+
+	// Make sure viewport capture objects are available
+	StartCapturingViewport();
+
+	// Capture stencil layer for inpaint models
+	if ((ModelOptions.Capabilities & (int32)EModelCapabilities::INPAINT) == (int32)EModelCapabilities::INPAINT) {
+		if (Input.InpaintLayers.Num()) {
+			auto SceneCapture = CreateSceneCaptureCamera();
+			Input.MaskImagePixels = CaptureStencilMask(SceneCapture.SceneCapture->GetCaptureComponent2D(), ViewportSize, Input.InpaintLayers[0]);
+			SceneCapture.SceneCapture->ConditionalBeginDestroy();
+		}
+	}
+
+	// Capture depth map layer for depth models
+	if ((ModelOptions.Capabilities & (int32)EModelCapabilities::DEPTH) == (int32)EModelCapabilities::DEPTH) {
+		auto SceneCapture = CreateSceneCaptureCamera();
+		Input.MaskImagePixels = CaptureDepthMap(SceneCapture.SceneCapture->GetCaptureComponent2D(), ViewportSize, Input.SceneDepthScale, Input.SceneDepthOffset);
+		SceneCapture.SceneCapture->ConditionalBeginDestroy();
+	}
+
+	// Create a frame payload we will wait on to be filled with a frame
+	auto framePtr = MakeShared<FCapturedFramePayload>();
+	framePtr->OnFrameCapture.AddLambda([=](FColor* Pixels, FIntPoint BufferSize, FIntPoint TargetSize) mutable {
+		// Copy frame data
+		TArray<FColor> CopiedFrame = CopyFrameData(TargetSize, BufferSize, Pixels);
+	Input.InputImagePixels = MoveTempIfPossible(CopiedFrame);
+
+	// Don't need to keep capturing whilst generating
+	ViewportCapture->StopCapturingFrames();
+
+	// Set size from viewport
+	Input.Options.InSizeX = ViewportSize.X;
+	Input.Options.InSizeY = ViewportSize.Y;
+
+	// Only start image generation when we have a frame
+	StartImageGeneration(Input);
+		});
+
+	// Start frame capture
+	ViewportCapture->CaptureThisFrame(framePtr);
+}
+
+void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionInput Input)
+{
+	// Use chosen scene capture component or create a default one
+	USceneCaptureComponent2D* CaptureComponent = nullptr;
+	if (!Input.CaptureSource) {
+		// Create a default SceneCapture2D that will capture our editor viewport
+		CurrentSceneCapture = CreateSceneCaptureCamera();
+		CaptureComponent = CurrentSceneCapture.SceneCapture->GetCaptureComponent2D();
+	}
+	else {
+		CaptureComponent = Input.CaptureSource;
+	}
+
+	// Get the capture size from the source
+	auto ViewportSize = GetCapturingViewport()->GetSizeXY();
+	FIntPoint CaptureSize = (CaptureComponent->TextureTarget) ? FIntPoint(CaptureComponent->TextureTarget->SizeX, CaptureComponent->TextureTarget->SizeY) : ViewportSize;
+
+	// Remember original properties we're overriding in the capture component
+	auto LastCaptureEveryFrame = CaptureComponent->bCaptureEveryFrame;
+	auto LastCaptureOnMovement = CaptureComponent->bCaptureOnMovement;
+	auto LastCompositeMode = CaptureComponent->CompositeMode;
+	auto LastCaptureSource = CaptureComponent->CaptureSource;
+	auto LastTextureTarget = CaptureComponent->TextureTarget;
+	auto LastBloom = CaptureComponent->ShowFlags.Bloom;
+	auto LastBlendables = CaptureComponent->PostProcessSettings.WeightedBlendables;
+
+	// Set capture overrides
+	CaptureComponent->bCaptureEveryFrame = true;
+	CaptureComponent->bCaptureOnMovement = false;
+	CaptureComponent->CompositeMode = SCCM_Overwrite;
+	CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalToneCurveHDR;
+	CaptureComponent->ShowFlags.SetBloom(false);
+	//CaptureComponent->PostProcessSettings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+	//CaptureComponent->PostProcessSettings.AutoExposureBias = 15;
+
+	// Create render target to hold our scene capture data
+	UTextureRenderTarget2D* FullFrameRT = NewObject<UTextureRenderTarget2D>(CaptureComponent);
+	check(FullFrameRT);
+	FullFrameRT->InitCustomFormat(CaptureSize.X, CaptureSize.Y, PF_R8G8B8A8, false);
+	FullFrameRT->UpdateResourceImmediate(true);
+	CaptureComponent->TextureTarget = FullFrameRT;
+
+	// Create destination pixel arrays
+	TArray<FColor> FinalColor;
+	TArray<FColor> InpaintMask;
+	FinalColor.AddUninitialized(CaptureSize.X * CaptureSize.Y);
+	InpaintMask.AddUninitialized(CaptureSize.X * CaptureSize.Y);
+	FTextureRenderTargetResource* FullFrameRT_TexRes = FullFrameRT->GameThread_GetRenderTargetResource();
+
+	// Capture scene and get main render pass
+	CaptureComponent->CaptureScene();
+	FullFrameRT_TexRes->ReadPixels(FinalColor, FReadSurfaceDataFlags());
+
+	// Copy frame data
+	// Capture stencil layer for inpaint models
+	if ((ModelOptions.Capabilities & (int32)EModelCapabilities::INPAINT) == (int32)EModelCapabilities::INPAINT) {
+		if (Input.InpaintLayers.Num())
+			Input.MaskImagePixels = CaptureStencilMask(CaptureComponent, CaptureSize, Input.InpaintLayers[0]);
+	}
+
+	// Capture depth map layer for depth models
+	if ((ModelOptions.Capabilities & (int32)EModelCapabilities::DEPTH) == (int32)EModelCapabilities::DEPTH) {
+		Input.MaskImagePixels = CaptureDepthMap(CaptureComponent, CaptureSize, Input.SceneDepthScale, Input.SceneDepthOffset);
+	}
+	Input.InputImagePixels = MoveTempIfPossible(FinalColor);
+
+	// Set size from scene capture
+	Input.Options.InSizeX = CaptureSize.X;
+	Input.Options.InSizeY = CaptureSize.Y;
+
+	if (!Input.CaptureSource && this->CurrentSceneCapture.SceneCapture) {
+		// Cleanup created scene capture once we've captured all our pixel data
+		this->CurrentSceneCapture.SceneCapture->ConditionalBeginDestroy();
+		this->CurrentSceneCapture.ViewportClient = nullptr;
+	}
+	else {
+		// Restore original capture component properties
+		CaptureComponent->bCaptureEveryFrame = LastCaptureEveryFrame;
+		CaptureComponent->bCaptureOnMovement = LastCaptureOnMovement;
+		CaptureComponent->CompositeMode = LastCompositeMode;
+		CaptureComponent->CaptureSource = LastCaptureSource;
+		CaptureComponent->TextureTarget = LastTextureTarget;
+		CaptureComponent->ShowFlags.Bloom = LastBloom;
+		CaptureComponent->PostProcessSettings.WeightedBlendables = LastBlendables;
+	}
+
+	StartImageGeneration(Input);
+}
+
+TArray<FColor> UStableDiffusionSubsystem::CaptureDepthMap(USceneCaptureComponent2D* CaptureSource, FIntPoint Size, float SceneDepthScale, float SceneDepthOffset)
+{
+	check(CaptureSource);
+
+	// Assign pixel arrays
+	TArray<FColor> DepthPixels;
+	DepthPixels.AddUninitialized(Size.X * Size.Y);
+	
+	// Create material to render depth postprocess mat
+	TSoftObjectPtr<UMaterialInterface> DepthMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(DepthMaterialAsset));
+	auto DepthMaterial = DepthMatRef.LoadSynchronous();
+	UMaterialInstanceDynamic* DepthMatInst = UMaterialInstanceDynamic::Create(DepthMaterial, CaptureSource);
+	DepthMatInst->SetScalarParameterValue("DepthScale", SceneDepthScale);
+	DepthMatInst->SetScalarParameterValue("StartDepth", SceneDepthOffset);
+	CaptureSource->AddOrUpdateBlendable(DepthMatInst);
+
+	// Create depth render target
+	UTextureRenderTarget2D* FullFrameDepthRT = NewObject<UTextureRenderTarget2D>();
+	check(FullFrameDepthRT);
+	FullFrameDepthRT->InitCustomFormat(Size.X, Size.Y, PF_FloatRGBA, true);
+	FullFrameDepthRT->UpdateResourceImmediate(true);
+	FTextureRenderTargetResource* FullFrameDepthRT_TexRes = FullFrameDepthRT->GameThread_GetRenderTargetResource();
+
+	// Render second pass containing scene depth
+	CaptureSource->TextureTarget = FullFrameDepthRT;
+	CaptureSource->CaptureSource = ESceneCaptureSource::SCS_FinalColorHDR;
+	CaptureSource->CaptureScene();
+
+	// Read depthmap and convert to 8bit
+	TArray<FLinearColor> DepthMap32bit;
+	FullFrameDepthRT_TexRes->ReadLinearColorPixels(DepthMap32bit);
+	for (size_t idx = 0; idx < DepthMap32bit.Num(); ++idx) {
+		int NormalizedDepth = DepthMap32bit[idx].R * 255;
+		DepthPixels[idx] = FColor(NormalizedDepth, NormalizedDepth, NormalizedDepth, 255);
+	}
+
+	// Cleanup
+	//FullFrameDepthRT->ConditionalBeginDestroy();
+	//FullFrameDepthRT = nullptr;
+	//FullFrameDepthRT_TexRes = nullptr;
+
+	//DepthMatInst->ConditionalBeginDestroy();
+	//DepthMatInst = nullptr;
+
+	return MoveTemp(DepthPixels);
+}
+
+TArray<FColor> UStableDiffusionSubsystem::CaptureStencilMask(USceneCaptureComponent2D* CaptureSource, FIntPoint Size, FActorLayer Layer)
+{
+	check(CaptureSource);
+
+	// Assign pixel arrays
+	TArray<FColor> InpaintMaskPixels;
+	InpaintMaskPixels.AddUninitialized(Size.X * Size.Y);
+
+	// Create render target to hold our scene capture data
+	UTextureRenderTarget2D* FullFrameRT = NewObject<UTextureRenderTarget2D>(CaptureSource);
+	check(FullFrameRT);
+	FullFrameRT->InitCustomFormat(Size.X, Size.Y, PF_R8G8B8A8, false);
+	FullFrameRT->UpdateResourceImmediate(true);
+	CaptureSource->TextureTarget = FullFrameRT;
+	FTextureRenderTargetResource* FullFrameRT_TexRes = FullFrameRT->GameThread_GetRenderTargetResource();
+
+	// Create material to handle actor layers as stencil masks
+	TSoftObjectPtr<UMaterialInterface> StencilMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(StencilLayerMaterialAsset));
+	auto StencilLayerMaterial = StencilMatRef.LoadSynchronous();
+	UMaterialInstanceDynamic* StencilMatInst = UMaterialInstanceDynamic::Create(StencilLayerMaterial, CaptureSource);
+	CaptureSource->AddOrUpdateBlendable(StencilMatInst);
+
+	// Set scene stencil settings
+	FScopedActorLayerStencil stencil_settings(Layer);
+
+	// Render pass of scene as a stencil mask for inpainting
+	CaptureSource->CaptureScene();
+	FullFrameRT_TexRes->ReadPixels(InpaintMaskPixels, FReadSurfaceDataFlags());
+
+	// Cleanup render target and resources
+	//FullFrameRT->ConditionalBeginDestroy();
+	//FullFrameRT = nullptr;
+	//FullFrameRT_TexRes = nullptr;
+
+	//StencilMatInst->ConditionalBeginDestroy();
+	//StencilMatInst = nullptr;
+
+	return MoveTemp(InpaintMaskPixels);
 }
 
 UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex)
@@ -606,6 +711,11 @@ UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& Frame
 	OutTex->PostEditChange();
 #endif
 	return OutTex;
+}
+
+void UStableDiffusionSubsystem::LivePreviewUpdate()
+{
+	OnEditorCameraMovedEx.Broadcast(LastPreviewCameraInfo);
 }
 
 FString UStableDiffusionSubsystem::OpenImageFilePicker(const FString& StartDir)

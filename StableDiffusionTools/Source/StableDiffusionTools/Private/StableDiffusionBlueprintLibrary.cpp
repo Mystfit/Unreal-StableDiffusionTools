@@ -2,6 +2,7 @@
 
 #include "StableDiffusionBlueprintLibrary.h"
 #include "SLevelViewport.h"
+#include "LevelEditor.h"
 
 UStableDiffusionSubsystem* UStableDiffusionBlueprintLibrary::GetStableDiffusionSubsystem() {
 	UStableDiffusionSubsystem* subsystem = nullptr;

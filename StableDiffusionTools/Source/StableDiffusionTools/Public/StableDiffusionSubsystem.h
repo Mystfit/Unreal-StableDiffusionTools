@@ -68,6 +68,69 @@ private:
 	TOptional<int32> PreviousCustomDepthValue;
 };
 
+USTRUCT(BlueprintType)
+struct STABLEDIFFUSIONTOOLS_API FEditorCameraLivePreview
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Preview")
+	FVector Location;
+
+	UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Preview")
+	FRotator Rotation;
+
+	UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Preview")
+	TEnumAsByte<ELevelViewportType> ViewportType;
+
+	UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Preview")
+	int32 ViewportIndex;
+
+	FORCEINLINE bool operator==(const FEditorCameraLivePreview& Other)
+	{
+		return Location.Equals(Other.Location, 0.001) &&
+			Rotation.Equals(Other.Rotation, 0.001) &&
+			ViewportType == Other.ViewportType &&
+			ViewportIndex == Other.ViewportIndex;
+	}
+};
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEditorCameraMovedEx, FEditorCameraLivePreview, CameraInfo);
+
+
+///** Graph task for simple fire-and-forget asynchronous functions. */
+//class FSDRenderTask
+//	: public TAsyncGraphTask<void>
+//{
+//public:
+//
+//	/** Creates and initializes a new instance. */
+//	FSDRenderTask(ENamedThreads::Type InDesiredThread, TUniqueFunction<void()>&& InFunction)
+//		: TAsyncGraphTask()
+//		, DesiredThread(InDesiredThread)
+//		, Function(MoveTemp(InFunction))
+//	{ }
+//
+//	/** Performs the actual task. */
+//	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+//	{
+//		Function();
+//	}
+//
+//	/** Returns the name of the thread that this task should run on. */
+//	ENamedThreads::Type GetDesiredThread()
+//	{
+//		return DesiredThread;
+//	}
+//
+//private:
+//
+//	/** The thread to execute the function on. */
+//	ENamedThreads::Type DesiredThread;
+//
+//	/** The function to execute on the Task Graph. */
+//	TUniqueFunction<void()> Function;
+//};
+
+
 /**
  * 
  */
@@ -160,17 +223,26 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Model")
 	bool ModelInitialised;
 
+	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Model")
+	FModelInitializedEx OnModelInitializedEx;
+
 	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Model")
 	FStableDiffusionModelOptions ModelOptions;
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Generation")
 	FImageGenerationCompleteEx OnImageGenerationCompleteEx;
 
-	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Model")
-	FModelInitializedEx OnModelInitializedEx;
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Preview")
+	void SetLivePreviewEnabled(bool Enabled, float Delay = 0.5f);
+
+	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Preview")
+	FOnEditorCameraMovedEx OnEditorCameraMovedEx;
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Generation")
 	FImageProgressEx OnImageProgressUpdated;
+
+	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Generation")
+	bool bIsGenerating = false;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
 	UTexture2D* ColorBufferToTexture(const FString& FrameName, const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture);
@@ -189,14 +261,28 @@ private:
 	TSharedPtr<FFrameGrabber> ViewportCapture;
 	FDelegateHandle ActiveEndframeHandler;
 
+	// Scene Capture Component capture
 	FViewportSceneCapture CreateSceneCaptureCamera();
 	void UpdateSceneCaptureCamera(FViewportSceneCapture& SceneCapture);
 	FViewportSceneCapture CurrentSceneCapture;
 
+	void CaptureFromViewportSource(FStableDiffusionInput Input);
+	void CaptureFromSceneCaptureSource(FStableDiffusionInput Input);
+	TArray<FColor> CaptureDepthMap(USceneCaptureComponent2D* CaptureSource, FIntPoint Size, float SceneDepthScale, float SceneDepthOffset);
+	TArray<FColor> CaptureStencilMask(USceneCaptureComponent2D* CaptureSource, FIntPoint Size, FActorLayer Layer);
+
 	void StartImageGeneration(FStableDiffusionInput Input);
+
+	FGraphEventRef CurrentRenderTask;
 
 	UTexture2D* ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTexture);
 
 	// Python initialization
-	FScriptDelegate OnPythonLoadedDlg;
+	FScriptDelegate OnPythonLoadedDlg;	
+
+	// Live preview
+	void LivePreviewUpdate();
+	FDelegateHandle OnEditorCameraUpdatedDlgHandle;
+	FEditorCameraLivePreview LastPreviewCameraInfo;
+	FTimerHandle IdleCameraTimer;
 };
