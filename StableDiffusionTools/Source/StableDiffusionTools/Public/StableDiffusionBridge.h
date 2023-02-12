@@ -9,8 +9,8 @@
 #include "StableDiffusionGenerationOptions.h"
 #include "StableDiffusionBridge.generated.h"
 
-DECLARE_MULTICAST_DELEGATE_FourParams(FImageProgress, int32, int32, FIntPoint, const TArray<FColor>&);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FImageProgressEx, int32, Step, int32, Timestep, FIntPoint, size, const TArray<FColor>&, PixelData);
+DECLARE_MULTICAST_DELEGATE_FiveParams(FImageProgress, int32, int32, float, FIntPoint, const TArray<FColor>&);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FiveParams(FImageProgressEx, int32, Step, int32, Timestep, float, Progress, FIntPoint, size, const TArray<FColor>&, PixelData);
 
 //UCLASS(PerObjectConfig, Config = "Engine")
 //class USDBridgeToken : public UObject
@@ -59,6 +59,9 @@ public:
     FStableDiffusionImageResult GenerateImageFromStartImage(const FStableDiffusionInput& InputOptions) const;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    void StopImageGeneration();
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void StartUpsample();
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
@@ -68,7 +71,7 @@ public:
     void StopUpsample();
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
-    void UpdateImageProgress(FString prompt, int32 step, int32 timestep, int32 width, int32 height, const TArray<FColor>& FrameColors);
+    void UpdateImageProgress(FString prompt, int32 step, int32 timestep, float progress, int32 width, int32 height, const TArray<FColor>& FrameColors);
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
     FStableDiffusionModelOptions ModelOptions;

@@ -23,6 +23,9 @@ public:
 
     UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
     bool Upsampled = false;
+
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
+    bool Completed = false;
 };
 
 

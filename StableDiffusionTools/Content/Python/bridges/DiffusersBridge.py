@@ -1,5 +1,8 @@
+from asyncio.windows_utils import pipe
+import pipes
+from turtle import update
 import unreal
-import os, inspect, importlib, random
+import os, inspect, importlib, random, threading, ctypes, time
 
 import numpy as np
 import torch
@@ -87,13 +90,62 @@ def preprocess_mask_inpaint(mask):
     return mask
 
 
+class AbortableExecutor(threading.Thread):
+    def __init__(self, name, func):
+        threading.Thread.__init__(self)
+        self.name = name
+        self.func = func
+        self.result = None
+        self.wait_result = threading.Condition()
+
+    def run(self):
+        try:
+            print("Executor about to run func")
+            self.result = self.func()
+            print("Executor completed func")
+            self.completed = True
+        except Exception as e:
+            print(f"Executor received abort exception. {e}")
+
+    def stop(self):
+        self.raise_exception()
+
+    def wait(self):
+        #with self.wait_result:
+        self.wait_result.acquire()
+        print("Waiting on executor")
+        self.wait_result.wait()
+        print("Executor received notify")
+        self.wait_result.release()
+
+    def get_id(self):
+        # returns id of the respective thread
+        if hasattr(self, '_thread_id'):
+            return self._thread_id
+        for id, thread in threading._active.items():
+            if thread is self:
+                return id
+
+    def raise_exception(self):
+        thread_id = self.get_id()
+        print(f"About to abort thread {thread_id}")
+        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id,
+              ctypes.py_object(SystemExit))
+        if res > 1:
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
+            print('Exception raise failure')
+
 @unreal.uclass()
 class DiffusersBridge(unreal.StableDiffusionBridge):
 
     def __init__(self):
         unreal.StableDiffusionBridge.__init__(self)
         self.upsampler = None
-        self.pipe = None    
+        self.pipe = None   
+        self.executor = None
+        self.abort = False
+        self.update_frequency = 25
+        self.start_timestep = -1
 
     @unreal.ufunction(override=True)
     def InitModel(self, new_model_options):
@@ -103,27 +155,20 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         if new_model_options.scheduler:
             scheduler_cls = getattr(diffusers, new_model_options.scheduler)
 
+        # Set pipeline
         print(f"Requested pipeline: {new_model_options.diffusion_pipeline}")
         if new_model_options.diffusion_pipeline:
             ActivePipeline = getattr(diffusers, new_model_options.diffusion_pipeline)
         print(f"Loaded pipeline: {ActivePipeline}")
 
         result = True
-
-        # Set pipeline
-        #ActivePipeline = StableDiffusionImg2ImgPipeline
-        #if new_model_options.inpaint:
-        #    ActivePipeline = StableDiffusionInpaintPipeline  
-        #elif new_model_options.depth:
-        #    ActivePipeline = StableDiffusionDepth2ImgPipeline
-        
         
         modelname = new_model_options.model if new_model_options.model else "CompVis/stable-diffusion-v1-5"
         kwargs = {
             "torch_dtype": torch.float32 if new_model_options.precision == "fp32" else torch.float16,
             "use_auth_token": self.get_token(),
-            "safety_checker": None,     # TODO: Init safety checker - this is included to stop models complaining about the missing module
-            "feature_extractor": None,  # TODO: Init feature extractor - this is included to stop models complaining about the missing module
+            #"safety_checker": None,     # TODO: Init safety checker - this is included to stop models complaining about the missing module
+            #"feature_extractor": None,  # TODO: Init feature extractor - this is included to stop models complaining about the missing module
         }
         
         if new_model_options.revision:
@@ -196,22 +241,26 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         inpaint_active = (model_options.capabilities & unreal.ModelCapabilities.INPAINT.value) == unreal.ModelCapabilities.INPAINT.value
         depth_active = (model_options.capabilities & unreal.ModelCapabilities.DEPTH.value)  == unreal.ModelCapabilities.DEPTH.value
         strength_active = (model_options.capabilities & unreal.ModelCapabilities.STRENGTH.value)  == unreal.ModelCapabilities.STRENGTH.value
+        mask_active = depth_active or inpaint_active
         print(f"Capabilities value {model_options.capabilities}, Depth map value: {unreal.ModelCapabilities.DEPTH.value}, Using depthmap? {depth_active}")
         print(f"Capabilities value {model_options.capabilities}, Inpaint value: {unreal.ModelCapabilities.INPAINT.value}, Using inpaint? {inpaint_active}")
         print(f"Capabilities value {model_options.capabilities}, Strength value: {unreal.ModelCapabilities.STRENGTH.value}, Using strength? {strength_active}")
 
+        if input.debug_python_images:
+            guide_img.show()
+            if mask_active:
+                mask_img.show()
+
         if inpaint_active:
             guide_img = guide_img.resize((512,512))
             mask_img = mask_img.resize((512,512))
-            #mask_img.show()
         elif depth_active:
-            #guide_img = guide_img.resize((512,512))
-            #mask_img = mask_img.resize((512,512))
-            mask_img.show()
             mask_img = preprocess_image_depth(mask_img)
             guide_img = preprocess_init_image(guide_img, input.options.out_size_x, input.options.out_size_y)
         else:
             guide_img = preprocess_init_image(guide_img, input.options.out_size_x, input.options.out_size_y)
+        
+        
         
         max_seed = abs(int((2**31) / 2) - 1)
         seed = random.randrange(0, max_seed) if input.options.seed < 0 else input.options.seed
@@ -222,46 +271,82 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
         with torch.inference_mode():
             with autocast("cuda"):
+
                 generator = torch.Generator(device="cuda")
                 generator.manual_seed(seed)
                 generation_args = {
                     "prompt": positive_prompts,
                     "negative_prompt": negative_prompts,
-                    "image" if  inpaint_active else "image": guide_img,                
+                    "image" if  inpaint_active else "image": guide_img,
                     "num_inference_steps": input.options.iterations, 
                     "generator": generator, 
                     "guidance_scale": input.options.guidance_scale, 
-                    "callback": self.ImageProgressStep, 
-                    "callback_steps": input.preview_iteration_rate
+                    "callback": self.ImageProgressStep,
+                    "callback_steps": 1
                 }
+                self.update_frequency = input.preview_iteration_rate
 
-                if  inpaint_active:
+                # Set the timestep in the scheduler early so we can get the start timestep
+                self.pipe.scheduler.set_timesteps(input.options.iterations, device=self.pipe._execution_device)
+                print(self.pipe.scheduler.timesteps)
+                self.start_timestep = int(self.pipe.scheduler.timesteps.cpu().numpy()[0])
+                print(f"Start timestep is {self.start_timestep}")
+
+                if inpaint_active:
                     generation_args["mask_image"] = mask_img
-                if  depth_active:
+                if depth_active:
                     generation_args["depth_map"] = mask_img
                 if strength_active:
                     generation_args["strength"] = input.options.strength
+                
+                # Create executor to generate the image in its own thread that we can abort if needed
+                self.executor = AbortableExecutor("ImageThread", lambda generation_args=generation_args: self.pipe(**generation_args))
+                self.executor.start()
+                self.executor.join()
 
-                images = self.pipe(**generation_args).images
-                image = images[0]
+                if not self.executor.result or not self.executor.completed:
+                    print(f"Image generation was aborted")
+                    self.abort = False
 
+                images = self.executor.result.images if self.executor.result else None #self.pipe(**generation_args).images
+                image = images[0] if images else None
+
+                if input.debug_python_images and image:
+                    image.show()
+
+                self.start_timestep = -1
                 result.input = input
                 result.input.options.seed = seed
                 print(f"Seed was {seed}. Saved as {result.input.options.seed}")
-                result.pixel_data =  PILImageToFColorArray(image.convert("RGBA"))
-                result.out_width = image.width
-                result.out_height = image.height
+                result.pixel_data =  PILImageToFColorArray(image.convert("RGBA")) if image else [unreal.Color(0,0,0,255) for i in range(input.options.out_size_x * input.options.out_size_y)]
+                result.out_width = image.width if image else input.options.out_size_x
+                result.out_height = image.height if image else input.options.out_size_y
+                result.completed = True if image else False
+
+                #self.executor = None
 
         return result
 
     def ImageProgressStep(self, step: int, timestep: int, latents: torch.FloatTensor) -> None:
-        adjusted_latents = 1 / 0.18215 * latents
-        image = self.pipe.vae.decode(adjusted_latents).sample
-        image = (image / 2 + 0.5).clamp(0, 1)
-        image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
-        image = self.pipe.numpy_to_pil(image)[0]
-        pixels = PILImageToFColorArray(image.convert("RGBA"))
-        self.update_image_progress("inprogress", step, 0, image.width, image.height, pixels)
+        pct_complete = (self.start_timestep - timestep) / self.start_timestep
+
+        print(f"Step is {step}. Timestep is {timestep} Frequency is {self.update_frequency}. Modulo is {step % self.update_frequency}")
+        if step % self.update_frequency == 0:
+            adjusted_latents = 1 / 0.18215 * latents
+            image = self.pipe.vae.decode(adjusted_latents).sample
+            image = (image / 2 + 0.5).clamp(0, 1)
+            image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
+            image = self.pipe.numpy_to_pil(image)[0]
+            pixels = PILImageToFColorArray(image.convert("RGBA"))
+            self.update_image_progress("inprogress", int(step), int(timestep), float(pct_complete), image.width, image.height, pixels)
+
+        # Image finished we can now abort image generation
+        if self.abort and self.executor:
+            self.executor.stop()
+
+    @unreal.ufunction(override=True)
+    def StopImageGeneration(self):
+        self.abort = True
 
     @unreal.ufunction(override=True)
     def StartUpsample(self):

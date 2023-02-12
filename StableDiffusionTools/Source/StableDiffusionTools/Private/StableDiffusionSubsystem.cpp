@@ -170,6 +170,9 @@ void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Mo
 		// Unload any loaded models first
 		//ReleaseModel();
 
+		// Forward image updated event from bridge to subsystem
+		this->GeneratorBridge->OnImageProgressEx.AddUniqueDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
+
 		if (Async) {
 			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model]() {
 				this->ModelInitialised = this->GeneratorBridge->InitModel(Model);
@@ -197,6 +200,7 @@ void UStableDiffusionSubsystem::ReleaseModel()
 {
 	if (GeneratorBridge) {
 		GeneratorBridge->ReleaseModel();
+		this->GeneratorBridge->OnImageProgressEx.RemoveDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
 		ModelInitialised = false;
 	}
 }
@@ -305,27 +309,26 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, EInpu
 		});
 }
 
+void UStableDiffusionSubsystem::StopGeneratingImage()
+{
+	this->GeneratorBridge->StopImageGeneration();
+	bIsGenerating = false;
+}
+
 void UStableDiffusionSubsystem::StartImageGeneration(FStableDiffusionInput Input)
 {
 	// Generate the image on a background thread
 	//CurrentRenderTask = TGraphTask<FSDRenderTask>::CreateTask().ConstructAndDispatchWhenReady(ENamedThreads::AnyBackgroundHiPriTask, MoveTemp([this, Input]()
 	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Input]()
 		{
-			// Forward image updated event from bridge to subsystem
-			this->GeneratorBridge->OnImageProgressEx.AddUniqueDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
-
 			// Generate image
 			FStableDiffusionImageResult result = this->GeneratorBridge->GenerateImageFromStartImage(Input);
-			
+			bIsGenerating = false;
 
 			// Create generated texture on game thread
 			AsyncTask(ENamedThreads::GameThread, [this, result]
 			{
-				bIsGenerating = false;
 				this->OnImageGenerationCompleteEx.Broadcast(result);
-
-				// Cleanup
-				this->GeneratorBridge->OnImageProgressEx.RemoveDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
 			});
 	});
 	//);
@@ -336,9 +339,12 @@ void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult&
 	if (!GeneratorBridge)
 		return;
 
+	bIsUpsampling = true;
+
 	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, input](){
 		auto result = GeneratorBridge->UpsampleImage(input);
 		AsyncTask(ENamedThreads::GameThread, [this, result=MoveTemp(result)]() {
+			bIsUpsampling = false;
 			OnImageUpsampleCompleteEx.Broadcast(result);
 		});
 	});
@@ -383,9 +389,9 @@ bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, con
 	return bSaved;
 }
 
-void UStableDiffusionSubsystem::UpdateImageProgress(int32 Step, int32 Timestep, FIntPoint Size, const TArray<FColor>& PixelData)
+void UStableDiffusionSubsystem::UpdateImageProgress(int32 Step, int32 Timestep, float Progress, FIntPoint Size, const TArray<FColor>& PixelData)
 {
-	OnImageProgressUpdated.Broadcast(Step, Timestep, Size, PixelData);
+	OnImageProgressUpdated.Broadcast(Step, Timestep, Progress, Size, PixelData);
 }
 
 void UStableDiffusionSubsystem::SetLivePreviewEnabled(bool Enabled, float Delay)
@@ -416,6 +422,55 @@ void UStableDiffusionSubsystem::SetLivePreviewEnabled(bool Enabled, float Delay)
 	/*FEditorDelegates::RefreshEditor.AddLambda([]() {
 		UE_LOG(LogTemp, Log, TEXT("Editor refreshed"));
 	});*/
+}
+
+UTextureRenderTarget2D* UStableDiffusionSubsystem::EnableDepthPreview(float SceneDepthScale, float SceneDepthOffset, FIntPoint ViewportSize)
+{
+	if (!DepthPreviewCapture.SceneCapture) {
+		DepthPreviewCapture = CreateSceneCaptureCamera();
+		//DepthPreviewCapture.SceneCapture->SetIsTemporarilyHiddenInEditor(true);
+
+		OnDepthPreviewUpdateHandle = FEditorDelegates::OnEditorCameraMoved.AddLambda([this](const FVector& Location, const FRotator& Rotation, ELevelViewportType ViewportType, int32 ViewportIndex) {
+			UpdateSceneCaptureCamera(DepthPreviewCapture);
+		});
+
+		// Create render target to hold our scene capture data
+		UTextureRenderTarget2D* DepthPreviewRT = NewObject<UTextureRenderTarget2D>(DepthPreviewCapture.SceneCapture);
+		check(DepthPreviewRT);
+		DepthPreviewRT->InitCustomFormat(ViewportSize.X, ViewportSize.Y, PF_R8G8B8A8, false);
+		DepthPreviewRT->UpdateResourceImmediate(true);
+		DepthPreviewCapture.SceneCapture->GetCaptureComponent2D()->TextureTarget = DepthPreviewRT;
+		FTextureRenderTargetResource* FullFrameRT_TexRes = DepthPreviewRT->GameThread_GetRenderTargetResource();
+
+		// Create material to render depth postprocess mat
+		TSoftObjectPtr<UMaterialInterface> DepthMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(DepthMaterialAsset));
+		auto DepthMaterial = DepthMatRef.LoadSynchronous();
+		UMaterialInstanceDynamic* DepthMatInst = UMaterialInstanceDynamic::Create(DepthMaterial, DepthPreviewCapture.SceneCapture);
+		DepthMatInst->SetScalarParameterValue("DepthScale", SceneDepthScale);
+		DepthMatInst->SetScalarParameterValue("StartDepth", SceneDepthOffset);
+		DepthPreviewCapture.SceneCapture->GetCaptureComponent2D()->AddOrUpdateBlendable(DepthMatInst);
+
+		// Capture the depth map
+		DepthPreviewCapture.SceneCapture->GetCaptureComponent2D()->CaptureScene();
+
+		return DepthPreviewRT;
+	}
+
+	return nullptr;
+}
+
+void UStableDiffusionSubsystem::DisableDepthPreview()
+{
+	if (DepthPreviewCapture.SceneCapture) {
+		AsyncTask(ENamedThreads::GameThread, [this]() {
+			// Remove camera updater
+			FEditorDelegates::OnEditorCameraMoved.Remove(OnDepthPreviewUpdateHandle);
+			OnDepthPreviewUpdateHandle.Reset();
+
+			DepthPreviewCapture.SceneCapture->Destroy();
+			DepthPreviewCapture.SceneCapture = nullptr;
+		});
+	}
 }
 
 UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& FrameName, const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTex)
@@ -461,8 +516,9 @@ void UStableDiffusionSubsystem::UpdateSceneCaptureCamera(FViewportSceneCapture& 
 	CaptureComponent->FOVAngle = SceneCapture.ViewportClient->FOVAngle;
 	CaptureComponent->bCaptureEveryFrame = true;
 	CaptureComponent->bCaptureOnMovement = false;
+	CaptureComponent->bAlwaysPersistRenderingState = true;
 	CaptureComponent->CompositeMode = SCCM_Overwrite;
-	CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalToneCurveHDR;
+	CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalToneCurveHDR;//ESceneCaptureSource::SCS_FinalToneCurveHDR;
 	//CaptureComponent->ShowFlags.SetBloom(false);
 }
 
@@ -543,6 +599,9 @@ void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionIn
 	CaptureComponent->CompositeMode = SCCM_Overwrite;
 	CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalToneCurveHDR;
 	CaptureComponent->ShowFlags.SetBloom(false);
+
+	//TGuardValue<bool> ViewStateGuard(CaptureComponent->bAlwaysPersistRenderingState, true);
+
 	//CaptureComponent->PostProcessSettings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
 	//CaptureComponent->PostProcessSettings.AutoExposureBias = 15;
 
@@ -583,7 +642,7 @@ void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionIn
 
 	if (!Input.CaptureSource && this->CurrentSceneCapture.SceneCapture) {
 		// Cleanup created scene capture once we've captured all our pixel data
-		this->CurrentSceneCapture.SceneCapture->ConditionalBeginDestroy();
+		this->CurrentSceneCapture.SceneCapture->Destroy();
 		this->CurrentSceneCapture.ViewportClient = nullptr;
 	}
 	else {
@@ -599,6 +658,7 @@ void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionIn
 
 	StartImageGeneration(Input);
 }
+
 
 TArray<FColor> UStableDiffusionSubsystem::CaptureDepthMap(USceneCaptureComponent2D* CaptureSource, FIntPoint Size, float SceneDepthScale, float SceneDepthOffset)
 {
@@ -625,7 +685,7 @@ TArray<FColor> UStableDiffusionSubsystem::CaptureDepthMap(USceneCaptureComponent
 
 	// Render second pass containing scene depth
 	CaptureSource->TextureTarget = FullFrameDepthRT;
-	CaptureSource->CaptureSource = ESceneCaptureSource::SCS_FinalColorHDR;
+	CaptureSource->CaptureSource = ESceneCaptureSource::SCS_FinalToneCurveHDR;
 	CaptureSource->CaptureScene();
 
 	// Read depthmap and convert to 8bit

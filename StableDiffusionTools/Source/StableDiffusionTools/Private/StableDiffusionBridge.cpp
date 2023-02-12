@@ -40,11 +40,11 @@ FString UStableDiffusionBridge::GetToken()
     return "";
 }
 
-void UStableDiffusionBridge::UpdateImageProgress(FString prompt, int32 step, int32 timestep, int32 width, int32 height, const TArray<FColor>& FrameColors)
+void UStableDiffusionBridge::UpdateImageProgress(FString prompt, int32 step, int32 timestep, float progress, int32 width, int32 height, const TArray<FColor>& FrameColors)
 {
-	AsyncTask(ENamedThreads::GameThread, [this, prompt, step, timestep, width, height, FrameColors] {
-		OnImageProgress.Broadcast(step, timestep, FIntPoint(width, height), FrameColors);
-		OnImageProgressEx.Broadcast(step, timestep, FIntPoint(width, height), FrameColors);
+	AsyncTask(ENamedThreads::GameThread, [this, prompt, step, timestep, progress, width, height, FrameColors] {
+		OnImageProgress.Broadcast(step, timestep, progress, FIntPoint(width, height), FrameColors);
+		OnImageProgressEx.Broadcast(step, timestep, progress, FIntPoint(width, height), FrameColors);
 	});
 }
 

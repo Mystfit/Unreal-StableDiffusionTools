@@ -205,6 +205,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
 	void GenerateImage(FStableDiffusionInput Input, EInputImageSource ImageSourceType);
 
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
+	void StopGeneratingImage();
+
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
 	void UpsampleImage(const FStableDiffusionImageResult& input);
 
@@ -235,6 +238,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Preview")
 	void SetLivePreviewEnabled(bool Enabled, float Delay = 0.5f);
 
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Preview")
+	UTextureRenderTarget2D* EnableDepthPreview(float SceneDepthScale, float SceneDepthOffset, FIntPoint ViewportSize);
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Preview")
+	void DisableDepthPreview();
+
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Preview")
 	FOnEditorCameraMovedEx OnEditorCameraMovedEx;
 
@@ -244,6 +253,9 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Generation")
 	bool bIsGenerating = false;
 
+	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Generation")
+	bool bIsUpsampling = false;
+
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
 	UTexture2D* ColorBufferToTexture(const FString& FrameName, const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture);
 
@@ -251,7 +263,7 @@ public:
 
 protected:
 	UFUNCTION(Category = "StableDiffusion|Generation")
-	void UpdateImageProgress(int32 Step, int32 Timestep, FIntPoint Size, const TArray<FColor>& PixelData);
+	void UpdateImageProgress(int32 Step, int32 Timestep, float Progress, FIntPoint Size, const TArray<FColor>& PixelData);
 
 private:
 	// Viewport capture
@@ -285,4 +297,7 @@ private:
 	FDelegateHandle OnEditorCameraUpdatedDlgHandle;
 	FEditorCameraLivePreview LastPreviewCameraInfo;
 	FTimerHandle IdleCameraTimer;
+
+	FViewportSceneCapture DepthPreviewCapture;
+	FDelegateHandle OnDepthPreviewUpdateHandle;
 };
