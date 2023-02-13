@@ -394,69 +394,105 @@ void UStableDiffusionSubsystem::UpdateImageProgress(int32 Step, int32 Timestep, 
 	OnImageProgressUpdated.Broadcast(Step, Timestep, Progress, Size, PixelData);
 }
 
-void UStableDiffusionSubsystem::SetLivePreviewEnabled(bool Enabled, float Delay)
+void UStableDiffusionSubsystem::SetLivePreviewEnabled(bool Enabled, float Delay, USceneCaptureComponent2D* Source)
 {
-	if (Enabled && !OnEditorCameraUpdatedDlgHandle.IsValid()) {
-		OnEditorCameraUpdatedDlgHandle = FEditorDelegates::OnEditorCameraMoved.AddLambda([this, Delay](const FVector& Location, const FRotator& Rotation, ELevelViewportType ViewportType, int32 ViewportIndex) {
-			UE_LOG(LogTemp, Log, TEXT("Moving editor camera to %s %s"), *Location.ToString(), *Rotation.ToString())
+	if (Enabled){
+		if (Source) {
+			if (!OnCaptureCameraUpdatedDlgHandle.IsValid()) {
+				// Handle when capture component moves
+				OnCaptureCameraUpdatedDlgHandle = Source->TransformUpdated.AddLambda([this, Delay, Source](USceneComponent* UpdatedComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport) {
+				
+				FEditorCameraLivePreview CameraInfo;
+				CameraInfo.Location = UpdatedComponent->GetComponentTransform().GetLocation();
+				CameraInfo.Rotation = UpdatedComponent->GetComponentTransform().GetRotation().Rotator();
+				CameraInfo.ViewportType = Source->ProjectionType == ECameraProjectionMode::Type::Perspective ? ELevelViewportType::LVT_Perspective : ELevelViewportType::LVT_OrthoFreelook;
+				CameraInfo.ViewportIndex = 0;
 
-			FEditorCameraLivePreview CameraInfo;
-			CameraInfo.Location = Location;
-			CameraInfo.Rotation = Rotation;
-			CameraInfo.ViewportType = ViewportType;
-			CameraInfo.ViewportIndex = ViewportIndex;
+				UE_LOG(LogTemp, Log, TEXT("Moving capture component to %s %s"), *CameraInfo.Location.ToString(), *CameraInfo.Rotation.ToString())
 
-			// Only broadcast when the camera is not moving
-			if (!(LastPreviewCameraInfo == CameraInfo)) {
-				GEditor->GetTimerManager()->SetTimer(IdleCameraTimer, this, &UStableDiffusionSubsystem::LivePreviewUpdate, Delay, false);
+					// Only broadcast when the camera is not moving
+					if (!(LastPreviewCameraInfo == CameraInfo)) {
+						GEditor->GetTimerManager()->SetTimer(IdleCameraTimer, this, &UStableDiffusionSubsystem::LivePreviewUpdate, Delay, false);
+					}
+
+				LastPreviewCameraInfo = CameraInfo;
+					});
 			}
+		}
+		else {
+			if (!OnCaptureCameraUpdatedDlgHandle.IsValid()) {
+				OnCaptureCameraUpdatedDlgHandle = FEditorDelegates::OnEditorCameraMoved.AddLambda([this, Delay](const FVector& Location, const FRotator& Rotation, ELevelViewportType ViewportType, int32 ViewportIndex) {
+					UE_LOG(LogTemp, Log, TEXT("Moving editor camera to %s %s"), *Location.ToString(), *Rotation.ToString())
 
-			LastPreviewCameraInfo = CameraInfo;
-		});
+					FEditorCameraLivePreview CameraInfo;
+					CameraInfo.Location = Location;
+					CameraInfo.Rotation = Rotation;
+					CameraInfo.ViewportType = ViewportType;
+					CameraInfo.ViewportIndex = ViewportIndex;
+
+					// Only broadcast when the camera is not moving
+					if (!(LastPreviewCameraInfo == CameraInfo)) {
+						GEditor->GetTimerManager()->SetTimer(IdleCameraTimer, this, &UStableDiffusionSubsystem::LivePreviewUpdate, Delay, false);
+					}
+
+					LastPreviewCameraInfo = CameraInfo;
+				});
+			}
+		}
+		
 	}
-	else if (!Enabled && OnEditorCameraUpdatedDlgHandle.IsValid()) {
-		FEditorDelegates::OnEditorCameraMoved.Remove(OnEditorCameraUpdatedDlgHandle);
-		OnEditorCameraUpdatedDlgHandle.Reset();
+	else if (!Enabled) {
+		if (Source) {
+			Source->TransformUpdated.Remove(OnCaptureCameraUpdatedDlgHandle);
+		}
+		else {
+			FEditorDelegates::OnEditorCameraMoved.Remove(OnCaptureCameraUpdatedDlgHandle);
+		}
+		if (OnCaptureCameraUpdatedDlgHandle.IsValid()) {
+			OnCaptureCameraUpdatedDlgHandle.Reset();
+		}
 	}
-	
-	/*FEditorDelegates::RefreshEditor.AddLambda([]() {
-		UE_LOG(LogTemp, Log, TEXT("Editor refreshed"));
-	});*/
 }
 
-UTextureRenderTarget2D* UStableDiffusionSubsystem::EnableDepthPreview(float SceneDepthScale, float SceneDepthOffset, FIntPoint ViewportSize)
+UTextureRenderTarget2D* UStableDiffusionSubsystem::EnableDepthPreview(USceneCaptureComponent2D* CaptureComponent, float SceneDepthScale, float SceneDepthOffset, FIntPoint ViewportSize)
 {
-	if (!DepthPreviewCapture.SceneCapture) {
-		DepthPreviewCapture = CreateSceneCaptureCamera();
-		//DepthPreviewCapture.SceneCapture->SetIsTemporarilyHiddenInEditor(true);
-
-		OnDepthPreviewUpdateHandle = FEditorDelegates::OnEditorCameraMoved.AddLambda([this](const FVector& Location, const FRotator& Rotation, ELevelViewportType ViewportType, int32 ViewportIndex) {
-			UpdateSceneCaptureCamera(DepthPreviewCapture);
-		});
-
-		// Create render target to hold our scene capture data
-		UTextureRenderTarget2D* DepthPreviewRT = NewObject<UTextureRenderTarget2D>(DepthPreviewCapture.SceneCapture);
-		check(DepthPreviewRT);
-		DepthPreviewRT->InitCustomFormat(ViewportSize.X, ViewportSize.Y, PF_R8G8B8A8, false);
-		DepthPreviewRT->UpdateResourceImmediate(true);
-		DepthPreviewCapture.SceneCapture->GetCaptureComponent2D()->TextureTarget = DepthPreviewRT;
-		FTextureRenderTargetResource* FullFrameRT_TexRes = DepthPreviewRT->GameThread_GetRenderTargetResource();
-
-		// Create material to render depth postprocess mat
-		TSoftObjectPtr<UMaterialInterface> DepthMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(DepthMaterialAsset));
-		auto DepthMaterial = DepthMatRef.LoadSynchronous();
-		UMaterialInstanceDynamic* DepthMatInst = UMaterialInstanceDynamic::Create(DepthMaterial, DepthPreviewCapture.SceneCapture);
-		DepthMatInst->SetScalarParameterValue("DepthScale", SceneDepthScale);
-		DepthMatInst->SetScalarParameterValue("StartDepth", SceneDepthOffset);
-		DepthPreviewCapture.SceneCapture->GetCaptureComponent2D()->AddOrUpdateBlendable(DepthMatInst);
-
-		// Capture the depth map
-		DepthPreviewCapture.SceneCapture->GetCaptureComponent2D()->CaptureScene();
-
-		return DepthPreviewRT;
+	USceneCaptureComponent2D* ActiveCaptureComponent = nullptr;
+	
+	if (CaptureComponent) {
+		ActiveCaptureComponent = CaptureComponent;
+	}
+	else {
+		if (!DepthPreviewCapture.SceneCapture) {
+			DepthPreviewCapture = CreateSceneCaptureCamera();
+			//DepthPreviewCapture.SceneCapture->SetIsTemporarilyHiddenInEditor(true);
+			
+			OnDepthPreviewUpdateHandle = FEditorDelegates::OnEditorCameraMoved.AddLambda([this](const FVector& Location, const FRotator& Rotation, ELevelViewportType ViewportType, int32 ViewportIndex) {
+				UpdateSceneCaptureCamera(DepthPreviewCapture);
+			});
+		}
+		ActiveCaptureComponent = DepthPreviewCapture.SceneCapture->GetCaptureComponent2D();
 	}
 
-	return nullptr;
+	// Create render target to hold our scene capture data
+	UTextureRenderTarget2D* DepthPreviewRT = NewObject<UTextureRenderTarget2D>(ActiveCaptureComponent);
+	check(DepthPreviewRT);
+	DepthPreviewRT->InitCustomFormat(ViewportSize.X, ViewportSize.Y, PF_R8G8B8A8, false);
+	DepthPreviewRT->UpdateResourceImmediate(true);
+	ActiveCaptureComponent->TextureTarget = DepthPreviewRT;
+	FTextureRenderTargetResource* FullFrameRT_TexRes = DepthPreviewRT->GameThread_GetRenderTargetResource();
+
+	// Create material to render depth postprocess mat
+	TSoftObjectPtr<UMaterialInterface> DepthMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(DepthMaterialAsset));
+	auto DepthMaterial = DepthMatRef.LoadSynchronous();
+	UMaterialInstanceDynamic* DepthMatInst = UMaterialInstanceDynamic::Create(DepthMaterial, DepthPreviewCapture.SceneCapture);
+	DepthMatInst->SetScalarParameterValue("DepthScale", SceneDepthScale);
+	DepthMatInst->SetScalarParameterValue("StartDepth", SceneDepthOffset);
+	ActiveCaptureComponent->AddOrUpdateBlendable(DepthMatInst);
+
+	// Capture the depth map
+	ActiveCaptureComponent->CaptureScene();
+
+	return DepthPreviewRT;
 }
 
 void UStableDiffusionSubsystem::DisableDepthPreview()
@@ -501,6 +537,11 @@ FViewportSceneCapture UStableDiffusionSubsystem::CreateSceneCaptureCamera()
 
 	if (FoundViewport){
 		SceneCapture.SceneCapture = GEditor->GetEditorWorldContext().World()->SpawnActor<ASceneCapture2D>();
+		SceneCapture.SceneCapture->GetCaptureComponent2D()->bCaptureEveryFrame = true;
+		SceneCapture.SceneCapture->GetCaptureComponent2D()->bCaptureOnMovement = false;
+		SceneCapture.SceneCapture->GetCaptureComponent2D()->bAlwaysPersistRenderingState = true;
+		SceneCapture.SceneCapture->GetCaptureComponent2D()->CompositeMode = SCCM_Overwrite;
+		SceneCapture.SceneCapture->GetCaptureComponent2D()->CaptureSource = ESceneCaptureSource::SCS_FinalToneCurveHDR;//ESceneCaptureSource::SCS_FinalToneCurveHDR;
 		UpdateSceneCaptureCamera(SceneCapture);
 	}
 
@@ -514,11 +555,6 @@ void UStableDiffusionSubsystem::UpdateSceneCaptureCamera(FViewportSceneCapture& 
 	
 	auto CaptureComponent = SceneCapture.SceneCapture->GetCaptureComponent2D();
 	CaptureComponent->FOVAngle = SceneCapture.ViewportClient->FOVAngle;
-	CaptureComponent->bCaptureEveryFrame = true;
-	CaptureComponent->bCaptureOnMovement = false;
-	CaptureComponent->bAlwaysPersistRenderingState = true;
-	CaptureComponent->CompositeMode = SCCM_Overwrite;
-	CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalToneCurveHDR;//ESceneCaptureSource::SCS_FinalToneCurveHDR;
 	//CaptureComponent->ShowFlags.SetBloom(false);
 }
 
@@ -534,7 +570,7 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 		if (Input.InpaintLayers.Num()) {
 			auto SceneCapture = CreateSceneCaptureCamera();
 			Input.MaskImagePixels = CaptureStencilMask(SceneCapture.SceneCapture->GetCaptureComponent2D(), ViewportSize, Input.InpaintLayers[0]);
-			SceneCapture.SceneCapture->ConditionalBeginDestroy();
+			SceneCapture.SceneCapture->Destroy();
 		}
 	}
 
@@ -542,7 +578,7 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 	if ((ModelOptions.Capabilities & (int32)EModelCapabilities::DEPTH) == (int32)EModelCapabilities::DEPTH) {
 		auto SceneCapture = CreateSceneCaptureCamera();
 		Input.MaskImagePixels = CaptureDepthMap(SceneCapture.SceneCapture->GetCaptureComponent2D(), ViewportSize, Input.SceneDepthScale, Input.SceneDepthOffset);
-		SceneCapture.SceneCapture->ConditionalBeginDestroy();
+		SceneCapture.SceneCapture->Destroy();
 	}
 
 	// Create a frame payload we will wait on to be filled with a frame
@@ -697,11 +733,11 @@ TArray<FColor> UStableDiffusionSubsystem::CaptureDepthMap(USceneCaptureComponent
 	}
 
 	// Cleanup
-	//FullFrameDepthRT->ConditionalBeginDestroy();
+	//FullFrameDepthRT->Destroy();
 	//FullFrameDepthRT = nullptr;
 	//FullFrameDepthRT_TexRes = nullptr;
 
-	//DepthMatInst->ConditionalBeginDestroy();
+	//DepthMatInst->Destroy();
 	//DepthMatInst = nullptr;
 
 	return MoveTemp(DepthPixels);
@@ -771,6 +807,10 @@ UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& Frame
 	OutTex->PostEditChange();
 #endif
 	return OutTex;
+}
+
+void UStableDiffusionSubsystem::OnLivePreviewCheckUpdate(USceneComponent* UpdatedComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport) {
+
 }
 
 void UStableDiffusionSubsystem::LivePreviewUpdate()

@@ -229,6 +229,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def GenerateImageFromStartImage(self, input):
+        self.abort = False
+
         model_options = self.get_editor_property("ModelOptions")
         if not hasattr(self, "pipe"):
             print("Could not find a pipe attribute. Has it been GC'd?")

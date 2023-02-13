@@ -236,10 +236,10 @@ public:
 	FImageGenerationCompleteEx OnImageGenerationCompleteEx;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Preview")
-	void SetLivePreviewEnabled(bool Enabled, float Delay = 0.5f);
+	void SetLivePreviewEnabled(bool Enabled, float Delay = 0.5f, USceneCaptureComponent2D* CaptureSource = nullptr);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Preview")
-	UTextureRenderTarget2D* EnableDepthPreview(float SceneDepthScale, float SceneDepthOffset, FIntPoint ViewportSize);
+	UTextureRenderTarget2D* EnableDepthPreview(USceneCaptureComponent2D* CaptureComponent, float SceneDepthScale, float SceneDepthOffset, FIntPoint ViewportSize);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Preview")
 	void DisableDepthPreview();
@@ -294,7 +294,10 @@ private:
 
 	// Live preview
 	void LivePreviewUpdate();
-	FDelegateHandle OnEditorCameraUpdatedDlgHandle;
+	void OnLivePreviewCheckUpdate(USceneComponent* UpdatedComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);
+
+	//FDelegateHandle OnEditorCameraUpdatedDlgHandle;
+	FDelegateHandle OnCaptureCameraUpdatedDlgHandle;
 	FEditorCameraLivePreview LastPreviewCameraInfo;
 	FTimerHandle IdleCameraTimer;
 
