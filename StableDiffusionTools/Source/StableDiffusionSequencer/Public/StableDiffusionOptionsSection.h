@@ -15,18 +15,14 @@ class STABLEDIFFUSIONSEQUENCER_API UStableDiffusionOptionsSection : public UMovi
 	GENERATED_BODY()
 	UStableDiffusionOptionsSection(const FObjectInitializer& ObjectInitializer);
 public:
-
-	/*UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer", meta = (Multiline = true))
-	FStableDiffusionGenerationOptions GenerationOptions;*/
-
-	//UPROPERTY(EditAnywhere, Category = "StableDiffusion|Sequencer", meta = (Multiline = true))
-	//FStableDiffusionModelOptions ModelOptions;
-
 	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Model", meta = (Multiline = true))
 	UStableDiffusionModelAsset* ModelAsset;
 
-	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Inpainting options")
-	TArray< FName > InpaintLayers;
+	UPROPERTY(EditAnywhere, Category = "Model options")
+	bool AllowNSFW = false;
+
+	UPROPERTY(EditAnywhere, Category = "Model options")
+	TEnumAsByte<EPaddingMode> PaddingMode = EPaddingMode::zeros;
 
 	/**
 	 * Public access to this section's internal data function

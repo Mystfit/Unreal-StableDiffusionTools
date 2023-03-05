@@ -66,16 +66,29 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Outputs")
 	FString UpscaledFramePrefix;
 
+	/**
+	* If you encounter false positive NSFW black frames in your animation, then enabling this option may help
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Outputs")
+	EPaddingMode PaddingMode;
+
+	/**
+	* Padding mode for generated images (tileable textures etc).
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Outputs")
+	bool AllowNSFW;
+
 
 protected:
 	virtual void RenderSample_GameThreadImpl(const FMoviePipelineRenderPassMetrics& InSampleState) override;
 
+	FSceneView* BeginSDLayerPass(FMoviePipelineRenderPassMetrics& InOutSampleState, TSharedPtr<FSceneViewFamilyContext>& ViewFamily);
+
 private:
 	virtual void BeginExportImpl() override;
 
-	TObjectPtr<UMaterialInterface> StencilMatInst;
-	TWeakObjectPtr<UTextureRenderTarget2D> StencilActorLayerRenderTarget;
-	FMoviePipelinePassIdentifier StencilPassIdentifier;
+	//TWeakObjectPtr<UTextureRenderTarget2D> StencilActorLayerRenderTarget;
+	//FMoviePipelinePassIdentifier StencilPassIdentifier;
 	UStableDiffusionOptionsTrack* OptionsTrack;
 	TArray<UStableDiffusionPromptMovieSceneTrack*> PromptTracks;
 };

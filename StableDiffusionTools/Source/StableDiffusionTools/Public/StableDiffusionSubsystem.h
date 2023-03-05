@@ -49,24 +49,7 @@ struct FStencilValues
 	int32 CustomStencil;
 };
 
-struct STABLEDIFFUSIONTOOLS_API FScopedActorLayerStencil {
-public:
-	FScopedActorLayerStencil() = delete;
-	FScopedActorLayerStencil(const FScopedActorLayerStencil& ref);
-	FScopedActorLayerStencil(const FActorLayer& Layer, bool RestoreOnDelete=true);
-	~FScopedActorLayerStencil();
 
-	void Restore();
-
-private:
-	bool RestoreOnDelete;
-
-	// Stencil values
-	TMap<UPrimitiveComponent*, FStencilValues> ActorLayerSavedStencilValues;
-
-	// Cache the custom stencil value.
-	TOptional<int32> PreviousCustomDepthValue;
-};
 
 USTRUCT(BlueprintType)
 struct STABLEDIFFUSIONTOOLS_API FEditorCameraLivePreview
@@ -141,8 +124,8 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionSubsystem : public UEditorSubsyst
 public:
 	UStableDiffusionSubsystem(const FObjectInitializer& initializer);
 
+	static FString NormalMaterialAsset;
 	static FString StencilLayerMaterialAsset;
-	static FString DepthMaterialAsset;
 	
 
 
@@ -197,7 +180,7 @@ public:
 	bool LoginUsingToken(const FString& token);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
-	void InitModel(const FStableDiffusionModelOptions& Model, bool Async);
+	void InitModel(const FStableDiffusionModelOptions& Model, bool Async, bool AllowNSFW, EPaddingMode PaddingMode);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	void ReleaseModel();
@@ -239,10 +222,13 @@ public:
 	void SetLivePreviewEnabled(bool Enabled, float Delay = 0.5f, USceneCaptureComponent2D* CaptureSource = nullptr);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Preview")
-	UTextureRenderTarget2D* EnableDepthPreview(USceneCaptureComponent2D* CaptureComponent, float SceneDepthScale, float SceneDepthOffset, FIntPoint ViewportSize);
+	UTextureRenderTarget2D* SetLivePreviewForLayer(FIntPoint Size, ULayerProcessorBase* Layer, USceneCaptureComponent2D* CaptureSource = nullptr);
+
+	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Preview")
+	ULayerProcessorBase* PreviewedLayer;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Preview")
-	void DisableDepthPreview();
+	void DisableLivePreviewForLayer();
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Preview")
 	FOnEditorCameraMovedEx OnEditorCameraMovedEx;
@@ -278,11 +264,13 @@ private:
 	void UpdateSceneCaptureCamera(FViewportSceneCapture& SceneCapture);
 	FViewportSceneCapture CurrentSceneCapture;
 
+	// Capture from the currently active viewport
 	void CaptureFromViewportSource(FStableDiffusionInput Input);
-	void CaptureFromSceneCaptureSource(FStableDiffusionInput Input);
-	TArray<FColor> CaptureDepthMap(USceneCaptureComponent2D* CaptureSource, FIntPoint Size, float SceneDepthScale, float SceneDepthOffset);
-	TArray<FColor> CaptureStencilMask(USceneCaptureComponent2D* CaptureSource, FIntPoint Size, FActorLayer Layer);
 
+	// Capture from a provided SceneCapture2D actor
+	void CaptureFromSceneCaptureSource(FStableDiffusionInput Input);
+
+	// Kick off an async render
 	void StartImageGeneration(FStableDiffusionInput Input);
 
 	FGraphEventRef CurrentRenderTask;
@@ -301,6 +289,6 @@ private:
 	FEditorCameraLivePreview LastPreviewCameraInfo;
 	FTimerHandle IdleCameraTimer;
 
-	FViewportSceneCapture DepthPreviewCapture;
-	FDelegateHandle OnDepthPreviewUpdateHandle;
+	FViewportSceneCapture LayerPreviewCapture;
+	FDelegateHandle OnLayerPreviewUpdateHandle;
 };
