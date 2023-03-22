@@ -45,6 +45,9 @@ public:
         FString Version;
 
     UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
+        FString Branch;
+
+    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         bool Upgrade;
 
     UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")

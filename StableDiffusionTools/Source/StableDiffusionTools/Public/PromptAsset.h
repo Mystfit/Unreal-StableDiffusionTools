@@ -28,7 +28,7 @@ public:
 	TEnumAsByte<EPromptSentiment> Sentiment;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Prompts")
-	float Weight;
+	float Weight = 1.0f;
 };
 
 

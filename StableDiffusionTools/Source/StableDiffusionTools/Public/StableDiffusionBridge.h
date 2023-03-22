@@ -50,7 +50,7 @@ public:
     /** Python stable diffusion implementable functions */
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
-    bool InitModel(const FStableDiffusionModelOptions& NewModelOptions);
+    bool InitModel(const FStableDiffusionModelOptions& NewModelOptions, bool AllowNsfw, EPaddingMode PaddingMode);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void ReleaseModel();

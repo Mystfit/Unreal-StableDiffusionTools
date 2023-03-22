@@ -2,9 +2,11 @@ from asyncio.windows_utils import pipe
 import pipes
 from turtle import update
 import unreal
-import os, inspect, importlib, random, threading, ctypes, time
+import os, inspect, importlib, random, threading, ctypes, time, traceback, pprint
 
 import numpy as np
+
+import safetensors
 import torch
 from torch import autocast
 from torchvision.transforms.functional import rgb_to_grayscale
@@ -24,12 +26,22 @@ except ImportError as e:
     print("Could not import RealESRGAN upsampler")
 
 
+# Globally disable progress bars to avoid polluting the Unreal log
+diffusers.utils.logging.disable_progress_bar()
+
+## Global disable torch loading. Use safetensors
+#def _raise_torch_load_err():
+#    raise RuntimeError("I don't want to use pickle")
+
+#torch.load = lambda *args, **kwargs: _raise_torch_load_err()
+
+
 def patch_conv(padding_mode):
     cls = torch.nn.Conv2d
     init = cls.__init__
 
     def __init__(self, *args, **kwargs):
-        kwargs["padding_mode"]=padding_mode
+        kwargs["padding_mode"]=padding_mode.name.lower()
         return init(self, *args, **kwargs)
 
     cls.__init__ = __init__
@@ -51,6 +63,13 @@ def preprocess_init_image(image: Image, width: int, height: int):
 #    mask = mask[None].transpose(0, 1, 2, 3)  # what does this step do?
 #    mask = torch.from_numpy(mask)
 #    return mask
+
+def preprocess_normalmap(image: Image, width: int, height: int):
+    image = image.resize((width, height), resample=Image.LANCZOS)
+    image = np.array(image)
+    #image = image[...,::-1]
+    image = Image.fromarray(image)
+    return image
 
 def preprocess_image_inpaint(image):
     w, h = image.size
@@ -106,6 +125,7 @@ class AbortableExecutor(threading.Thread):
             self.completed = True
         except Exception as e:
             print(f"Executor received abort exception. {e}")
+            print(traceback.print_exc(e))
 
     def stop(self):
         self.raise_exception()
@@ -148,12 +168,14 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.start_timestep = -1
 
     @unreal.ufunction(override=True)
-    def InitModel(self, new_model_options):
+    def InitModel(self, new_model_options, allow_nsfw, padding_mode):
         self.model_loaded = False
+        result = True
 
         scheduler_module = None
         if new_model_options.scheduler:
             scheduler_cls = getattr(diffusers, new_model_options.scheduler)
+            print("Using scheduler class: {scheduler_cls}")
 
         # Set pipeline
         print(f"Requested pipeline: {new_model_options.diffusion_pipeline}")
@@ -161,8 +183,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             ActivePipeline = getattr(diffusers, new_model_options.diffusion_pipeline)
         print(f"Loaded pipeline: {ActivePipeline}")
 
-        result = True
-        
         modelname = new_model_options.model if new_model_options.model else "CompVis/stable-diffusion-v1-5"
         kwargs = {
             "torch_dtype": torch.float32 if new_model_options.precision == "fp32" else torch.float16,
@@ -170,28 +190,41 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             #"safety_checker": None,     # TODO: Init safety checker - this is included to stop models complaining about the missing module
             #"feature_extractor": None,  # TODO: Init feature extractor - this is included to stop models complaining about the missing module
         }
+
+        # Run model init script to generate extra args
+        init_script_locals = {}
+        exec(new_model_options.python_model_arguments_script, globals(), init_script_locals)
+        for key, val in init_script_locals.items():
+            if "pipearg_" in key:
+                kwargs[key.replace('pipearg_', '')] = val
         
         if new_model_options.revision:
             kwargs["revision"] = new_model_options.revision
         if new_model_options.custom_pipeline:
             kwargs["custom_pipeline"] = new_model_options.custom_pipeline
+        
+        # Padding mode injection
+        patch_conv(padding_mode=padding_mode)
 
-        patch_conv(padding_mode=new_model_options.padding_mode)
+        # Torch performance options
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cuda.matmul.allow_tf32 = True
 
         # Load model
         self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
 
         if scheduler_module:
             self.pipe.scheduler = scheduler_cls.from_config(self.pipe.scheduler.config)
-        self.pipe = self.pipe.to("cuda")
 
         # Performance options for low VRAM gpus
         #self.pipe.enable_sequential_cpu_offload()
-        self.pipe.enable_attention_slicing(1)
+        self.pipe.enable_attention_slicing()
         self.pipe.enable_xformers_memory_efficient_attention()
+        if hasattr(self.pipe, "enable_model_cpu_offload"):
+            self.pipe.enable_model_cpu_offload()
 
         # NSFW filter
-        if new_model_options.allow_nsfw:
+        if allow_nsfw:
             # Backup original NSFW filter
             if not hasattr(self, "orig_NSFW_filter"):
                 self.orig_NSFW_filter = self.pipe.safety_checker
@@ -230,56 +263,74 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
     @unreal.ufunction(override=True)
     def GenerateImageFromStartImage(self, input):
         self.abort = False
-
+        result = unreal.StableDiffusionImageResult()
         model_options = self.get_editor_property("ModelOptions")
         if not hasattr(self, "pipe"):
             print("Could not find a pipe attribute. Has it been GC'd?")
             return
 
-        result = unreal.StableDiffusionImageResult()
-        guide_img = FColorAsPILImage(input.input_image_pixels, input.options.size_x, input.options.size_y).convert("RGB") if input.input_image_pixels else None
-        mask_img = FColorAsPILImage(input.mask_image_pixels, input.options.size_x, input.options.size_y).convert("RGB")  if input.mask_image_pixels else None
+        layer_img_mappings = {}
+        for layer in input.processed_layers:
+            layer_img = FColorAsPILImage(layer.layer_pixels, input.options.size_x, input.options.size_y).convert("RGB") if layer.layer_pixels else None
+            layer_img = layer_img.resize((input.options.out_size_x, input.options.out_size_y))
+
+            if layer.processor.python_transform_script:
+                transform_script_locals = {}
+                transform_script_args = {"input_image": layer_img}
+                print(f"Running image transform script for layer {layer}")
+                exec(layer.processor.python_transform_script, transform_script_args, transform_script_locals)
+                layer_img = transform_script_locals["result_image"] if "result_image" in transform_script_locals else layer_img
+                
+
+            if layer.role in layer_img_mappings:
+                if not hasattr(layer_img_mappings[layer.role], "__len__"):
+                    layer_img_mappings[layer.role] = [layer_img_mappings[layer.role]]
+                    layer_img_mappings[layer.role].append(layer_img)
+            else:
+                layer_img_mappings[layer.role] = layer_img
+
+
+        # Convert unreal pixels to PIL images
+        #guide_img = FColorAsPILImage(input.input_image_pixels, input.options.size_x, input.options.size_y).convert("RGB") if input.input_image_pixels else None
+        #mask_img = FColorAsPILImage(input.mask_image_pixels, input.options.size_x, input.options.size_y).convert("RGB")  if input.mask_image_pixels else None
         
+        # Capability flags
         inpaint_active = (model_options.capabilities & unreal.ModelCapabilities.INPAINT.value) == unreal.ModelCapabilities.INPAINT.value
         depth_active = (model_options.capabilities & unreal.ModelCapabilities.DEPTH.value)  == unreal.ModelCapabilities.DEPTH.value
         strength_active = (model_options.capabilities & unreal.ModelCapabilities.STRENGTH.value)  == unreal.ModelCapabilities.STRENGTH.value
+        controlnet_active = (model_options.capabilities & unreal.ModelCapabilities.CONTROL.value)  == unreal.ModelCapabilities.CONTROL.value
         mask_active = depth_active or inpaint_active
         print(f"Capabilities value {model_options.capabilities}, Depth map value: {unreal.ModelCapabilities.DEPTH.value}, Using depthmap? {depth_active}")
         print(f"Capabilities value {model_options.capabilities}, Inpaint value: {unreal.ModelCapabilities.INPAINT.value}, Using inpaint? {inpaint_active}")
         print(f"Capabilities value {model_options.capabilities}, Strength value: {unreal.ModelCapabilities.STRENGTH.value}, Using strength? {strength_active}")
+        print(f"Capabilities value {model_options.capabilities}, Strength value: {unreal.ModelCapabilities.CONTROL.value}, Using controlnet? {controlnet_active}")
 
+        # DEBUG: Show input images
         if input.debug_python_images:
-            guide_img.show()
-            if mask_active:
-                mask_img.show()
+            for key, val in layer_img_mappings.items():
+                if hasattr(layer_img_mappings[layer.role], "__len__"):
+                    for img in layer_img_mappings[layer.role]:
+                        img.show()
+                else:
+                    layer_img_mappings[key].show()
 
-        if inpaint_active:
-            guide_img = guide_img.resize((512,512))
-            mask_img = mask_img.resize((512,512))
-        elif depth_active:
-            mask_img = preprocess_image_depth(mask_img)
-            guide_img = preprocess_init_image(guide_img, input.options.out_size_x, input.options.out_size_y)
-        else:
-            guide_img = preprocess_init_image(guide_img, input.options.out_size_x, input.options.out_size_y)
-        
-        
-        
+        # Set seed
         max_seed = abs(int((2**31) / 2) - 1)
         seed = random.randrange(0, max_seed) if input.options.seed < 0 else input.options.seed
+        
+        # Collate prompts
         positive_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" if not inpaint_active else f"{split_p.strip()}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")])
         negative_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" if not inpaint_active else f"{split_p.strip()}" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")])
         print(positive_prompts)
         print(negative_prompts)
 
         with torch.inference_mode():
-            with autocast("cuda"):
-
-                generator = torch.Generator(device="cuda")
+            with autocast("cuda", dtype=torch.float16):
+                generator = torch.Generator(device="cpu")
                 generator.manual_seed(seed)
                 generation_args = {
                     "prompt": positive_prompts,
                     "negative_prompt": negative_prompts,
-                    "image" if  inpaint_active else "image": guide_img,
                     "num_inference_steps": input.options.iterations, 
                     "generator": generator, 
                     "guidance_scale": input.options.guidance_scale, 
@@ -292,31 +343,39 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 self.pipe.scheduler.set_timesteps(input.options.iterations, device=self.pipe._execution_device)
                 print(self.pipe.scheduler.timesteps)
                 self.start_timestep = int(self.pipe.scheduler.timesteps.cpu().numpy()[0])
+                #self.pipe.scheduler.set_timesteps(input.options.iterations, device=self.pipe._execution_device)
                 print(f"Start timestep is {self.start_timestep}")
 
-                if inpaint_active:
-                    generation_args["mask_image"] = mask_img
-                if depth_active:
-                    generation_args["depth_map"] = mask_img
+                # Different capability flags use different keywords in the pipeline
                 if strength_active:
                     generation_args["strength"] = input.options.strength
+
+                # Add processed input layers                 
+                generation_args.update(layer_img_mappings)
+                print(layer_img_mappings)
+                
+                if input.debug_python_images:
+                    print("Generation args:")
+                    pprint.pprint(generation_args)
                 
                 # Create executor to generate the image in its own thread that we can abort if needed
                 self.executor = AbortableExecutor("ImageThread", lambda generation_args=generation_args: self.pipe(**generation_args))
                 self.executor.start()
-                self.executor.join()
 
+                # Block until executor completes
+                self.executor.join()
                 if not self.executor.result or not self.executor.completed:
                     print(f"Image generation was aborted")
                     self.abort = False
 
+                # Gather result images
                 images = self.executor.result.images if self.executor.result else None #self.pipe(**generation_args).images
                 image = images[0] if images else None
 
                 if input.debug_python_images and image:
                     image.show()
-
-                self.start_timestep = -1
+                
+                # Gather result data
                 result.input = input
                 result.input.options.seed = seed
                 print(f"Seed was {seed}. Saved as {result.input.options.seed}")
@@ -325,6 +384,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 result.out_height = image.height if image else input.options.out_size_y
                 result.completed = True if image else False
 
+                # Cleanup
+                self.start_timestep = -1
                 #self.executor = None
 
         return result

@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "PromptAsset.h"
 #include "ActorLayerUtilities.h"
+#include "LayerProcessorBase.h"
 #include "StableDiffusionGenerationOptions.generated.h"
 
 UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
@@ -10,7 +11,8 @@ enum class EModelCapabilities : uint8 {
 	None = 0 UMETA(Hidden),
 	INPAINT = 0x01,
 	DEPTH = 0x02,
-	STRENGTH = 0x04
+	STRENGTH = 0x04,
+	CONTROL = 0x08
 };
 ENUM_CLASS_FLAGS(EModelCapabilities);
 
@@ -21,8 +23,18 @@ enum class EInputImageSource : uint8 {
 };
 ENUM_CLASS_FLAGS(EInputImageSource);
 
+UENUM(BlueprintType)
+enum class EPaddingMode : uint8 {
+	//'zeros', 'reflect', 'replicate' or 'circular'.
+	zeros UMETA(DisplayName = "Zeroes"),
+	reflect UMETA(DisplayName = "Reflect"),
+	replicate UMETA(DisplayName = "Replicate"),
+	circular UMETA(DisplayName = "Circular")
+};
+ENUM_CLASS_FLAGS(EPaddingMode);
 
-USTRUCT(BlueprintType)
+
+USTRUCT(BlueprintType, meta=(UsesHierarchy=true))
 struct STABLEDIFFUSIONTOOLS_API FStableDiffusionModelOptions
 {
 	GENERATED_BODY()
@@ -42,27 +54,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		FString CustomPipeline = "lpw_stable_diffusion";
 
+	/*
+	* Process and add any additional keyword arguments for the model pipe in Python at model init.
+	* Any local variable in this script prefixed with the substring 'pipearg_' will be added to the pipe's keyword argument list
+	*/
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Stable Diffusion|Model"))
+		FString PythonModelArgumentsScript;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		FString Scheduler;
 
-	/* 
-	Padding mode to use for image 2D convulution. Valid options are 'zeros', 'reflect', 'replicate' or 'circular'. 
-	See https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
-	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		FString PaddingMode = "zeros";
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		bool AllowNSFW = false;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model", meta = (Bitmask, BitmaskEnum = EModelCapabilities))
 		int32 Capabilities = (int32)(EModelCapabilities::STRENGTH);
-	/*UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		bool Inpaint = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		bool Depth = false;*/
-
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UsesHierarchy=true, Category="Stable Diffusion|Model"))
+	TArray<FLayerData> Layers;
 
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
 	{
@@ -89,7 +95,7 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionModelAsset : public UPrimaryDataA
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Model")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
 	FStableDiffusionModelOptions Options;
 };
 
@@ -99,34 +105,34 @@ struct STABLEDIFFUSIONTOOLS_API FStableDiffusionGenerationOptions
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
 	float Strength = 0.75;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
 	float GuidanceScale = 7.5;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
 	int32 Iterations = 50;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
 	int32 Seed = -1;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(BlueprintReadWrite, Category = "Generation options")
 	int32 InSizeX = -1;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(BlueprintReadWrite, Category = "Generation options")
 	int32 InSizeY = -1;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
 	int32 OutSizeX = 512;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
 	int32 OutSizeY = 512;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
 	TArray<FPrompt> PositivePrompts;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
 	TArray<FPrompt> NegativePrompts;
 
 	void AddPrompt(const FPrompt Prompt){
@@ -144,7 +150,7 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionGenerationAsset : public UPrimary
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Generation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Generation options")
 	FStableDiffusionGenerationOptions Options;
 };
 
@@ -161,20 +167,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	TArray<FActorLayer> InpaintLayers;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
-	float SceneDepthScale = 2048.0f;
+	/*
+	//
+	//Padding mode to use for image 2D convulution. Valid options are 'zeros', 'reflect', 'replicate' or 'circular'.
+	//See https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
+	//
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+	EPaddingMode PaddingMode;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
-	float SceneDepthOffset = 0.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+	bool AllowNSFW = false;
+	*/
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	USceneCaptureComponent2D* CaptureSource;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
-	TArray<FColor> InputImagePixels;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
-	TArray<FColor> MaskImagePixels;
+	TArray<FLayerData> ProcessedLayers;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	int32 PreviewIterationRate = 25;

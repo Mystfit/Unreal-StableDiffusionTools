@@ -44,7 +44,9 @@ class PyDependencyManager(unreal.DependencyManager):
                 dep_name = [f"{wheel_path}"]
             elif ".git" in dep_path:
                 print("Downloading git repository")
-                dep_name = [f"git+{dep_path}#egg={dep_name}"]
+                dep_branch = f"@{dependency.branch}" if dependency.branch else ""
+                dep_name = [f"git+{dep_path}{dep_branch}#egg={dep_name}"]
+                print(dep_name)
         else:
             dep_name = dep_name.split(' ')
             
