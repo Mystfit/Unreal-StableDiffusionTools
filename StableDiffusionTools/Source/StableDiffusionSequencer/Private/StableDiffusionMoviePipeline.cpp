@@ -219,9 +219,11 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 				// Set up post processing material from layer processor
 				View->FinalPostProcessSettings.AddBlendable(TargetLayer.Processor->PostMaterial, 1.0f);
 				IBlendableInterface* BlendableInterface = Cast<IBlendableInterface>(TargetLayer.Processor->PostMaterial);
-				ViewFamily->EngineShowFlags.SetPostProcessMaterial(true);
+				if (BlendableInterface) {
+					ViewFamily->EngineShowFlags.SetPostProcessMaterial(true);
+					BlendableInterface->OverrideBlendableSettings(*View, 1.f);
+				}
 				ViewFamily->EngineShowFlags.SetPostProcessing(true);
-				BlendableInterface->OverrideBlendableSettings(*View, 1.f);
 				View->FinalPostProcessSettings.bBufferVisualizationDumpRequired = true;
 
 				// Render
