@@ -13,6 +13,7 @@ from torchvision.transforms.functional import rgb_to_grayscale
 import PIL
 from PIL import Image
 from transformers import CLIPFeatureExtractor
+from compel import Compel
 import diffusers
 from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionDepth2ImgPipeline
 from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
@@ -162,6 +163,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         unreal.StableDiffusionBridge.__init__(self)
         self.upsampler = None
         self.pipe = None   
+        self.compel = None
         self.executor = None
         self.abort = False
         self.update_frequency = 25
@@ -215,6 +217,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
         if scheduler_module:
             self.pipe.scheduler = scheduler_cls.from_config(self.pipe.scheduler.config)
+
+        # Compel for weighted prompts
+        self.compel = Compel(tokenizer=self.pipe.tokenizer, text_encoder=self.pipe.text_encoder, truncate_long_prompts=False)
 
         # Performance options for low VRAM gpus
         #self.pipe.enable_sequential_cpu_offload()
@@ -319,18 +324,20 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         seed = random.randrange(0, max_seed) if input.options.seed < 0 else input.options.seed
         
         # Collate prompts
-        positive_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" if not inpaint_active else f"{split_p.strip()}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")])
-        negative_prompts = ", ".join([f"({split_p.strip()}:{prompt.weight})" if not inpaint_active else f"{split_p.strip()}" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")])
+        positive_prompts = " ".join([f"({split_p.strip()}){prompt.weight}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")])
+        negative_prompts = " ".join([f"({split_p.strip()}){prompt.weight}" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")])
         print(positive_prompts)
         print(negative_prompts)
+        positive_prompt_tensors = self.compel.build_conditioning_tensor(positive_prompts if positive_prompts else "")
+        negative_prompt_tensors = self.compel.build_conditioning_tensor(negative_prompts if negative_prompts else "")
+        prompt_tensors = torch.cat(self.compel.pad_conditioning_tensors_to_same_length([positive_prompt_tensors, negative_prompt_tensors]))
 
         with torch.inference_mode():
             with autocast("cuda", dtype=torch.float16):
                 generator = torch.Generator(device="cpu")
                 generator.manual_seed(seed)
                 generation_args = {
-                    "prompt": positive_prompts,
-                    "negative_prompt": negative_prompts,
+                    "prompt_embeds": prompt_tensors,
                     "num_inference_steps": input.options.iterations, 
                     "generator": generator, 
                     "guidance_scale": input.options.guidance_scale, 
