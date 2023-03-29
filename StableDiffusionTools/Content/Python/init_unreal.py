@@ -1,5 +1,5 @@
 import unreal
-import importlib, pathlib, os, signal
+import importlib, pathlib, os, signal, venv, sys, shutil
 import install_dependencies
 
 
@@ -58,10 +58,35 @@ print = unreal.log
 # Redirect missing SIGKILL signal on windows to SIGTERM
 signal.SIGKILL = signal.SIGTERM
 
+# Get plugin startup options
+plugin_options = unreal.StableDiffusionBlueprintLibrary.get_plugin_options()
+
+# Set up virtual environment
+env_dir = pathlib.Path(unreal.Paths().engine_saved_dir()) / "StableDiffusionToolsPyEnv"
+env_site_packages = env_dir / "Lib" / "site-packages"
+print(f"Dependency installation dir: {env_site_packages}")
+
+# Nuke dependencies before loading them if we're trying to reset the editor dependencies
+reset_deps = plugin_options.get_editor_property("ClearDependenciesOnEditorRestart")
+print(f"Should we be clearing dependencies? {reset_deps}")
+if reset_deps:
+    if os.path.exists(env_dir):
+        shutil.rmtree(env_dir)
+
+# Setup a new virtual environment to contain our downloaded python dependencies
+if not os.path.exists(env_site_packages):
+    os.makedirs(env_site_packages)
+sys.path.append(str(env_site_packages))
+
 # Load dependency manager
 dependency_manager = install_dependencies.PyDependencyManager()
+dependency_manager.set_editor_property("PluginSitePackages", str(env_site_packages))
 subsystem = unreal.get_editor_subsystem(unreal.StableDiffusionSubsystem)
 subsystem.set_editor_property("DependencyManager", dependency_manager)
+
+# Make sure we don't constantly clear the dependencies on every restart
+if reset_deps:
+    dependency_manager.finished_clearing_dependencies()
 
 # Location of plugin bridge files
 bridge_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), "bridges")
@@ -70,7 +95,8 @@ bridge_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), "bridges")
 dependency_manager.set_editor_property("DependencyManifests", load_manifests(bridge_dir))
 
 # Import all bridges so we can pick which derived class we want to use in the plugin editor settings
-dynamic_import_from_src(os.path.join(pathlib.Path(__file__).parent.resolve(), "bridges"), "Bridge.py")
+if plugin_options.get_editor_property("AutoLoadBridgeScripts"):
+    dynamic_import_from_src(os.path.join(pathlib.Path(__file__).parent.resolve(), "bridges"), "Bridge.py")
 
 # Let Unreal know we've finished loading our init script
 subsystem.set_editor_property("PythonLoaded", True)

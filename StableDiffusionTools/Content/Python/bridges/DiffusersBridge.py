@@ -224,7 +224,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # Performance options for low VRAM gpus
         #self.pipe.enable_sequential_cpu_offload()
         self.pipe.enable_attention_slicing()
-        self.pipe.enable_xformers_memory_efficient_attention()
+        #self.pipe.enable_xformers_memory_efficient_attention()
         if hasattr(self.pipe, "enable_model_cpu_offload"):
             self.pipe.enable_model_cpu_offload()
 

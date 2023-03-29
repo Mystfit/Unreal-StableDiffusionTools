@@ -64,7 +64,7 @@ public:
 };
 
 
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FPythonReady);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDependencyInstallStatus, FDependencyStatus, Status);
 //DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDependencyInstallProgress, FString, Name, FString, Line);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDependencyInstallProgress, FString, Name, FString, Line);
@@ -76,6 +76,8 @@ class STABLEDIFFUSIONTOOLS_API UDependencyManager : public UObject
 {
     GENERATED_BODY()
 public:
+    UDependencyManager(const FObjectInitializer& initializer);
+
     UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "StableDiffusion|Dependencies")
         void InstallAllDependencies(bool ForceReinstall);
 
@@ -90,6 +92,12 @@ public:
 
     UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "StableDiffusion|Dependencies")
         bool AllDependenciesInstalled();
+
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
+        void ResetDependencies();
+
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
+        void FinishedClearingDependencies();
     
     UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Dependencies")
     FDependencyInstallStatus OnDependencyInstalled;
@@ -97,8 +105,14 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Dependencies")
     FDependencyInstallProgress OnDependencyProgress;
 
+    UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Dependencies")
+    FPythonReady OnPythonReady;
+
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Dependencies")
     TMap<FString, FDependencyManifest > DependencyManifests;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Dependencies")
+    FString PluginSitePackages;
 
     //FDependencyInstallProgress OnDependencyProgress;
 protected:

@@ -23,6 +23,18 @@ public:
 	TMap<FName, FString> GetGeneratorTokens() const;
 
 	void AddGeneratorToken(const FName& Generator);
+
+	/**
+	* Automatically load all bridge scripts when the editor starts. Disable this if you are having issues with updating python bridge script dependencies that are loaded into memory.
+	**/
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Options")
+	bool AutoLoadBridgeScripts = true;
+
+	/**
+	* Remove all downloaded python dependencies when the editor next starts.
+	**/
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Options")
+	bool ClearDependenciesOnEditorRestart = false;
 private:
 
 	/** Stable Diffusion generators are local or remote providers that will create an AI-generated image based on a prompt and input image.*/

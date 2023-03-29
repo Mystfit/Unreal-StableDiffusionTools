@@ -162,9 +162,6 @@ public:
 	bool DependenciesAreInstalled();
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
-	void RestartEditor();
-
-	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
 	void InstallDependency(FDependencyManifestEntry Dependency, bool ForceReinstall);
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Dependencies")

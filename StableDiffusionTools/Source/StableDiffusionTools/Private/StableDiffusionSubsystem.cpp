@@ -43,6 +43,11 @@ UStableDiffusionSubsystem::UStableDiffusionSubsystem(const FObjectInitializer& i
 		GetMutableDefault<UStableDiffusionToolsSettings>()->ReloadConfig(UStableDiffusionToolsSettings::StaticClass());
 		auto BridgeClass = GetDefault<UStableDiffusionToolsSettings>()->GetGeneratorType();
 		this->CreateBridge(BridgeClass);
+
+		// Set Python loaded flags and events
+		PythonLoaded = true;
+		OnPythonLoadedEx.Broadcast();
+		OnPythonLoaded.Broadcast();
 	}); 
 	//PythonModule.OnPythonInitialized().AddUFunction(this, GET_FUNCTION_NAME_CHECKED(UStableDiffusionSubsystem, CreateBridge));
 }
@@ -99,30 +104,6 @@ void UStableDiffusionSubsystem::CreateBridge(TSubclassOf<UStableDiffusionBridge>
 bool UStableDiffusionSubsystem::DependenciesAreInstalled()
 {
 	return (DependencyManager) ? DependencyManager->AllDependenciesInstalled() : false;
-}
-
-void UStableDiffusionSubsystem::RestartEditor()
-{
-	// Present the user with a warning that changing projects has to restart the editor
-	FSuppressableWarningDialog::FSetupInfo Info(
-		LOCTEXT("RestartEditorMsg", "The editor will restart to complete the python dependency install process."),
-		LOCTEXT("RestartEditorTitle", "Restart editor"), "RestartEditorTitle_Warning");
-
-	Info.ConfirmText = LOCTEXT("Yes", "Yes");
-	Info.CancelText = LOCTEXT("No", "No");
-
-	FSuppressableWarningDialog RestartDepsDlg(Info);
-	bool bSwitch = true;
-	if (RestartDepsDlg.ShowModal() == FSuppressableWarningDialog::Cancel)
-	{
-		bSwitch = false;
-	}
-
-	// If the user wants to continue with the restart set the pending project to swtich to and close the editor
-	if (bSwitch)
-	{
-		FUnrealEdMisc::Get().RestartEditor(false);
-	}
 }
 
 void UStableDiffusionSubsystem::InstallDependency(FDependencyManifestEntry Dependency, bool ForceReinstall)
