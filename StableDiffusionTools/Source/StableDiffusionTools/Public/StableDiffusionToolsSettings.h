@@ -31,6 +31,12 @@ public:
 	bool AutoLoadBridgeScripts = true;
 
 	/**
+	* Automatically load all bridge scripts when the editor starts. Disable this if you are having issues with updating python bridge script dependencies that are loaded into memory.
+	**/
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Options")
+	bool AutoUpdateDependenciesOnStartup = false;
+
+	/**
 	* Remove all downloaded python dependencies when the editor next starts.
 	**/
 	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Options")

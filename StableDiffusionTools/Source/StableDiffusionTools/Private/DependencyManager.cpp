@@ -14,10 +14,12 @@ UDependencyManager::UDependencyManager(const FObjectInitializer& initializer)
 	});
 }
 
-void UDependencyManager::ResetDependencies()
+void UDependencyManager::ResetDependencies(bool InstallOnStartup)
 {
 	auto Settings = GetMutableDefault<UStableDiffusionToolsSettings>();
+	Settings->AutoLoadBridgeScripts = false;
 	Settings->ClearDependenciesOnEditorRestart = true;
+	Settings->AutoUpdateDependenciesOnStartup = InstallOnStartup;
 	Settings->SaveConfig();
 	UStableDiffusionBlueprintLibrary::RestartEditor();
 }
@@ -27,6 +29,16 @@ void UDependencyManager::FinishedClearingDependencies()
 	auto Settings = GetMutableDefault<UStableDiffusionToolsSettings>();
 	Settings->ClearDependenciesOnEditorRestart = false;
 	Settings->SaveConfig();
+}
+
+void UDependencyManager::FinishedUpdatingDependencies()
+{
+	auto Settings = GetMutableDefault<UStableDiffusionToolsSettings>();
+	Settings->AutoLoadBridgeScripts = true;
+	Settings->ClearDependenciesOnEditorRestart = false;
+	Settings->AutoUpdateDependenciesOnStartup = false;
+	Settings->SaveConfig();
+	UStableDiffusionBlueprintLibrary::RestartEditor();
 }
 
 void UDependencyManager::UpdateDependencyProgress(FString Dependency, FString Line)

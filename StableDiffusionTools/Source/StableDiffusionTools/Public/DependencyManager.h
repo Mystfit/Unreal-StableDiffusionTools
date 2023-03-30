@@ -94,10 +94,13 @@ public:
         bool AllDependenciesInstalled();
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
-        void ResetDependencies();
+        void ResetDependencies(bool InstallOnStartup = false);
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
         void FinishedClearingDependencies();
+
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
+        void FinishedUpdatingDependencies();
     
     UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Dependencies")
     FDependencyInstallStatus OnDependencyInstalled;

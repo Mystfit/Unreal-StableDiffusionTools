@@ -42,25 +42,26 @@ class PyDependencyManager(unreal.DependencyManager):
             if dep_path.endswith(".whl"):
                 print("Dowloading wheel")
                 wheel_path = download_wheel(dep_name, dep_path)
-                dep_name = [f"{wheel_path}"]
+                dep_name = f"{wheel_path}"
             elif ".git" in dep_path:
                 print("Downloading git repository")
                 dep_branch = f"@{dependency.branch}" if dependency.branch else ""
-                dep_name = [f"git+{dep_path}{dep_branch}#egg={dep_name}"]
-                print(dep_name)
-        else:
-            dep_name = dep_name.split(' ')
+                dep_name = f"git+{dep_path}{dep_branch}#egg={dep_name}"
+            else:
+                dep_name = dep_path
+        #else:
+        #    dep_name = dep_name.split(' ')
             
         if dep_force_upgrade:
             extra_flags.append("--upgrade")
 
         try: 
-            ext_site_packages = self.get_editor_property("PluginSitePackages")
+            ext_site_packages = str(self.get_editor_property("PluginSitePackages"))
             environment = os.environ.copy()
             existing_python_path = environment["PYTHONPATH"] if "PYTHONPATH" in environment else ""
             environment["PYTHONPATH"] = f"{ext_site_packages}:{existing_python_path}" if ext_site_packages else ext_site_packages
 
-            cmd = [f"{pythonpath}", '-m', 'pip', 'install', '--target', ext_site_packages] + extra_flags + dep_name + post_flags
+            cmd = [f"{pythonpath}", '-m', 'pip', 'install', '--target', ext_site_packages, dep_name] + extra_flags + post_flags
             cmd_string = " ".join(cmd)
             print(f"Installing dependency using command '{cmd_string}'")
             proc = subprocess.Popen(
