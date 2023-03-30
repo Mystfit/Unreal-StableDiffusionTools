@@ -1,6 +1,7 @@
 #include "DependencyManager.h"
 #include "Async/ASync.h"
 #include "IPythonScriptPlugin.h"
+#include "DependencySettings.h"
 #include "StableDiffusionToolsSettings.h"
 #include "StableDiffusionBlueprintLibrary.h"
 
@@ -14,26 +15,33 @@ UDependencyManager::UDependencyManager(const FObjectInitializer& initializer)
 	});
 }
 
-void UDependencyManager::ResetDependencies(bool InstallOnStartup)
+void UDependencyManager::RestartAndUpdateDependencies()
 {
-	auto Settings = GetMutableDefault<UStableDiffusionToolsSettings>();
+	auto Settings = GetMutableDefault<UDependencySettings>();
 	Settings->AutoLoadBridgeScripts = false;
-	Settings->ClearDependenciesOnEditorRestart = true;
-	Settings->AutoUpdateDependenciesOnStartup = InstallOnStartup;
+	Settings->AutoUpdateDependenciesOnStartup = true;
 	Settings->SaveConfig();
 	UStableDiffusionBlueprintLibrary::RestartEditor();
 }
 
+void UDependencyManager::ResetDependencies()
+{
+	auto Settings = GetMutableDefault<UDependencySettings>();
+	Settings->ClearDependenciesOnEditorRestart = true;
+	Settings->SaveConfig();
+	RestartAndUpdateDependencies();
+}
+
 void UDependencyManager::FinishedClearingDependencies()
 {
-	auto Settings = GetMutableDefault<UStableDiffusionToolsSettings>();
+	auto Settings = GetMutableDefault<UDependencySettings>();
 	Settings->ClearDependenciesOnEditorRestart = false;
 	Settings->SaveConfig();
 }
 
 void UDependencyManager::FinishedUpdatingDependencies()
 {
-	auto Settings = GetMutableDefault<UStableDiffusionToolsSettings>();
+	auto Settings = GetMutableDefault<UDependencySettings>();
 	Settings->AutoLoadBridgeScripts = true;
 	Settings->ClearDependenciesOnEditorRestart = false;
 	Settings->AutoUpdateDependenciesOnStartup = false;

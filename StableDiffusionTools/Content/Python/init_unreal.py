@@ -59,7 +59,7 @@ print = unreal.log
 signal.SIGKILL = signal.SIGTERM
 
 # Get plugin startup options
-plugin_options = unreal.StableDiffusionBlueprintLibrary.get_plugin_options()
+dependency_options = unreal.StableDiffusionBlueprintLibrary.get_dependency_options()
 
 # Set up virtual environment
 env_dir = pathlib.Path(unreal.Paths().engine_saved_dir()) / "StableDiffusionToolsPyEnv"
@@ -67,7 +67,7 @@ env_site_packages = env_dir / "Lib" / "site-packages"
 print(f"Dependency installation dir: {env_site_packages}")
 
 # Nuke dependencies before loading them if we're trying to reset the editor dependencies
-reset_deps = plugin_options.get_editor_property("ClearDependenciesOnEditorRestart")
+reset_deps = dependency_options.get_editor_property("ClearDependenciesOnEditorRestart")
 print(f"Should we be clearing dependencies? {reset_deps}")
 if reset_deps:
     if os.path.exists(env_dir):
@@ -95,7 +95,7 @@ bridge_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), "bridges")
 dependency_manager.set_editor_property("DependencyManifests", load_manifests(bridge_dir))
 
 # Import all bridges so we can pick which derived class we want to use in the plugin editor settings
-if plugin_options.get_editor_property("AutoLoadBridgeScripts"):
+if dependency_options.get_editor_property("AutoLoadBridgeScripts"):
     dynamic_import_from_src(os.path.join(pathlib.Path(__file__).parent.resolve(), "bridges"), "Bridge.py")
 
 # Let Unreal know we've finished loading our init script

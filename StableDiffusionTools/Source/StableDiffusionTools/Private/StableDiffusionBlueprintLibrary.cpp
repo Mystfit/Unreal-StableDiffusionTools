@@ -19,6 +19,12 @@ UStableDiffusionToolsSettings* UStableDiffusionBlueprintLibrary::GetPluginOption
 	return result;
 }
 
+UDependencySettings* UStableDiffusionBlueprintLibrary::GetDependencyOptions()
+{
+	auto result = GetMutableDefault<UDependencySettings>();
+	return result;
+}
+
 void UStableDiffusionBlueprintLibrary::RestartEditor()
 {
 	// Present the user with a warning that changing projects has to restart the editor
