@@ -23,6 +23,7 @@ public:
 	TMap<FName, FString> GetGeneratorTokens() const;
 
 	void AddGeneratorToken(const FName& Generator);
+
 private:
 
 	/** Stable Diffusion generators are local or remote providers that will create an AI-generated image based on a prompt and input image.*/

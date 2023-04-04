@@ -1,7 +1,8 @@
 import os, sys, subprocess
 import urllib.request
 import importlib.util
-
+from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError
 from urllib.parse import urlparse
 
 from subprocess import CalledProcessError
@@ -41,26 +42,35 @@ class PyDependencyManager(unreal.DependencyManager):
             if dep_path.endswith(".whl"):
                 print("Dowloading wheel")
                 wheel_path = download_wheel(dep_name, dep_path)
-                dep_name = [f"{wheel_path}"]
+                dep_name = f"{wheel_path}"
             elif ".git" in dep_path:
                 print("Downloading git repository")
                 dep_branch = f"@{dependency.branch}" if dependency.branch else ""
-                dep_name = [f"git+{dep_path}{dep_branch}#egg={dep_name}"]
-                print(dep_name)
-        else:
-            dep_name = dep_name.split(' ')
+                dep_name = f"git+{dep_path}{dep_branch}#egg={dep_name}"
+            else:
+                dep_name = dep_path
+        #else:
+        #    dep_name = dep_name.split(' ')
             
         if dep_force_upgrade:
             extra_flags.append("--upgrade")
 
         try: 
-            cmd = [f"{pythonpath}", '-m', 'pip', 'install'] + extra_flags + dep_name + post_flags
+            ext_site_packages = str(self.get_editor_property("PluginSitePackages"))
+            environment = os.environ.copy()
+            existing_python_path = environment["PYTHONPATH"] if "PYTHONPATH" in environment else ""
+            environment["PYTHONPATH"] = f"{ext_site_packages}:{existing_python_path}" if ext_site_packages else ext_site_packages
+
+            cmd = [f"{pythonpath}", '-m', 'pip', 'install', '--target', ext_site_packages, dep_name] + extra_flags + post_flags
+            cmd_string = " ".join(cmd)
+            print(f"Installing dependency using command '{cmd_string}'")
             proc = subprocess.Popen(
                 cmd, 
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.PIPE,
                 universal_newlines=True,
-                shell=True
+                shell=True,
+                env=environment
             )
             for stdout_line in iter(proc.stdout.readline, ""):
                 print(stdout_line)
@@ -89,8 +99,15 @@ class PyDependencyManager(unreal.DependencyManager):
     def get_dependency_status(self, dependency):
         status = unreal.DependencyStatus()
         status.name = dependency.name
-        status.version = "None"
-        module_status = importlib.util.find_spec(dependency.module)
+        module_name = dependency.module if dependency.module else dependency.name
+
+        package_version = ""
+        try:
+            package_version = version(dependency.name)
+        except PackageNotFoundError:
+            pass
+        status.version = package_version
+        module_status = importlib.util.find_spec(module_name)
         status.installed = True if module_status else False
         print(f"Module {dependency.module} installed for dependency {dependency.name}: {status.installed}")
         return status

@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "StableDiffusionSubsystem.h"
+#include "DependencySettings.h"
+#include "StableDiffusionToolsSettings.h"
 #include "StableDiffusionBlueprintLibrary.generated.h"
 
 /**
@@ -17,4 +19,13 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionBlueprintLibrary : public UBluepr
 public:
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Subsystem")
 	static UStableDiffusionSubsystem* GetStableDiffusionSubsystem();
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Options")
+	static UStableDiffusionToolsSettings* GetPluginOptions();
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Options")
+	static UDependencySettings* GetDependencyOptions();
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion")
+	static void RestartEditor();
 };
