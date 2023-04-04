@@ -12,9 +12,10 @@ Join us on [Discord](https://discord.gg/9m6HxaDB62).
 Requirements
 ------------
 
-* Unreal Engine 5.0
+* Unreal Engine 5.1
 * CUDA compatible GPU (Nvidia)
-* Minimum 6GB Vram (to run Unreal and fp16 Stable Diffusion simultaneously)
+* Minimum 6GB Vram to run Unreal and half-precision floating point (fp16) Stable Diffusion simultaneously
+* [Git](https://git-scm.com/)
 
 
 Installation
@@ -29,7 +30,7 @@ Usage
 After installing the plugin, activate it through `Windows->Plugins`. To open the main tool window for the plugin, go to `Windows->StableDiffusionTools`.
 
 ### Dependencies
-The first time you use the plugin you will need to install the required python dependencies using the `Update/Install dependencies` button in the Dependencies section of the main plugin window or through the `Stable Diffusion Dependencies Installer` window. You may need to restart the Unreal Editor the first time you install dependencies.
+The first time you use the plugin you will need to install the required python dependencies using the `Update/Install dependencies` button in the Dependencies section of the main plugin window or through `Windows->Stable Diffusion Dependencies Installer` window . You will need to restart the Unreal Editor the first time you install dependencies.
 
 ### Generator backends
 This plugin provides three different generator backends out of the box. Local generation using the [Diffusers library](https://github.com/huggingface/diffusers), remote generation using the Stability.AI SDK and [Dream Studio](https://beta.dreamstudio.ai/dream) and remote generation using [Stable Horde](https://stablehorde.net/). Choose a backend in `Project Settings->Stable Diffusion Tools->Generator Type` and set a token in the `Generator Tokens` map for your chosen generator. 
@@ -41,7 +42,7 @@ This plugin provides three different generator backends out of the box. Local ge
 
 ![androidquinn](https://user-images.githubusercontent.com/795851/197150314-1b2fee89-3670-47ff-a9ab-473243ba544c.gif)
 
-To generate images using this plugin, you will first need a model. A few model presets are provided with the plugin and you can create your own by creating a `StableDiffusionModelAsset` or you can just enter the model options in the plugin window directly.
+To generate images using this plugin, you will first need a model. A few model presets are provided with the plugin and you can create your own by creating a `StableDiffusionModelAsset` though it is recommended that you duplicate one of the provided models as a starting point.
 
 To download a model from [huggingface.co](https://huggingface.co), you will need an account and a [https://huggingface.co/settings/tokens](token) with read permissions. 
 
@@ -51,13 +52,22 @@ The `revision` property will allow you to pick a specific branch of the model to
 
 ### Seamless textures
 
-If you set the `Covolution padding` model option to `circular`, then generated images will have borders that will wrap around to the opposite side of the image. When combined with prompts such as `a tiling texture of INSERT_SUBJECT_HERE` this will generate textures that are appropriate for mapping onto flat surfaces or landscapes.
+In the model section of the plugin window, if you set the `Covolution padding` model option to `circular` then generated images will have borders that will wrap around to the opposite side of the image. When combined with prompts such as `a tiling texture of INSERT_SUBJECT_HERE` this will generate textures that are appropriate for mapping onto flat surfaces or landscapes.
 
 ### Prompt based image generation
 
 Use the generation section to tweak your prompt, iteration count, viewport influence strength and the seed. If you are new to prompt authoring then I recommend reading [this guide.](https://www.howtogeek.com/833169/how-to-write-an-awesome-stable-diffusion-prompt/)
 
 After you click the `Generate image` button, the in-progress image will display in the plugin window and log its progress in the editor's `Output Log` panel.
+
+### Layers
+
+![image](https://user-images.githubusercontent.com/795851/227664074-6f396a95-efb6-487c-9532-ff89c3e7cbc6.png)
+
+Some model pipelines use different types of images as inputs to help guide the image generation process. The achieve this, the plugin uses `LayerProcessors` to capture the required infmation from Unreal's viewport or a SceneCapture2D actor in order to feed the layers into the pipeline. For example, any model based upon the `StableDiffusionImg2Img` pipeline will use a single `FinalColourLayerProcessor` that will capture the viewport as an input image. Something more complex like the `StableDiffusionControlNetPipeline` may use multiple layer processors such as combining a `DepthLayerProcessor` and a `NormalLayerProcessor`. Take a look at the provided depth and normal ControlNet model preset to see how it's put together.
+
+Some layer processors are configurable in the plugin UI, if you navigate to the Layers section, then each layer may or may not show multiple configurable properties that will affect the layer before it is passed to the pipeline. You can also preview the layer by clicking on the closed eye icon.
+
 
 ### Saving results
 
@@ -96,6 +106,11 @@ Inpainting lets you fill only a masked portion of your input image whilst keepin
 To fix this change the following change the following options on a global post processing volume:
 - Metering mode = **Manual**
 - Exposure Compensation = **15**
+
+## FAQ
+* *When I open the plugin, I can't initialize a model.*
+   * Have you installed the python dependencies? Go to `Windows->Stable Diffusion Tools Dependencies Installer` and make sure you've installed everything and restarted the editor at least once. Also make sure that you have Git installed.
+   * Double check that you have entered a token for huggingface.co in the plugin settings.
 
 
 ## Known issues
