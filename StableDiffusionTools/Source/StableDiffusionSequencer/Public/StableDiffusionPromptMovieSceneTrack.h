@@ -12,8 +12,8 @@ class STABLEDIFFUSIONSEQUENCER_API UStableDiffusionPromptMovieSceneTrack : publi
 
 public:
 
-	virtual FText GetDisplayName() const override;
-	virtual FName GetTrackName() const override;
+	/*virtual FText GetDisplayName() const override;
+	virtual FName GetTrackName() const override;*/
 
 	virtual bool IsEmpty() const override;
 	virtual bool SupportsType(TSubclassOf<UMovieSceneSection> SectionClass) const override;
@@ -27,8 +27,11 @@ public:
 	virtual const TArray<UMovieSceneSection*>& GetAllSections() const override;
 
 
-	static const FName GetDataTrackName();
+	//static const FName GetDataTrackName();
 
 	UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Sequencer")
 	TArray<UMovieSceneSection*> Sections;
+
+private:
+	FName TrackName;
 };

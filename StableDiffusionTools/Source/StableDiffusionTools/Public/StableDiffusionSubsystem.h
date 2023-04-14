@@ -244,13 +244,14 @@ public:
 
 	TArray<FColor> CopyFrameData(FIntPoint TargetSize, FIntPoint BufferSize, FColor* ColorBuffer);
 
+	static TSharedPtr<FSceneViewport> GetCapturingViewport();
+
 protected:
 	UFUNCTION(Category = "StableDiffusion|Generation")
 	void UpdateImageProgress(int32 Step, int32 Timestep, float Progress, FIntPoint Size, const TArray<FColor>& PixelData);
 
 private:
 	// Viewport capture
-	TSharedPtr<FSceneViewport> GetCapturingViewport();
 	void StartCapturingViewport();
 	void SetCaptureViewport(TSharedRef<FSceneViewport> Viewport, FIntPoint FrameSize);
 	TSharedPtr<FFrameGrabber> ViewportCapture;

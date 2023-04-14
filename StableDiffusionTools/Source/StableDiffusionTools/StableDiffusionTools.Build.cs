@@ -58,7 +58,10 @@ public class StableDiffusionTools : ModuleRules
 				"MovieRenderPipelineCore",
 				"ImageWriteQueue",
 				"RHI",
-				"RenderCore"
+				"RenderCore",
+                "GeometryFramework",
+				"GeometryScriptingCore",
+                "DynamicMesh"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

@@ -32,7 +32,15 @@
 		},
 		{
 			"Name": "ActorLayerUtilities",
-			"Enabled":  true
+			"Enabled": true
+		},
+		{
+			"Name": "GeometryProcessing",
+			"Enabled": true
+		},
+		{
+			"Name": "GeometryScripting",
+			"Enabled": true
 		}
 	],
 	"Modules": [

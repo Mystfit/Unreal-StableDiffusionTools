@@ -1,4 +1,5 @@
 #include "StableDiffusionOptionsTrack.h"
+#include "Sections/MovieSceneParameterSection.h"
 #include "StableDiffusionOptionsSection.h"
 
 UStableDiffusionOptionsTrack::UStableDiffusionOptionsTrack(const FObjectInitializer& ObjectInitializer)
@@ -36,7 +37,7 @@ bool UStableDiffusionOptionsTrack::IsEmpty() const
 
 bool UStableDiffusionOptionsTrack::SupportsType(TSubclassOf<UMovieSceneSection> SectionClass) const
 {
-	return SectionClass == UStableDiffusionOptionsSection::StaticClass();
+	return SectionClass == UStableDiffusionOptionsSection::StaticClass() || SectionClass == UMovieSceneParameterSection::StaticClass();
 }
 
 UMovieSceneSection* UStableDiffusionOptionsTrack::CreateNewSection()

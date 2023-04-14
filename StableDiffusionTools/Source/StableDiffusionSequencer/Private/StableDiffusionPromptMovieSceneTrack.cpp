@@ -14,24 +14,24 @@ UStableDiffusionPromptMovieSceneTrack::UStableDiffusionPromptMovieSceneTrack(con
 	SupportedBlendTypes = FMovieSceneBlendTypeField::All();
 }
 
-FText UStableDiffusionPromptMovieSceneTrack::GetDisplayName() const
-{
-	static FText TrackName = FText::FromString(FString(TEXT("Stable Diffusion Prompt Track")));
-	return TrackName;
-}
-
-
-FName UStableDiffusionPromptMovieSceneTrack::GetTrackName() const
-{
-	return UStableDiffusionPromptMovieSceneTrack::GetDataTrackName();
-}
-
-
-const FName UStableDiffusionPromptMovieSceneTrack::GetDataTrackName()
-{
-	static FName TheName = FName(*FString(TEXT("StableDiffusionPromptTrack")));
-	return TheName;
-}
+//FText UStableDiffusionPromptMovieSceneTrack::GetDisplayName() const
+//{
+//	static FText TrackName = FText::FromString(FString(TEXT("Stable Diffusion Prompt Track")));
+//	return TrackName;
+//}
+//
+//
+//FName UStableDiffusionPromptMovieSceneTrack::GetTrackName() const
+//{
+//	return UStableDiffusionPromptMovieSceneTrack::GetDataTrackName();
+//}
+//
+//
+//const FName UStableDiffusionPromptMovieSceneTrack::GetDataTrackName()
+//{
+//	static FName TheName = FName(*FString(TEXT("StableDiffusionPromptTrack")));
+//	return TheName;
+//}
 
 bool UStableDiffusionPromptMovieSceneTrack::IsEmpty() const
 {

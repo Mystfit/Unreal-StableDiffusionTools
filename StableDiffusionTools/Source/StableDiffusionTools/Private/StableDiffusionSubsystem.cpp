@@ -455,13 +455,17 @@ UTextureRenderTarget2D* UStableDiffusionSubsystem::SetLivePreviewForLayer(FIntPo
 			
 			OnLayerPreviewUpdateHandle = FEditorDelegates::OnEditorCameraMoved.AddLambda([this](const FVector& Location, const FRotator& Rotation, ELevelViewportType ViewportType, int32 ViewportIndex) {
 				UpdateSceneCaptureCamera(LayerPreviewCapture);
+
+				// Update any previewed layers
+				if (PreviewedLayer->IsValidLowLevel() && LayerPreviewCapture.SceneCapture->IsValidLowLevel())
+					PreviewedLayer->CaptureLayer(LayerPreviewCapture.SceneCapture->GetCaptureComponent2D(), false);
 			});
 		}
 		ActiveCaptureComponent = LayerPreviewCapture.SceneCapture->GetCaptureComponent2D();
 	}
 
 	// Start capturing the scene
-	PreviewedLayer->BeginCaptureLayer(Size, LayerPreviewCapture.SceneCapture->GetCaptureComponent2D());
+	PreviewedLayer->BeginCaptureLayer(Size, ActiveCaptureComponent);
 	PreviewedLayer->CaptureLayer(CaptureSource, false);
 	return PreviewedLayer->RenderTarget;
 }
@@ -484,61 +488,6 @@ void UStableDiffusionSubsystem::DisableLivePreviewForLayer()
 
 	PreviewedLayer = nullptr;
 }
-
-//UTextureRenderTarget2D* UStableDiffusionSubsystem::EnableDepthPreview(USceneCaptureComponent2D* CaptureComponent, float SceneDepthScale, float SceneDepthOffset, FIntPoint ViewportSize)
-//{
-//	USceneCaptureComponent2D* ActiveCaptureComponent = nullptr;
-//	
-//	if (CaptureComponent) {
-//		ActiveCaptureComponent = CaptureComponent;
-//	}
-//	else {
-//		if (!DepthPreviewCapture.SceneCapture) {
-//			DepthPreviewCapture = CreateSceneCaptureCamera();
-//			//DepthPreviewCapture.SceneCapture->SetIsTemporarilyHiddenInEditor(true);
-//			
-//			OnDepthPreviewUpdateHandle = FEditorDelegates::OnEditorCameraMoved.AddLambda([this](const FVector& Location, const FRotator& Rotation, ELevelViewportType ViewportType, int32 ViewportIndex) {
-//				UpdateSceneCaptureCamera(DepthPreviewCapture);
-//			});
-//		}
-//		ActiveCaptureComponent = DepthPreviewCapture.SceneCapture->GetCaptureComponent2D();
-//	}
-//
-//	// Create render target to hold our scene capture data
-//	UTextureRenderTarget2D* DepthPreviewRT = NewObject<UTextureRenderTarget2D>(ActiveCaptureComponent);
-//	check(DepthPreviewRT);
-//	DepthPreviewRT->InitCustomFormat(ViewportSize.X, ViewportSize.Y, PF_R8G8B8A8, false);
-//	DepthPreviewRT->UpdateResourceImmediate(true);
-//	ActiveCaptureComponent->TextureTarget = DepthPreviewRT;
-//	FTextureRenderTargetResource* FullFrameRT_TexRes = DepthPreviewRT->GameThread_GetRenderTargetResource();
-//
-//	// Create material to render depth postprocess mat
-//	TSoftObjectPtr<UMaterialInterface> DepthMatRef = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(DepthMaterialAsset));
-//	auto DepthMaterial = DepthMatRef.LoadSynchronous();
-//	UMaterialInstanceDynamic* DepthMatInst = UMaterialInstanceDynamic::Create(DepthMaterial, DepthPreviewCapture.SceneCapture);
-//	DepthMatInst->SetScalarParameterValue("DepthScale", SceneDepthScale);
-//	DepthMatInst->SetScalarParameterValue("StartDepth", SceneDepthOffset);
-//	ActiveCaptureComponent->AddOrUpdateBlendable(DepthMatInst);
-//
-//	// Capture the depth map
-//	ActiveCaptureComponent->CaptureScene();
-//
-//	return DepthPreviewRT;
-//}
-
-//void UStableDiffusionSubsystem::DisableDepthPreview()
-//{
-//	if (DepthPreviewCapture.SceneCapture) {
-//		AsyncTask(ENamedThreads::GameThread, [this]() {
-//			// Remove camera updater
-//			FEditorDelegates::OnEditorCameraMoved.Remove(OnDepthPreviewUpdateHandle);
-//			OnDepthPreviewUpdateHandle.Reset();
-//
-//			DepthPreviewCapture.SceneCapture->Destroy();
-//			DepthPreviewCapture.SceneCapture = nullptr;
-//		});
-//	}
-//}
 
 UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& FrameName, const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTex)
 {
@@ -583,15 +532,9 @@ void UStableDiffusionSubsystem::UpdateSceneCaptureCamera(FViewportSceneCapture& 
 {
 	SceneCapture.SceneCapture->SetActorLocation(SceneCapture.ViewportClient->GetViewLocation());
 	SceneCapture.SceneCapture->SetActorRotation(SceneCapture.ViewportClient->GetViewRotation());
-	
 
 	auto CaptureComponent = SceneCapture.SceneCapture->GetCaptureComponent2D();
 	CaptureComponent->FOVAngle = SceneCapture.ViewportClient->FOVAngle;
-
-	// Update any previewed layers
-	if (PreviewedLayer->IsValidLowLevel() && LayerPreviewCapture.SceneCapture->IsValidLowLevel())
-		PreviewedLayer->CaptureLayer(LayerPreviewCapture.SceneCapture->GetCaptureComponent2D(), false);
-
 }
 
 void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput Input)
