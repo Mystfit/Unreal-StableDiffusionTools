@@ -1,11 +1,12 @@
-import os, sys, subprocess
+import os, sys, subprocess, shutil, io, time, select
 import urllib.request
 import importlib.util
 from importlib.metadata import version
 from importlib.metadata import PackageNotFoundError
 from urllib.parse import urlparse
-
+from pathlib import Path
 from subprocess import CalledProcessError
+from pkg_resources import parse_version
 import unreal
 
 
@@ -30,7 +31,7 @@ class PyDependencyManager(unreal.DependencyManager):
         dep_name = f"{dependency.name}=={dependency.version}" if dependency.version else dependency.name
         dep_path = dependency.url if dependency.url else ""
 
-        dep_force_upgrade = True
+        dep_force_upgrade = False
         extra_flags = dependency.args.split(' ') if dependency.args else []
         post_flags = ["--no-cache"] if dependency.no_cache else []
 
@@ -58,16 +59,16 @@ class PyDependencyManager(unreal.DependencyManager):
         try: 
             ext_site_packages = str(self.get_editor_property("PluginSitePackages"))
             environment = os.environ.copy()
-            existing_python_path = environment["PYTHONPATH"] if "PYTHONPATH" in environment else ""
-            environment["PYTHONPATH"] = f"{ext_site_packages}:{existing_python_path}" if ext_site_packages else ext_site_packages
+            #existing_python_path = environment["PYTHONPATH"] if "PYTHONPATH" in environment else ""
+            environment["PYTHONPATH"] = f"{ext_site_packages}"
 
-            cmd = [f"{pythonpath}", '-m', 'pip', 'install', '--target', ext_site_packages, dep_name] + extra_flags + post_flags
+            cmd = [f"{pythonpath}", '-u', '-m', 'pip', 'install', '--target', ext_site_packages, dep_name] + extra_flags + post_flags
             cmd_string = " ".join(cmd)
             print(f"Installing dependency using command '{cmd_string}'")
             proc = subprocess.Popen(
                 cmd, 
                 stdout=subprocess.PIPE, 
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 universal_newlines=True,
                 shell=True,
                 env=environment
@@ -79,10 +80,12 @@ class PyDependencyManager(unreal.DependencyManager):
             proc.stdout.close()
             return_code = proc.wait()
             if return_code:
-                err = proc.stderr.read()
+                err = proc.stderr.read() if proc.stderr else "No stderr pipe. Check normal log"
                 self.update_dependency_progress(dependency.name, f"ERROR: Failed to install depdendency {dep_name}\nReturn code was {return_code}\nError was {err}")
                 raise subprocess.CalledProcessError(return_code, " ".join(cmd))
             status.installed = True
+            print(f"Return code for {dependency.name} was {return_code}")
+
         except CalledProcessError as e:
             status.installed = False
             status.message = e.output if e.output else ""
@@ -123,43 +126,30 @@ class PyDependencyManager(unreal.DependencyManager):
         print(f"All dependencies installed? {dependencies_installed}")
         return dependencies_installed
 
+    def clear_all_dependencies(self, env_dir):
+        # Remove external site-packages dir
+        if os.path.exists(env_dir):
+            shutil.rmtree(env_dir)
 
-def clone_dependency(repo_name, repo_url):
-    from git import Repo, exc
-    import git
-
-    print("Cloning dependency " + repo_name)
-    repo_path = os.path.join(unreal.Paths().engine_saved_dir(), "pythonrepos", repo_name)
-    repo = None
-    try:
-        repo = Repo.clone_from(repo_url, repo_path)
-    except git.exc.GitCommandError as e:
-        print(f"Could not clone repo from {repo_url}. Reason was {e}")
-        repo = Repo(repo_path)
-
-    if repo:
-        # Handle long path lengths for windows
-        # Make sure long paths are enabled at the system level
-        # https://learn.microsoft.com/en-us/answers/questions/730467/long-paths-not-working-in-windows-2019.html
-        repo.config_writer().set_value("core", "longpaths", True).release()
-
-        # Make sure the repo has all submodules available
-        output = repo.git.submodule('update', '--init', '--recursive')
-        requirements_file = os.path.normpath(os.path.join(repo_path, "requirements.txt"))
-
-        # Update repo dependencies
-        if os.path.exists(requirements_file):
-            try:
-                subprocess.check_call([pythonpath, '-m', 'pip', 'install', '-r', requirements_file])
-            except CalledProcessError as e:
-                print("Failed to install repo requirements.txt")
-                command = " ".join([pythonpath, '-m', 'pip', 'install', '-r', requirements_file])
-                print(f"Command: {command}")
-
-        return os.path.normpath(repo_path)
-
-    print(f"No local git repo found at {repo_path}")
-    return None
+        # Remove any leftover packages that are still in Unreal's base site-packages dir. 
+        # Only valid if we're upgrading our plugin from any version before 0.8.2
+        if parse_version(self.get_plugin_version_name()) >= parse_version('0.8.2'):
+            with open(Path(os.path.dirname(__file__)) / "requirements.txt") as f:
+                requirements = f.read().splitlines()
+                cmd = [f"{pythonpath}", '-m', 'pip', 'uninstall'] + requirements
+                cmd_string = " ".join(cmd)
+                print(f"Uninstalling dependencies using command '{cmd_string}'")
+                try: 
+                    proc = subprocess.Popen(
+                        cmd, 
+                        universal_newlines=True,
+                        shell=True,
+                    )
+                except CalledProcessError as e:
+                    print(f"pip returned status {e.returncode}")
+                    if e.returncode:
+                        print("pip log was:")
+                        print(e.output)
 
 
 def download_wheel(wheel_name, wheel_url):
@@ -173,11 +163,3 @@ def download_wheel(wheel_name, wheel_url):
         urllib.request.urlretrieve(wheel_url, wheel_path)
     
     return os.path.normpath(wheel_path)
-
-
-if __name__ == "__main__":
-    global SD_dependencies_installed
-    SD_dependencies_installed = True
-    for dep_name in dependencies.keys():
-        if not install_dependencies(dep_name):
-            SD_dependencies_installed = False

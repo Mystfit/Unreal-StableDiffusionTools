@@ -15,7 +15,7 @@ from PIL import Image
 from transformers import CLIPFeatureExtractor
 from compel import Compel
 import diffusers
-from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionDepth2ImgPipeline
+from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionDepth2ImgPipeline, StableDiffusionUpscalePipeline
 from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray
@@ -224,6 +224,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # Performance options for low VRAM gpus
         #self.pipe.enable_sequential_cpu_offload()
         self.pipe.enable_attention_slicing()
+        self.pipe.unet = torch.compile(self.pipe.unet)
         #self.pipe.enable_xformers_memory_efficient_attention()
         if hasattr(self.pipe, "enable_model_cpu_offload"):
             self.pipe.enable_model_cpu_offload()
@@ -247,14 +248,21 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         return result
 
     def InitUpsampler(self):
-        upsampler = None
-        try:
-            upsampler = RealESRGANModel.from_pretrained("nateraw/real-esrgan")
-            upsampler = upsampler.to("cuda")
-        except Exception as e:
-            print("Could not load upsampler. Exception was ".format(e))
-        print(upsampler)
+        #upsampler = None
+        #try:
+        #    upsampler = RealESRGANModel.from_pretrained("nateraw/real-esrgan")
+        #    upsampler = upsampler.to("cuda")
+        #except Exception as e:
+        #    print("Could not load upsampler. Exception was ".format(e))
+        #print(upsampler)
+        #return upsampler
+        upsampler = StableDiffusionUpscalePipeline.from_pretrained(
+            "stabilityai/stable-diffusion-x4-upscaler", revision="fp16", torch_dtype=torch.float16
+        )
+        upsampler.enable_sequential_cpu_offload()
+        upsampler.enable_attention_slicing()
         return upsampler
+
 
     @unreal.ufunction(override=True)
     def ReleaseModel(self):

@@ -1,18 +1,18 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "0.1",
+	"VersionName": "0.8.2",
 	"FriendlyName": "StableDiffusionTools",
 	"Description": "Create images in-editor using AI image generation models such as Stable Diffusion.",
 	"Category": "Editor",
 	"CreatedBy": "Byron Mallett",
 	"CreatedByURL": "https://github.com/Mystfit/Unreal-StableDiffusionTools",
-	"DocsURL": "",
+	"DocsURL": "https://github.com/Mystfit/Unreal-StableDiffusionTools/blob/master/README.md",
 	"MarketplaceURL": "",
-	"SupportURL": "",
+	"SupportURL": "https://discord.com/channels/1040060737260884020/1040061450846228551",
 	"CanContainContent": true,
 	"IsBetaVersion": true,
-	"IsExperimentalVersion": false,
+	"IsExperimentalVersion": true,
 	"Installed": true,
 	"WhitelistPlatforms": [
 		"Win64"
@@ -32,7 +32,7 @@
 		},
 		{
 			"Name": "ActorLayerUtilities",
-			"Enabled":  true
+			"Enabled": true
 		}
 	],
 	"Modules": [

@@ -1,4 +1,5 @@
 #include "DependencyManager.h"
+#include "Interfaces/IPluginManager.h"
 #include "Async/ASync.h"
 #include "IPythonScriptPlugin.h"
 #include "DependencySettings.h"
@@ -54,4 +55,14 @@ void UDependencyManager::UpdateDependencyProgress(FString Dependency, FString Li
 	AsyncTask(ENamedThreads::GameThread, [this, Dependency, Line]() {
 		OnDependencyProgress.Broadcast(Dependency, Line);
 	});
+}
+
+FString UDependencyManager::GetPluginVersionName() {
+	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("StableDiffusionTools"));
+	if (Plugin.IsValid())
+	{
+		return Plugin->GetDescriptor().VersionName;
+	}
+
+	return "0.0.0";
 }

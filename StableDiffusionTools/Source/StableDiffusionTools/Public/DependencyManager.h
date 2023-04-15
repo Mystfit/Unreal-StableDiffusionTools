@@ -104,6 +104,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
         void FinishedUpdatingDependencies();
+
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
+        FString GetPluginVersionName();
     
     UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Dependencies")
     FDependencyInstallStatus OnDependencyInstalled;
