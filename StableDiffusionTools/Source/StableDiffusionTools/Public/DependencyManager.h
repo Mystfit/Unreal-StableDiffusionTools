@@ -97,13 +97,16 @@ public:
         void RestartAndUpdateDependencies();
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
-        void ResetDependencies();
+        void ResetDependencies(bool ClearSystemDeps = false);
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
         void FinishedClearingDependencies();
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
         void FinishedUpdatingDependencies();
+
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
+        FString GetPluginVersionName();
     
     UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Dependencies")
     FDependencyInstallStatus OnDependencyInstalled;

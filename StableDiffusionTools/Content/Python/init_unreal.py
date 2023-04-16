@@ -1,6 +1,6 @@
 import unreal
-import importlib, pathlib, os, signal, venv, sys, shutil
-import install_dependencies
+import importlib, pathlib, os, signal, venv, sys
+import dependency_manager
 
 
 # Get all python files in a folder
@@ -66,33 +66,33 @@ env_dir = pathlib.Path(unreal.Paths().engine_saved_dir()) / "StableDiffusionTool
 env_site_packages = env_dir / "Lib" / "site-packages"
 print(f"Dependency installation dir: {env_site_packages}")
 
-# Nuke dependencies before loading them if we're trying to reset the editor dependencies
-reset_deps = dependency_options.get_editor_property("ClearDependenciesOnEditorRestart")
-print(f"Should we be clearing dependencies? {reset_deps}")
-if reset_deps:
-    if os.path.exists(env_dir):
-        shutil.rmtree(env_dir)
-
 # Setup a new virtual environment to contain our downloaded python dependencies
 if not os.path.exists(env_site_packages):
     os.makedirs(env_site_packages)
 sys.path.append(str(env_site_packages))
 
 # Load dependency manager
-dependency_manager = install_dependencies.PyDependencyManager()
-dependency_manager.set_editor_property("PluginSitePackages", str(env_site_packages))
+dep_manager = dependency_manager.PyDependencyManager()
+dep_manager.set_editor_property("PluginSitePackages", str(env_site_packages))
 subsystem = unreal.get_editor_subsystem(unreal.StableDiffusionSubsystem)
-subsystem.set_editor_property("DependencyManager", dependency_manager)
+subsystem.set_editor_property("DependencyManager", dep_manager)
 
-# Make sure we don't constantly clear the dependencies on every restart
-if reset_deps:
-    dependency_manager.finished_clearing_dependencies()
+# Nuke dependencies before loading them if we're trying to reset the editor dependencies
+reset_deps = dependency_options.get_editor_property("ClearDependenciesOnEditorRestart")
+reset_system_deps = dependency_options.get_editor_property("ClearSystemDependenciesOnEditorRestart")
+
+if reset_deps or reset_system_deps:
+    print(f"Clearing python dependendencies")
+    dep_manager.clear_all_dependencies(env_dir, reset_system_deps)
+
+    # Flag dependencies as cleared so we don't keep clearing them every restart
+    dep_manager.finished_clearing_dependencies()
 
 # Location of plugin bridge files
 bridge_dir = os.path.join(pathlib.Path(__file__).parent.resolve(), "bridges")
 
 # Loads a map of all bridge names and dependencies that need to be installed to import/run the bridge
-dependency_manager.set_editor_property("DependencyManifests", load_manifests(bridge_dir))
+dep_manager.set_editor_property("DependencyManifests", load_manifests(bridge_dir))
 
 # Import all bridges so we can pick which derived class we want to use in the plugin editor settings
 if dependency_options.get_editor_property("AutoLoadBridgeScripts"):

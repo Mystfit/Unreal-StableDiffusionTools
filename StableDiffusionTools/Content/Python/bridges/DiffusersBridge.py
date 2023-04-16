@@ -15,7 +15,7 @@ from PIL import Image
 from transformers import CLIPFeatureExtractor
 from compel import Compel
 import diffusers
-from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionDepth2ImgPipeline
+from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionDepth2ImgPipeline, StableDiffusionUpscalePipeline
 from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray
@@ -224,6 +224,10 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # Performance options for low VRAM gpus
         #self.pipe.enable_sequential_cpu_offload()
         self.pipe.enable_attention_slicing()
+        try:
+            self.pipe.unet = torch.compile(self.pipe.unet)
+        except RuntimeError as e:
+            print(f"WARNING: Couldn't compile unet for model. Exception given was '{e}'")
         #self.pipe.enable_xformers_memory_efficient_attention()
         if hasattr(self.pipe, "enable_model_cpu_offload"):
             self.pipe.enable_model_cpu_offload()
@@ -253,7 +257,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             upsampler = upsampler.to("cuda")
         except Exception as e:
             print("Could not load upsampler. Exception was ".format(e))
-        print(upsampler)
         return upsampler
 
     @unreal.ufunction(override=True)
@@ -323,17 +326,11 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         max_seed = abs(int((2**31) / 2) - 1)
         seed = random.randrange(0, max_seed) if input.options.seed < 0 else input.options.seed
         
-        # Collate prompts
-        positive_prompts = " ".join([f"({split_p.strip()}){prompt.weight}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")])
-        negative_prompts = " ".join([f"({split_p.strip()}){prompt.weight}" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")])
-        print(positive_prompts)
-        print(negative_prompts)
-        positive_prompt_tensors = self.compel.build_conditioning_tensor(positive_prompts if positive_prompts else "")
-        negative_prompt_tensors = self.compel.build_conditioning_tensor(negative_prompts if negative_prompts else "")
-        prompt_tensors = torch.cat(self.compel.pad_conditioning_tensors_to_same_length([positive_prompt_tensors, negative_prompt_tensors]))
+        # Create prompt
+        prompt_tensors = self.build_prompt_tensors(positive_prompts=input.options.positive_prompts, negative_prompts=input.options.negative_prompts, compel=self.compel)
 
         with torch.inference_mode():
-            with autocast("cuda", dtype=torch.float16):
+            #with autocast("cuda", dtype=torch.float16):
                 generator = torch.Generator(device="cpu")
                 generator.manual_seed(seed)
                 generation_args = {
@@ -413,6 +410,16 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # Image finished we can now abort image generation
         if self.abort and self.executor:
             self.executor.stop()
+
+    def build_prompt_tensors(self, positive_prompts: list[unreal.Prompt], negative_prompts: list[unreal.Prompt], compel: Compel):
+         # Collate prompts
+        positive_prompts = " ".join([f"({split_p.strip()}){prompt.weight}" for prompt in positive_prompts for split_p in prompt.prompt.split(",")])
+        negative_prompts = " ".join([f"({split_p.strip()}){prompt.weight}" for prompt in negative_prompts for split_p in prompt.prompt.split(",")])
+        print(positive_prompts)
+        print(negative_prompts)
+        positive_prompt_tensors = compel.build_conditioning_tensor(positive_prompts if positive_prompts else "")
+        negative_prompt_tensors = compel.build_conditioning_tensor(negative_prompts if negative_prompts else "")
+        return torch.cat(compel.pad_conditioning_tensors_to_same_length([positive_prompt_tensors, negative_prompt_tensors]))
 
     @unreal.ufunction(override=True)
     def StopImageGeneration(self):

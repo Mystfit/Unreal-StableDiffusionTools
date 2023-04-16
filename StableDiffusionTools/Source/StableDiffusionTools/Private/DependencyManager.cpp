@@ -1,4 +1,5 @@
 #include "DependencyManager.h"
+#include "Interfaces/IPluginManager.h"
 #include "Async/ASync.h"
 #include "IPythonScriptPlugin.h"
 #include "DependencySettings.h"
@@ -24,18 +25,20 @@ void UDependencyManager::RestartAndUpdateDependencies()
 	UStableDiffusionBlueprintLibrary::RestartEditor();
 }
 
-void UDependencyManager::ResetDependencies()
+void UDependencyManager::ResetDependencies(bool ClearSystemDeps)
 {
 	auto Settings = GetMutableDefault<UDependencySettings>();
 	Settings->ClearDependenciesOnEditorRestart = true;
+	Settings->ClearSystemDependenciesOnEditorRestart = ClearSystemDeps;
 	Settings->SaveConfig();
-	RestartAndUpdateDependencies();
+	//RestartAndUpdateDependencies();
 }
 
 void UDependencyManager::FinishedClearingDependencies()
 {
 	auto Settings = GetMutableDefault<UDependencySettings>();
 	Settings->ClearDependenciesOnEditorRestart = false;
+	Settings->ClearSystemDependenciesOnEditorRestart = false;
 	Settings->SaveConfig();
 }
 
@@ -44,6 +47,7 @@ void UDependencyManager::FinishedUpdatingDependencies()
 	auto Settings = GetMutableDefault<UDependencySettings>();
 	Settings->AutoLoadBridgeScripts = true;
 	Settings->ClearDependenciesOnEditorRestart = false;
+	Settings->ClearSystemDependenciesOnEditorRestart = false;
 	Settings->AutoUpdateDependenciesOnStartup = false;
 	Settings->SaveConfig();
 	UStableDiffusionBlueprintLibrary::RestartEditor();
@@ -54,4 +58,14 @@ void UDependencyManager::UpdateDependencyProgress(FString Dependency, FString Li
 	AsyncTask(ENamedThreads::GameThread, [this, Dependency, Line]() {
 		OnDependencyProgress.Broadcast(Dependency, Line);
 	});
+}
+
+FString UDependencyManager::GetPluginVersionName() {
+	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("StableDiffusionTools"));
+	if (Plugin.IsValid())
+	{
+		return Plugin->GetDescriptor().VersionName;
+	}
+
+	return "0.0.0";
 }
