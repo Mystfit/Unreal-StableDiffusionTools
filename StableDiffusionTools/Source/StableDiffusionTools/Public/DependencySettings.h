@@ -31,4 +31,10 @@ public:
 	**/
 	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Options")
 		bool ClearDependenciesOnEditorRestart = false;
+
+	/**
+	* Remove all downloaded python dependencies from Unreal's site-packages folder when the editor next starts.
+	**/
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "Options")
+		bool ClearSystemDependenciesOnEditorRestart = false;
 };

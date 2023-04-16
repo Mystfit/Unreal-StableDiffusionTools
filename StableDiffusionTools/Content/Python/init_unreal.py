@@ -79,9 +79,11 @@ subsystem.set_editor_property("DependencyManager", dep_manager)
 
 # Nuke dependencies before loading them if we're trying to reset the editor dependencies
 reset_deps = dependency_options.get_editor_property("ClearDependenciesOnEditorRestart")
-if reset_deps:
+reset_system_deps = dependency_options.get_editor_property("ClearSystemDependenciesOnEditorRestart")
+
+if reset_deps or reset_system_deps:
     print(f"Clearing python dependendencies")
-    dep_manager.clear_all_dependencies(env_dir)
+    dep_manager.clear_all_dependencies(env_dir, reset_system_deps)
 
     # Flag dependencies as cleared so we don't keep clearing them every restart
     dep_manager.finished_clearing_dependencies()

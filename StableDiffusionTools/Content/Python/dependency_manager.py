@@ -126,17 +126,17 @@ class PyDependencyManager(unreal.DependencyManager):
         print(f"All dependencies installed? {dependencies_installed}")
         return dependencies_installed
 
-    def clear_all_dependencies(self, env_dir):
+    def clear_all_dependencies(self, env_dir, reset_system_deps):
         # Remove external site-packages dir
         if os.path.exists(env_dir):
             shutil.rmtree(env_dir)
 
         # Remove any leftover packages that are still in Unreal's base site-packages dir. 
-        # Only valid if we're upgrading our plugin from any version before 0.8.2
-        if parse_version(self.get_plugin_version_name()) >= parse_version('0.8.2'):
+        # Only really valid if we're upgrading our plugin from any version before 0.8.2
+        if reset_system_deps:
             with open(Path(os.path.dirname(__file__)) / "requirements.txt") as f:
-                requirements = f.read().splitlines()
-                cmd = [f"{pythonpath}", '-m', 'pip', 'uninstall'] + requirements
+                requirements = [package.split('==')[0] for package in f.read().splitlines()]
+                cmd = [f"{pythonpath}", '-m', 'pip', 'uninstall'] + requirements + ['-y']
                 cmd_string = " ".join(cmd)
                 print(f"Uninstalling dependencies using command '{cmd_string}'")
                 try: 

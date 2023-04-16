@@ -25,18 +25,20 @@ void UDependencyManager::RestartAndUpdateDependencies()
 	UStableDiffusionBlueprintLibrary::RestartEditor();
 }
 
-void UDependencyManager::ResetDependencies()
+void UDependencyManager::ResetDependencies(bool ClearSystemDeps)
 {
 	auto Settings = GetMutableDefault<UDependencySettings>();
 	Settings->ClearDependenciesOnEditorRestart = true;
+	Settings->ClearSystemDependenciesOnEditorRestart = ClearSystemDeps;
 	Settings->SaveConfig();
-	RestartAndUpdateDependencies();
+	//RestartAndUpdateDependencies();
 }
 
 void UDependencyManager::FinishedClearingDependencies()
 {
 	auto Settings = GetMutableDefault<UDependencySettings>();
 	Settings->ClearDependenciesOnEditorRestart = false;
+	Settings->ClearSystemDependenciesOnEditorRestart = false;
 	Settings->SaveConfig();
 }
 
@@ -45,6 +47,7 @@ void UDependencyManager::FinishedUpdatingDependencies()
 	auto Settings = GetMutableDefault<UDependencySettings>();
 	Settings->AutoLoadBridgeScripts = true;
 	Settings->ClearDependenciesOnEditorRestart = false;
+	Settings->ClearSystemDependenciesOnEditorRestart = false;
 	Settings->AutoUpdateDependenciesOnStartup = false;
 	Settings->SaveConfig();
 	UStableDiffusionBlueprintLibrary::RestartEditor();

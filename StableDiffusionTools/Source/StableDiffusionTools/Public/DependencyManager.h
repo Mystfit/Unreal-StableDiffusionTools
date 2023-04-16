@@ -97,7 +97,7 @@ public:
         void RestartAndUpdateDependencies();
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
-        void ResetDependencies();
+        void ResetDependencies(bool ClearSystemDeps = false);
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
         void FinishedClearingDependencies();

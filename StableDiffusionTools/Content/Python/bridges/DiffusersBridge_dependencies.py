@@ -17,5 +17,6 @@ def GetDependencies():
         MakeDependency({"name":"accelerate", "version": "0.18.0"}),
         MakeDependency({"name":"diffusers", "version": "0.15.0"}),
         MakeDependency({"name":"compel", "version": "1.1.3"}),
-        MakeDependency({"name":"opencv-python", "version":"4.7.0.72"})
+        MakeDependency({"name":"opencv-python", "version":"4.7.0.72"}),
+        MakeDependency({"name":"realesrgan", "version": "0.3.0"})
     ]
