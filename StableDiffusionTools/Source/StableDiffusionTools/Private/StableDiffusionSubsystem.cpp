@@ -21,6 +21,7 @@
 #include "Dialogs/Dialogs.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "DesktopPlatformModule.h"
+#include "StableDiffusionBlueprintLibrary.h"
 #include "LayerProcessors/FinalColorLayerProcessor.h"
 
 #define LOCTEXT_NAMESPACE "StableDiffusionSubsystem"
@@ -344,7 +345,7 @@ bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, con
 	FString TexName = "T_" + Name;
 	UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *TexName, RF_Public | RF_Standalone | RF_MarkAsRootSet);
 	NewTexture->AddToRoot();
-	NewTexture = ColorBufferToTexture(Name, SrcMipData, FIntPoint(Texture->GetSizeX(), Texture->GetSizeY()), NewTexture);
+	NewTexture = UStableDiffusionBlueprintLibrary::ColorBufferToTexture(SrcMipData, FIntPoint(Texture->GetSizeX(), Texture->GetSizeY()), NewTexture);
 	Texture->Source.UnlockMip(0);
 
 	// Create data asset
@@ -489,13 +490,6 @@ void UStableDiffusionSubsystem::DisableLivePreviewForLayer()
 	PreviewedLayer = nullptr;
 }
 
-UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& FrameName, const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTex)
-{
-	if (!FrameColors.Num())
-		return nullptr;
-	return ColorBufferToTexture(FrameName, (uint8*)FrameColors.GetData(), FrameSize, OutTex);
-}
-
 FViewportSceneCapture UStableDiffusionSubsystem::CreateSceneCaptureCamera()
 {
 	FViewportSceneCapture SceneCapture;
@@ -637,32 +631,6 @@ void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionIn
 	StartImageGeneration(Input);
 }
 
-
-UTexture2D* UStableDiffusionSubsystem::ColorBufferToTexture(const FString& FrameName, const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex)
-{
-	if (!FrameData) 
-		return nullptr;
-
-	if (!OutTex) {
-		TObjectPtr<UTexture2D> NewTex = UTexture2D::CreateTransient(FrameSize.X, FrameSize.Y, EPixelFormat::PF_B8G8R8A8);
-		OutTex = NewTex;
-	}
-
-	OutTex->Source.Init(FrameSize.X, FrameSize.Y, 1, 1, ETextureSourceFormat::TSF_BGRA8);//ETextureSourceFormat::TSF_RGBA8);
-	OutTex->MipGenSettings = TMGS_NoMipmaps;
-	OutTex->SRGB = true;
-	OutTex->DeferCompression = true;
-
-	uint8* TextureData = OutTex->Source.LockMip(0);
-	FMemory::Memcpy(TextureData, FrameData, sizeof(uint8) * FrameSize.X * FrameSize.Y * 4);
-	OutTex->Source.UnlockMip(0);
-	OutTex->UpdateResource();
-
-#if WITH_EDITOR
-	OutTex->PostEditChange();
-#endif
-	return OutTex;
-}
 
 void UStableDiffusionSubsystem::OnLivePreviewCheckUpdate(USceneComponent* UpdatedComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport) {
 

@@ -34,7 +34,7 @@ public:
 	static void RestartEditor();
 
 	UFUNCTION(BlueprintCallable, Category = "Camera")
-	static FVector2D ProjectWorldToEditorViewportUV(const FVector& WorldPosition);
+	static FVector2D ProjectWorldToEditorViewportUV(const FVector& WorldPosition, bool& BehindCamera);
 
 	UFUNCTION(BlueprintCallable, Category = "Camera")
 	static FMatrix GetEditorViewportViewProjectionMatrix();
@@ -57,4 +57,21 @@ public:
 			FGeometryScriptMeshSelection Selection,
 			bool FrontFacingOnly = true,
 			UGeometryScriptDebug* Debug = nullptr);
+
+	UFUNCTION(BlueprintCallable, Category = "Texture")
+	static void CopyTextureDataUsingUVs(UTexture2D* SourceTexture, UTexture2D* TargetTexture, const TMap<int, FGeometryScriptUVTriangle>& SourceUVs, const TMap<int, FGeometryScriptUVTriangle>& TargetUVs);
+
+	UFUNCTION(BlueprintCallable, Category = "Texture")
+	static FColor GetUVPixelFromTexture(UTexture2D* Texture, FVector2D UV);
+
+	UFUNCTION(BlueprintCallable, Category = "Texture")
+	static UTexture2D* ColorBufferToTexture(const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture);
+
+	UFUNCTION(BlueprintCallable, Category = "Texture")
+	static UTexture2D* CreateTextureAsset(const FString& AssetPath, const FString& Name, FIntPoint Size, FColor Fill = FColor::Black);
+
+	UFUNCTION(BlueprintCallable, Category = "Texture")
+	static FColor LerpColor(const FColor& ColorA, const FColor& ColorB, float Alpha);
+
+	static UTexture2D* ColorBufferToTexture(const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex);
 };
