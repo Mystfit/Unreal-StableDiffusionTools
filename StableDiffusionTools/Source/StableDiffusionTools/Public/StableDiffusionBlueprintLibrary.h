@@ -30,11 +30,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Options")
 	static UDependencySettings* GetDependencyOptions();
 
-	UFUNCTION(BlueprintCallable, Category = "StableDiffusion")
+	UFUNCTION(BlueprintCallable, Category = "Editor")
 	static void RestartEditor();
 
 	UFUNCTION(BlueprintCallable, Category = "Camera")
-	static FVector2D ProjectWorldToEditorViewportUV(const FVector& WorldPosition, bool& BehindCamera);
+	static FVector2D ProjectSceneCaptureWorldToUV(const FVector& WorldPosition, USceneCaptureComponent2D* SceneCapture, bool& BehindCamera);
+
+	UFUNCTION(BlueprintCallable, Category = "Camera")
+	static FVector2D ProjectViewportWorldToUV(const FVector& WorldPosition, bool& BehindCamera);
 
 	UFUNCTION(BlueprintCallable, Category = "Camera")
 	static FMatrix GetEditorViewportViewProjectionMatrix();
@@ -44,19 +47,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Camera")
 	static TArray<AActor*> GetActorsInViewFrustum(const UObject* WorldContextObject, const FMatrix& ViewProjectionMatrix);
-
-	/**
-	* Scale of PlaneTransform defines world-space dimension that maps to 1 UV dimension
-	*/
-	UFUNCTION(BlueprintCallable, Category = "GeometryScript|UVs", meta = (ScriptMethod))
-		static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
-		SetMeshUVsFromViewProjection(
-			UDynamicMesh* TargetMesh,
-			int UVSetIndex,
-			FMatrix ViewProjMatrix,
-			FGeometryScriptMeshSelection Selection,
-			bool FrontFacingOnly = true,
-			UGeometryScriptDebug* Debug = nullptr);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static void CopyTextureDataUsingUVs(UTexture2D* SourceTexture, UTexture2D* TargetTexture, const TMap<int, FGeometryScriptUVTriangle>& SourceUVs, const TMap<int, FGeometryScriptUVTriangle>& TargetUVs);

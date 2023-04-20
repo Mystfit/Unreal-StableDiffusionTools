@@ -63,7 +63,15 @@ void UStableDiffusionBlueprintLibrary::RestartEditor()
 	}
 }
 
-FVector2d UStableDiffusionBlueprintLibrary::ProjectWorldToEditorViewportUV(const FVector& WorldPosition, bool& BehindCamera)
+
+FVector2D UStableDiffusionBlueprintLibrary::ProjectSceneCaptureWorldToUV(const FVector& WorldPosition, USceneCaptureComponent2D* SceneCapture, bool& BehindCamera)
+{
+	FVector2d Result;
+	UE_LOG(LogTemp, Error, TEXT("ProjectSceneCaptureWorldToUV() not implemented"));
+	return Result;
+}
+
+FVector2d UStableDiffusionBlueprintLibrary::ProjectViewportWorldToUV(const FVector& WorldPosition, bool& BehindCamera)
 {
 	FVector2d Result;
 
@@ -141,108 +149,6 @@ TArray<AActor*> UStableDiffusionBlueprintLibrary::GetActorsInViewFrustum(const U
 		}
 	}
 	return ActorsInFrustum;
-}
-
-UDynamicMesh* UStableDiffusionBlueprintLibrary::SetMeshUVsFromViewProjection(
-	UDynamicMesh* TargetMesh,
-	int UVSetIndex,
-	FMatrix ViewProjMatrix,
-	FGeometryScriptMeshSelection Selection,
-	bool FrontFacingOnly,
-	UGeometryScriptDebug* Debug)
-{
-	/*
-	
-	
-	//if (TargetMesh == nullptr)
-	//{
-	//	//UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetMeshUVsFromPlanarProjection_InvalidInput", "SetMeshUVsFromPlanarProjection: TargetMesh is Null"));
-	//	return TargetMesh;
-	//}
-	
-	bool bHasUVSet = false;
-	/*ApplyMeshUVEditorOperation(TargetMesh, UVSetIndex, bHasUVSet, Debug,
-		);
-
-	bHasUVSet = false;
-	TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh)
-	{
-		if (EditMesh.HasAttributes() == false
-			|| UVSetIndex >= EditMesh.Attributes()->NumUVLayers()
-			|| EditMesh.Attributes()->GetUVLayer(UVSetIndex) == nullptr)
-		{
-			return;
-		}
-
-		bHasUVSet = true;
-		FDynamicMeshUVOverlay* UVOverlay = EditMesh.Attributes()->GetUVLayer(UVSetIndex);
-		//FDynamicMeshUVEditor Editor(&EditMesh, UVOverlay);
-		
-		//[&](FDynamicMesh3& EditMesh, FDynamicMeshUVOverlay* UVOverlay, FDynamicMeshUVEditor& UVEditor)
-		{
-			TArray<int32> TriangleROI;
-			Selection.ProcessByTriangleID(EditMesh, [&](int32 TriangleID) { TriangleROI.Add(TriangleID); }, true);
-
-			FFrame3d ProjectionFrame(PlaneTransform);
-			FVector Scale = PlaneTransform.GetScale3D();
-			FVector2d Dimensions(Scale.X, Scale.Y);
-
-			//Editor.SetTriangleUVsFromPlanarProjection(TriangleROI, [&](const FVector3d& Pos) { return Pos; },
-				ProjectionFrame, Dimensions);
-
-			if (ensure(UVOverlay) == false) return;
-			if (!Triangles.Num()) return;
-
-			ResetUVs(Triangles);
-
-			double ScaleX = (FMathd::Abs(Dimensions.X) > FMathf::ZeroTolerance) ? (1.0 / Dimensions.X) : 1.0;
-			double ScaleY = (FMathd::Abs(Dimensions.Y) > FMathf::ZeroTolerance) ? (1.0 / Dimensions.Y) : 1.0;
-
-			TMap<int32, int32> BaseToOverlayVIDMap;
-			TArray<int32> NewUVIndices;
-
-			for (int32 TID : Triangles)
-			{
-				FIndex3i BaseTri = EditMesh.GetTriangle(TID);
-				FIndex3i ElemTri;
-				for (int32 j = 0; j < 3; ++j)
-				{
-					const int32* FoundElementID = BaseToOverlayVIDMap.Find(BaseTri[j]);
-					if (FoundElementID == nullptr)
-					{
-						FVector3d Pos = EditMesh.GetVertex(BaseTri[j]);
-						FVector3d TransformPos = PointTransform(Pos);
-						FVector2d UV = ProjectionFrame.ToPlaneUV(TransformPos, 2);
-						UV.X *= ScaleX;
-						UV.Y *= ScaleY;
-						ElemTri[j] = UVOverlay->AppendElement(FVector2f(UV));
-						NewUVIndices.Add(ElemTri[j]);
-						BaseToOverlayVIDMap.Add(BaseTri[j], ElemTri[j]);
-					}
-					else
-					{
-						ElemTri[j] = *FoundElementID;
-					}
-				}
-				UVOverlay->SetTriangle(TID, ElemTri);
-			}
-
-			if (Result != nullptr)
-			{
-				Result->NewUVElements = MoveTemp(NewUVIndices);
-			}
-		}
-
-	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, false);
-
-
-	if (bHasUVSet == false)
-	{
-		//UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetMeshUVsFromPlanarProjection_InvalidUVSet", "SetMeshUVsFromPlanarProjection: UVSetIndex does not exist on TargetMesh"));
-	}
-
-	*/
-	return TargetMesh;
 }
 
 UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTex)
