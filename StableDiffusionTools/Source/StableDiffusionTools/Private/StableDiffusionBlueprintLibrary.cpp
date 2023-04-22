@@ -6,6 +6,7 @@
 #include "GeomTools.h"
 #include "UObject/SavePackage.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "Camera/CameraTypes.h"
 #include "ConvexVolume.h"
 #include "EditorViewportClient.h"
 #include "EngineUtils.h"
@@ -16,6 +17,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "GeometryScript/GeometryScriptSelectionTypes.h"
 #include "Parameterization/DynamicMeshUVEditor.h"
+#include "GeometryScript/MeshQueryFunctions.h"
 
 using namespace UE::Geometry;
 
@@ -106,6 +108,44 @@ FMatrix UStableDiffusionBlueprintLibrary::GetEditorViewportViewProjectionMatrix(
 	return FMatrix::Identity;
 }
 
+FTransform UStableDiffusionBlueprintLibrary::GetEditorViewportCameraTransform()
+{
+	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
+	auto Client = EditorViewport->GetClient();
+	if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
+		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
+		FSceneView* View = EditorClient->CalcSceneView(&ViewFamily);
+		return FTransform(View->ViewRotation, View->ViewLocation);
+	}	
+	
+	return FTransform();
+}
+
+FMatrix UStableDiffusionBlueprintLibrary::GetEditorViewportViewMatrix()
+{
+	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
+	auto Client = EditorViewport->GetClient();
+	if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
+		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
+		FSceneView* View = EditorClient->CalcSceneView(&ViewFamily);
+		return View->ViewMatrices.GetViewMatrix();
+	}
+
+	return FMatrix::Identity;
+}
+
+FIntPoint UStableDiffusionBlueprintLibrary::GetEditorViewportSize()
+{
+	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
+	auto Client = EditorViewport->GetClient();
+	if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
+		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
+		FSceneView* View = EditorClient->CalcSceneView(&ViewFamily);
+		return FIntPoint(View->UnconstrainedViewRect.Width(), View->UnconstrainedViewRect.Height());
+	}
+	return FIntPoint(0, 0);
+}
+
 FVector UStableDiffusionBlueprintLibrary::GetEditorViewportDirection()
 {
 	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
@@ -121,7 +161,7 @@ FVector UStableDiffusionBlueprintLibrary::GetEditorViewportDirection()
 
 
 
-TArray<AActor*> UStableDiffusionBlueprintLibrary::GetActorsInViewFrustum(const UObject* WorldContextObject, const FMatrix& ViewProjectionMatrix)
+TArray<AActor*> UStableDiffusionBlueprintLibrary::GetActorsInViewFrustum(const UObject* WorldContextObject, const FMatrix& ViewProjectionMatrix, const FVector& CameraLocation)
 {
 	TArray<AActor*> ActorsInFrustum;
 	if (WorldContextObject)
@@ -147,6 +187,12 @@ TArray<AActor*> UStableDiffusionBlueprintLibrary::GetActorsInViewFrustum(const U
 				}
 			}
 		}
+
+		ActorsInFrustum.Sort([&CameraLocation](const AActor& A, const AActor& B){
+			float DistanceA = FVector::Distance(A.GetActorLocation(), CameraLocation);
+			float DistanceB = FVector::Distance(B.GetActorLocation(), CameraLocation);
+			return DistanceA < DistanceB;
+		});
 	}
 	return ActorsInFrustum;
 }
@@ -184,13 +230,21 @@ UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* 
 	return OutTex;
 }
 
-
-void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* SourceTexture, UTexture2D* TargetTexture, const TMap<int, FGeometryScriptUVTriangle>& SourceUVs, const TMap<int, FGeometryScriptUVTriangle>& TargetUVs)
+void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* SourceTexture, UTexture2D* TargetTexture, const FIntPoint& ScreenSize, const FMatrix& ViewProjectionMatrix, UDynamicMesh* SourceMesh, const TArray<int> TriangleIDs)
 {
-	if (!SourceTexture || !TargetTexture || !SourceUVs.Num() || !TargetUVs.Num())
+	if (!SourceTexture || !TargetTexture || ViewProjectionMatrix == FMatrix::Identity  || !SourceMesh || !TriangleIDs.Num())
 	{
 		UE_LOG(LogTemp, Error, TEXT("CopyTexturePixels: Invalid input parameters"));
 		return;
+	}
+
+	// Hack. Get the editor viewport
+	FSceneView* View = nullptr;
+	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
+	auto Client = EditorViewport->GetClient();
+	if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
+		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
+		View = EditorClient->CalcSceneView(&ViewFamily);
 	}
 
 	// Get source and target texture sizes
@@ -205,26 +259,22 @@ void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* Sourc
 	TargetColors.InsertUninitialized(0, TargetWidth * TargetHeight);
 
 	// Iterate through each triangle and copy pixels from source to target
-	for(auto TriPair : TargetUVs)
-	//for (int32 i = 0; i < TargetUVs.Num(); ++i)
+	for(auto TriID : TriangleIDs)
 	{
-		if(!SourceUVs.Contains(TriPair.Key))
-			continue;
+		FVector2D TargetVertex1;
+		FVector2D TargetVertex2;
+		FVector2D TargetVertex3;
+		bool ValidUVs;
+		UGeometryScriptLibrary_MeshQueryFunctions::GetTriangleUVs(SourceMesh, 0, TriID, TargetVertex1, TargetVertex2, TargetVertex3, ValidUVs);
 
-		FVector2D SourceVertex1 = SourceUVs[TriPair.Key].UV0;
-		FVector2D SourceVertex2 = SourceUVs[TriPair.Key].UV1;
-		FVector2D SourceVertex3 = SourceUVs[TriPair.Key].UV2; 
-		FVector2D TargetVertex1 = TriPair.Value.UV0;
-		FVector2D TargetVertex2 = TriPair.Value.UV1;
-		FVector2D TargetVertex3 = TriPair.Value.UV2;
+		// Get WS tri vertex positions
+		FVector SourceVertex1;
+		FVector SourceVertex2;
+		FVector SourceVertex3;
+		bool ValidPositions;
+		UGeometryScriptLibrary_MeshQueryFunctions::GetTrianglePositions(SourceMesh, TriID, ValidPositions, SourceVertex1, SourceVertex2, SourceVertex3);
 
 		// Convert source and target UVs to pixel coordinates
-		int32 SourceX1 = FMath::FloorToInt(SourceVertex1.X * SourceWidth);
-		int32 SourceY1 = FMath::FloorToInt(SourceVertex1.Y * SourceHeight);
-		int32 SourceX2 = FMath::FloorToInt(SourceVertex2.X * SourceWidth);
-		int32 SourceY2 = FMath::FloorToInt(SourceVertex2.Y * SourceHeight);
-		int32 SourceX3 = FMath::FloorToInt(SourceVertex3.X * SourceWidth);
-		int32 SourceY3 = FMath::FloorToInt(SourceVertex3.Y * SourceHeight);
 		int32 TargetX1 = FMath::FloorToInt(TargetVertex1.X * TargetWidth);
 		int32 TargetY1 = FMath::FloorToInt(TargetVertex1.Y * TargetHeight);
 		int32 TargetX2 = FMath::FloorToInt(TargetVertex2.X * TargetWidth);
@@ -250,22 +300,37 @@ void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* Sourc
 					{
 						// Interpolate source UVs using barycentric coordinates
 						FVector BarycentricCoords = FMath::ComputeBaryCentric2D(FVector(TargetUV.X, TargetUV.Y, 0.0f), FVector(TargetVertex1.X, TargetVertex1.Y, 0.0f), FVector(TargetVertex2.X, TargetVertex2.Y, 0.0f), FVector(TargetVertex3.X, TargetVertex3.Y, 0.0f));
-						FVector2D SourceUV(
+						FVector SourceWSPos(
 							SourceVertex1.X * BarycentricCoords.X + SourceVertex2.X * BarycentricCoords.Y + SourceVertex3.X * BarycentricCoords.Z,
-							SourceVertex1.Y * BarycentricCoords.X + SourceVertex2.Y * BarycentricCoords.Y + SourceVertex3.Y * BarycentricCoords.Z
+							SourceVertex1.Y * BarycentricCoords.X + SourceVertex2.Y * BarycentricCoords.Y + SourceVertex3.Y * BarycentricCoords.Z,
+							SourceVertex1.Z * BarycentricCoords.X + SourceVertex2.Z * BarycentricCoords.Y + SourceVertex3.Z * BarycentricCoords.Z
 						);
 
-						// Convert source UV to pixel coordinates
-						int32 SourceX = FMath::FloorToInt(SourceUV.X * SourceWidth);
-						int32 SourceY = FMath::FloorToInt(SourceUV.Y * SourceHeight);
+						FVector2D OutPixel(-1.0f, -1.0f);
+						View->ScreenToPixel(View->WorldToScreen(SourceWSPos), OutPixel);
 
-						// Copy pixel color from source to target
-						if (SourceX >= 0 && SourceX < SourceWidth && SourceY >= 0 && SourceY < SourceHeight)
-						{
-							int32 SourceIndex = (SourceY * SourceWidth + SourceX); // 4 channels (RGBA)
+						if (OutPixel.X >= 0 && OutPixel.X < View->UnconstrainedViewRect.Width() && OutPixel.Y >= 0 && OutPixel.Y < View->UnconstrainedViewRect.Height()) {
+							FVector2D SourceUV(
+								OutPixel.X / View->UnconstrainedViewRect.Width(),
+								OutPixel.Y / View->UnconstrainedViewRect.Height()
+							);
 
-							// Copy RGBA values from source to target
-							TargetColors[TargetIndex] = GetUVPixelFromTexture(SourceTexture, SourceUV);// SourceTextureData[SourceIndex];
+							int32 SourceX = SourceUV.X * SourceWidth;
+							int32 SourceY = SourceUV.X * SourceHeight;
+
+							/*UE_LOG(LogTemp, Log, TEXT("-----------------------------------"));
+							UE_LOG(LogTemp, Log, TEXT("Interpolated vertex X:%d, Y:%d Z:%d"), SourceWSPos.X, SourceWSPos.Y, SourceWSPos.Z);
+							UE_LOG(LogTemp, Log, TEXT("Screenspace coord X:%d, Y:%d"), OutPixel.X, OutPixel.Y);
+							UE_LOG(LogTemp, Log, TEXT("UV coord U:%d, V:%d"), SourceUV.X, SourceUV.Y);*/
+
+							// Copy pixel color from source to target
+							if (SourceX >= 0 && SourceX < SourceWidth && SourceY >= 0 && SourceY < SourceHeight)
+							{
+								int32 SourceIndex = (SourceY * SourceWidth + SourceX); // 4 channels (RGBA)
+
+								// Copy RGBA values from source to target
+								TargetColors[TargetIndex] = GetUVPixelFromTexture(SourceTexture, FVector2D(SourceUV));// SourceTextureData[SourceIndex];
+							}
 						}
 					}
 				}

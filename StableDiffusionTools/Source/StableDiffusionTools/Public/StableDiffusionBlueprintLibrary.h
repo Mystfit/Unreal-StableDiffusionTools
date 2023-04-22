@@ -40,16 +40,25 @@ public:
 	static FVector2D ProjectViewportWorldToUV(const FVector& WorldPosition, bool& BehindCamera);
 
 	UFUNCTION(BlueprintCallable, Category = "Camera")
+	static FTransform GetEditorViewportCameraTransform();
+
+	UFUNCTION(BlueprintCallable, Category = "Camera")
 	static FMatrix GetEditorViewportViewProjectionMatrix();
+
+	UFUNCTION(BlueprintCallable, Category = "Camera")
+	static FMatrix GetEditorViewportViewMatrix();
+
+	UFUNCTION(BlueprintCallable, Category = "Camera")
+	static FIntPoint GetEditorViewportSize();
 
 	UFUNCTION(BlueprintCallable, Category = "Camera")
 	static FVector GetEditorViewportDirection();
 
 	UFUNCTION(BlueprintCallable, Category = "Camera")
-	static TArray<AActor*> GetActorsInViewFrustum(const UObject* WorldContextObject, const FMatrix& ViewProjectionMatrix);
-
+	static TArray<AActor*> GetActorsInViewFrustum(const UObject* WorldContextObject, const FMatrix& ViewProjectionMatrix, const FVector& CameraLocation);
+	
 	UFUNCTION(BlueprintCallable, Category = "Texture")
-	static void CopyTextureDataUsingUVs(UTexture2D* SourceTexture, UTexture2D* TargetTexture, const TMap<int, FGeometryScriptUVTriangle>& SourceUVs, const TMap<int, FGeometryScriptUVTriangle>& TargetUVs);
+	static void CopyTextureDataUsingUVs(UTexture2D* SourceTexture, UTexture2D* TargetTexture, const FIntPoint& ScreenSize, const FMatrix& ViewProjectionMatrix, UDynamicMesh* SourceMesh, const TArray<int> TriangleIDs);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static FColor GetUVPixelFromTexture(UTexture2D* Texture, FVector2D UV);
