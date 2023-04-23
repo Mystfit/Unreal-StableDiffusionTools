@@ -18,6 +18,7 @@
 #include "GeometryScript/GeometryScriptSelectionTypes.h"
 #include "Parameterization/DynamicMeshUVEditor.h"
 #include "GeometryScript/MeshQueryFunctions.h"
+#include "ImageCoreUtils.h"
 
 using namespace UE::Geometry;
 
@@ -209,18 +210,24 @@ UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* 
 	if (!FrameData) 
 		return nullptr;
 
-	if (!OutTex) {
+	ETextureSourceFormat TexFormat = ETextureSourceFormat::TSF_BGRA8;
+	if (OutTex) {
+		TexFormat = OutTex->Source.GetFormat();
+	} else {
 		TObjectPtr<UTexture2D> NewTex = UTexture2D::CreateTransient(FrameSize.X, FrameSize.Y, EPixelFormat::PF_B8G8R8A8);
 		OutTex = NewTex;
 	}
 
-	OutTex->Source.Init(FrameSize.X, FrameSize.Y, 1, 1, ETextureSourceFormat::TSF_BGRA8);//ETextureSourceFormat::TSF_RGBA8);
+	OutTex->Source.Init(FrameSize.X, FrameSize.Y, 1, 1, TexFormat);//ETextureSourceFormat::TSF_RGBA8);
 	OutTex->MipGenSettings = TMGS_NoMipmaps;
 	OutTex->SRGB = true;
 	OutTex->DeferCompression = true;
 
+	ERawImageFormat::Type ImgFormat = FImageCoreUtils::ConvertToRawImageFormat(OutTex->Source.GetFormat());
+	int NumChannels = GPixelFormats[FImageCoreUtils::GetPixelFormatForRawImageFormat(ImgFormat)].NumComponents;
+
 	uint8* TextureData = OutTex->Source.LockMip(0);
-	FMemory::Memcpy(TextureData, FrameData, sizeof(uint8) * FrameSize.X * FrameSize.Y * 4);
+	FMemory::Memcpy(TextureData, FrameData, sizeof(uint8) * FrameSize.X * FrameSize.Y * NumChannels);
 	OutTex->Source.UnlockMip(0);
 	OutTex->UpdateResource();
 
@@ -230,11 +237,18 @@ UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* 
 	return OutTex;
 }
 
-void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* SourceTexture, UTexture2D* TargetTexture, const FIntPoint& ScreenSize, const FMatrix& ViewProjectionMatrix, UDynamicMesh* SourceMesh, const TArray<int> TriangleIDs)
+void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* CoverageTexture, UTexture2D* SourceTexture, UTexture2D* TargetTexture, const FIntPoint& ScreenSize, const FMatrix& ViewProjectionMatrix, UDynamicMesh* SourceMesh, const TArray<int> TriangleIDs)
 {
-	if (!SourceTexture || !TargetTexture || ViewProjectionMatrix == FMatrix::Identity  || !SourceMesh || !TriangleIDs.Num())
+	if (!SourceTexture || !TargetTexture || ViewProjectionMatrix == FMatrix::Identity  || !SourceMesh || !TriangleIDs.Num() || !CoverageTexture)
 	{
 		UE_LOG(LogTemp, Error, TEXT("CopyTexturePixels: Invalid input parameters"));
+		return;
+	}
+	
+	ERawImageFormat::Type ImgFormat = FImageCoreUtils::ConvertToRawImageFormat(CoverageTexture->Source.GetFormat());
+	EPixelFormat CoveragePixelFormat = FImageCoreUtils::GetPixelFormatForRawImageFormat(ImgFormat);
+	if (GPixelFormats[CoveragePixelFormat].NumComponents > 1){
+		UE_LOG(LogTemp, Error, TEXT("Coverage texture has too many channels. Expected a single channel"));
 		return;
 	}
 
@@ -254,9 +268,12 @@ void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* Sourc
 	const int32 TargetHeight = TargetTexture->GetSizeY();
 
 	// Lock the source and target texture for reading/writing
-	//FColor* TargetTextureData = static_cast<FColor*>(TargetTexture->Source.LockMip(0));
 	TArray<FColor> TargetColors;
 	TargetColors.InsertUninitialized(0, TargetWidth * TargetHeight);
+
+	// Get the coverage texture pixels
+	TArray<uint8_t> CoveragePixels;
+	CoveragePixels.InsertUninitialized(0, TargetWidth * TargetHeight);
 
 	// Iterate through each triangle and copy pixels from source to target
 	for(auto TriID : TriangleIDs)
@@ -330,6 +347,7 @@ void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* Sourc
 
 								// Copy RGBA values from source to target
 								TargetColors[TargetIndex] = GetUVPixelFromTexture(SourceTexture, FVector2D(SourceUV));// SourceTextureData[SourceIndex];
+								CoveragePixels[TargetIndex] = 255;
 							}
 						}
 					}
@@ -338,8 +356,12 @@ void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* Sourc
 		}
 	}
 
-	// Copy colors to target texture
+	// Update coverage texture
+	// Unlock the render target texture and update it with the modified pixel values
+
+	// Copy colors to target textures
 	ColorBufferToTexture(TargetColors, FIntPoint(TargetWidth, TargetHeight), TargetTexture);
+	ColorBufferToTexture(CoveragePixels.GetData(), FIntPoint(TargetWidth, TargetHeight), CoverageTexture);
 }
 
 FColor UStableDiffusionBlueprintLibrary::GetUVPixelFromTexture(UTexture2D* Texture, FVector2D UV)
@@ -389,7 +411,7 @@ FColor UStableDiffusionBlueprintLibrary::GetUVPixelFromTexture(UTexture2D* Textu
 	return InterpolatedColor;
 }
 
-UTexture2D*UStableDiffusionBlueprintLibrary::CreateTextureAsset(const FString& AssetPath, const FString& Name, FIntPoint Size, FColor Fill)
+UTexture2D*UStableDiffusionBlueprintLibrary::CreateTextureAsset(const FString& AssetPath, const FString& Name, FIntPoint Size, ETextureSourceFormat Format, FColor Fill)
 {
 	if (AssetPath.IsEmpty() || Name.IsEmpty())
 		return nullptr;
@@ -406,7 +428,7 @@ UTexture2D*UStableDiffusionBlueprintLibrary::CreateTextureAsset(const FString& A
 	uint8_t* FillData = (uint8_t*)(FillPixels.GetData());
 
 	UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *Name, RF_Public | RF_Standalone);
-	NewTexture->Source.Init(Size.X, Size.Y, 1, 1, ETextureSourceFormat::TSF_BGRA8, FillData);//ETextureSourceFormat::TSF_RGBA8);
+	NewTexture->Source.Init(Size.X, Size.Y, 1, 1, Format, FillData);//ETextureSourceFormat::TSF_RGBA8);
 	NewTexture->MipGenSettings = TMGS_NoMipmaps;
 	NewTexture->SRGB = true;
 	NewTexture->DeferCompression = true;

@@ -232,6 +232,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         if hasattr(self.pipe, "enable_model_cpu_offload"):
             self.pipe.enable_model_cpu_offload()
 
+        # High resolution support by tiling the VAE
+        self.pipe.vae.enable_tiling()
+
         # NSFW filter
         if allow_nsfw:
             # Backup original NSFW filter

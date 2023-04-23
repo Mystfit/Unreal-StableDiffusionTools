@@ -58,7 +58,7 @@ public:
 	static TArray<AActor*> GetActorsInViewFrustum(const UObject* WorldContextObject, const FMatrix& ViewProjectionMatrix, const FVector& CameraLocation);
 	
 	UFUNCTION(BlueprintCallable, Category = "Texture")
-	static void CopyTextureDataUsingUVs(UTexture2D* SourceTexture, UTexture2D* TargetTexture, const FIntPoint& ScreenSize, const FMatrix& ViewProjectionMatrix, UDynamicMesh* SourceMesh, const TArray<int> TriangleIDs);
+	static void CopyTextureDataUsingUVs(UTexture2D* CoverageTexture, UTexture2D* SourceTexture, UTexture2D* TargetTexture, const FIntPoint& ScreenSize, const FMatrix& ViewProjectionMatrix, UDynamicMesh* SourceMesh, const TArray<int> TriangleIDs);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static FColor GetUVPixelFromTexture(UTexture2D* Texture, FVector2D UV);
@@ -67,7 +67,7 @@ public:
 	static UTexture2D* ColorBufferToTexture(const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
-	static UTexture2D* CreateTextureAsset(const FString& AssetPath, const FString& Name, FIntPoint Size, FColor Fill = FColor::Black);
+	static UTexture2D* CreateTextureAsset(const FString& AssetPath, const FString& Name, FIntPoint Size, ETextureSourceFormat Format = ETextureSourceFormat::TSF_BGRA8, FColor Fill = FColor::Black);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static FColor LerpColor(const FColor& ColorA, const FColor& ColorB, float Alpha);

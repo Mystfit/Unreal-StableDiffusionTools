@@ -61,7 +61,8 @@ public class StableDiffusionTools : ModuleRules
 				"RenderCore",
                 "GeometryFramework",
 				"GeometryScriptingCore",
-                "DynamicMesh"
+                "DynamicMesh",
+				"ImageCore"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
