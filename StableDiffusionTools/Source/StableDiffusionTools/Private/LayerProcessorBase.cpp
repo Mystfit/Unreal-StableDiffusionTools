@@ -5,7 +5,7 @@
 #include "Components/SceneCaptureComponent2D.h"
 
 
-void ULayerProcessorBase::BeginCaptureLayer(FIntPoint Size, USceneCaptureComponent2D* CaptureSource)
+void ULayerProcessorBase::BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource)
 {
 	if (!CaptureSource)
 		return;
@@ -50,7 +50,7 @@ UTextureRenderTarget2D* ULayerProcessorBase::CaptureLayer(USceneCaptureComponent
 	return CaptureSource->TextureTarget;
 }
 
-void ULayerProcessorBase::EndCaptureLayer(USceneCaptureComponent2D* CaptureSource)
+void ULayerProcessorBase::EndCaptureLayer_Implementation(USceneCaptureComponent2D* CaptureSource)
 {
 	if (!CaptureSource)
 		return;

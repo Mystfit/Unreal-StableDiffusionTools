@@ -18,9 +18,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Layer options")
 	float SceneDepthOffset;
 
-	virtual void BeginCaptureLayer(FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr) override;
+	virtual void BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr) override;
 	virtual UTextureRenderTarget2D* CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame = true) override;
-	virtual void EndCaptureLayer(USceneCaptureComponent2D* CaptureSource = nullptr) override;
+	virtual void EndCaptureLayer_Implementation(USceneCaptureComponent2D* CaptureSource = nullptr) override;
 	virtual TArray<FColor> ProcessLayer(UTextureRenderTarget2D* Layer) override;
 
 private:

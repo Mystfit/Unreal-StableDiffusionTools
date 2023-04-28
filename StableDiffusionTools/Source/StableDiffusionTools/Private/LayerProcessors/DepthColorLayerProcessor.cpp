@@ -8,7 +8,7 @@ UDepthLayerProcessor::UDepthLayerProcessor()
 	CaptureBitDepth = SixteenBit;
 }
 
-void UDepthLayerProcessor::BeginCaptureLayer(FIntPoint Size, USceneCaptureComponent2D* CaptureSource) {
+void UDepthLayerProcessor::BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource) {
 	if (!CaptureSource)
 		return;
 
@@ -17,7 +17,7 @@ void UDepthLayerProcessor::BeginCaptureLayer(FIntPoint Size, USceneCaptureCompon
 	}
 	ActivePostMaterialInstance = DepthMatInst;
 
-	ULayerProcessorBase::BeginCaptureLayer(Size, CaptureSource);
+	Super::BeginCaptureLayer_Implementation(Size, CaptureSource);
 }
 
 
@@ -33,11 +33,11 @@ UTextureRenderTarget2D* UDepthLayerProcessor::CaptureLayer(USceneCaptureComponen
 	return RenderTarget;
 }
 
-void UDepthLayerProcessor::EndCaptureLayer(USceneCaptureComponent2D* CaptureSource) {
+void UDepthLayerProcessor::EndCaptureLayer_Implementation(USceneCaptureComponent2D* CaptureSource) {
 	if (!CaptureSource)
 		return;
 
-	ULayerProcessorBase::EndCaptureLayer(CaptureSource);
+	Super::EndCaptureLayer_Implementation(CaptureSource);
 }
 
 

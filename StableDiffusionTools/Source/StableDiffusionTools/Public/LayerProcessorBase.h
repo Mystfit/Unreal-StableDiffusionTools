@@ -22,7 +22,7 @@ enum ELayerBitDepth
  * 
  */
 UCLASS(BlueprintType, meta=(DisplayName = "Base layer processor"))
-class ULayerProcessorBase : public UPrimaryDataAsset
+class STABLEDIFFUSIONTOOLS_API ULayerProcessorBase : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
 public:
@@ -44,9 +44,13 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Stable Diffusion|Layer source")
 	TEnumAsByte<ELayerBitDepth> CaptureBitDepth = EightBit;
 
-	virtual void BeginCaptureLayer(FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr);
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Layer processor")
+	void BeginCaptureLayer(FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr);
+
 	virtual UTextureRenderTarget2D* CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame = true);
-	virtual void EndCaptureLayer(USceneCaptureComponent2D* CaptureSource = nullptr);
+	
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Layer processor")
+	void EndCaptureLayer(USceneCaptureComponent2D* CaptureSource = nullptr);
 
 	/// <summary>
 	/// Process a captured layer and convert to a pixel array

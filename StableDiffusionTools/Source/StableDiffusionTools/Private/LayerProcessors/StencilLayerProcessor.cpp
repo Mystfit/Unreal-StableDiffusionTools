@@ -21,7 +21,7 @@ FScopedActorLayerStencil::~FScopedActorLayerStencil()
 		State.RestoreActorLayer();
 }
 
-void UStencilLayerProcessor::BeginCaptureLayer(FIntPoint Size, USceneCaptureComponent2D* CaptureSource)
+void UStencilLayerProcessor::BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource)
 {
 	if (!CaptureSource)
 		return;
@@ -36,7 +36,7 @@ void UStencilLayerProcessor::BeginCaptureLayer(FIntPoint Size, USceneCaptureComp
 	}
 	ActivePostMaterialInstance = StencilMatInst;
 
-	ULayerProcessorBase::BeginCaptureLayer(Size, CaptureSource);
+	Super::BeginCaptureLayer_Implementation(Size, CaptureSource);
 }
 
 UTextureRenderTarget2D* UStencilLayerProcessor::CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame){
@@ -44,12 +44,12 @@ UTextureRenderTarget2D* UStencilLayerProcessor::CaptureLayer(USceneCaptureCompon
 	return RenderTarget;
 }
 
-void UStencilLayerProcessor::EndCaptureLayer(USceneCaptureComponent2D* CaptureSource)
+void UStencilLayerProcessor::EndCaptureLayer_Implementation(USceneCaptureComponent2D* CaptureSource)
 {
 	if (!CaptureSource)
 		return;
 
-	ULayerProcessorBase::EndCaptureLayer();
+	Super::EndCaptureLayer_Implementation(CaptureSource);
 
 	CaptureSource->ShowFlags.SetBloom(LastBloomState);
 	
@@ -111,9 +111,11 @@ void FActorLayerStencilState::CaptureActorLayer(const FActorLayer& Layer)
 				{
 					UPrimitiveComponent* PrimitiveComponent = CastChecked<UPrimitiveComponent>(Component);
 					// We want to render all objects not on the layer to stencil too so that foreground objects mask.
-					PrimitiveComponent->SetCustomDepthStencilValue(bInLayer ? 1 : 0);
-					PrimitiveComponent->SetCustomDepthStencilWriteMask(ERendererStencilMask::ERSM_Default);
-					PrimitiveComponent->SetRenderCustomDepth(true);
+					if (IsValid(PrimitiveComponent)) {
+						PrimitiveComponent->SetCustomDepthStencilValue(bInLayer ? 1 : 0);
+						PrimitiveComponent->SetCustomDepthStencilWriteMask(ERendererStencilMask::ERSM_Default);
+						PrimitiveComponent->SetRenderCustomDepth(true);
+					}
 				}
 			}
 		}
@@ -136,10 +138,11 @@ void FActorLayerStencilState::RestoreActorLayer()
 	}
 
 	// Now we can restore the custom depth/stencil/etc. values so that the main render pass acts as the user expects next time.
-	for (TPair<UPrimitiveComponent*, FStencilValues>& KVP : ActorLayerSavedStencilValues)
-	{
-		KVP.Key->SetCustomDepthStencilValue(KVP.Value.CustomStencil);
-		KVP.Key->SetCustomDepthStencilWriteMask(KVP.Value.StencilMask);
-		KVP.Key->SetRenderCustomDepth(KVP.Value.bRenderCustomDepth);
+	for (TPair<UPrimitiveComponent*, FStencilValues>& KVP : ActorLayerSavedStencilValues){
+		if (IsValid(KVP.Key)) {
+			KVP.Key->SetCustomDepthStencilValue(KVP.Value.CustomStencil);
+			KVP.Key->SetCustomDepthStencilWriteMask(KVP.Value.StencilMask);
+			KVP.Key->SetRenderCustomDepth(KVP.Value.bRenderCustomDepth);
+		}
 	}
 }
