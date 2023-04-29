@@ -18,6 +18,7 @@
 #include "GeometryScript/GeometryScriptSelectionTypes.h"
 #include "Parameterization/DynamicMeshUVEditor.h"
 #include "GeometryScript/MeshQueryFunctions.h"
+#include "ProjectionBakeSession.h"
 #include "ImageCoreUtils.h"
 
 using namespace UE::Geometry;
@@ -27,6 +28,12 @@ using namespace UE::Geometry;
 UStableDiffusionSubsystem* UStableDiffusionBlueprintLibrary::GetStableDiffusionSubsystem() {
 	UStableDiffusionSubsystem* subsystem = nullptr;
 	subsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
+	return subsystem;
+}
+
+ULayersSubsystem* UStableDiffusionBlueprintLibrary::GetLayersSubsystem() {
+	ULayersSubsystem* subsystem = nullptr;
+	subsystem = GEditor->GetEditorSubsystem<ULayersSubsystem>();
 	return subsystem;
 }
 
@@ -135,6 +142,26 @@ FMatrix UStableDiffusionBlueprintLibrary::GetEditorViewportViewMatrix()
 	return FMatrix::Identity;
 }
 
+FMinimalViewInfo UStableDiffusionBlueprintLibrary::GetEditorViewportViewInfo()
+{
+	FMinimalViewInfo ViewInfo;
+	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
+	auto Client = EditorViewport->GetClient();
+	if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
+		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
+		FSceneView* View = EditorClient->CalcSceneView(&ViewFamily);
+
+		ViewInfo.AspectRatio = (float)View->CameraConstrainedViewRect.Height() / (float)View->CameraConstrainedViewRect.Width();
+		ViewInfo.FOV = View->FOV;
+		ViewInfo.Location = View->ViewLocation;
+		ViewInfo.PostProcessSettings = View->FinalPostProcessSettings;
+		ViewInfo.ProjectionMode = (View->IsPerspectiveProjection()) ? ECameraProjectionMode::Type::Perspective : ECameraProjectionMode::Type::Orthographic;
+		ViewInfo.Rotation = View->ViewRotation;
+	}
+	return ViewInfo;
+}
+
+
 FIntPoint UStableDiffusionBlueprintLibrary::GetEditorViewportSize()
 {
 	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
@@ -212,7 +239,7 @@ UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* 
 
 	ETextureSourceFormat TexFormat = ETextureSourceFormat::TSF_BGRA8;
 	if (OutTex) {
-		TexFormat = OutTex->Source.GetFormat();
+		TexFormat = (OutTex->Source.GetFormat() != ETextureSourceFormat::TSF_Invalid) ? OutTex->Source.GetFormat() : TSF_BGRA8;
 	} else {
 		TObjectPtr<UTexture2D> NewTex = UTexture2D::CreateTransient(FrameSize.X, FrameSize.Y, EPixelFormat::PF_B8G8R8A8);
 		OutTex = NewTex;
@@ -237,18 +264,11 @@ UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* 
 	return OutTex;
 }
 
-void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* CoverageTexture, UTexture2D* SourceTexture, UTexture2D* TargetTexture, const FIntPoint& ScreenSize, const FMatrix& ViewProjectionMatrix, UDynamicMesh* SourceMesh, const TArray<int> TriangleIDs)
+void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* SourceTexture, UTexture2D* TargetTexture, const FIntPoint& ScreenSize, const FMatrix& ViewProjectionMatrix, UDynamicMesh* SourceMesh, const TArray<int> TriangleIDs, bool ClearCoverageMask)
 {
-	if (!SourceTexture || !TargetTexture || ViewProjectionMatrix == FMatrix::Identity  || !SourceMesh || !TriangleIDs.Num() || !CoverageTexture)
+	if (!SourceTexture || !TargetTexture || ViewProjectionMatrix == FMatrix::Identity  || !SourceMesh || !TriangleIDs.Num())
 	{
 		UE_LOG(LogTemp, Error, TEXT("CopyTexturePixels: Invalid input parameters"));
-		return;
-	}
-	
-	ERawImageFormat::Type ImgFormat = FImageCoreUtils::ConvertToRawImageFormat(CoverageTexture->Source.GetFormat());
-	EPixelFormat CoveragePixelFormat = FImageCoreUtils::GetPixelFormatForRawImageFormat(ImgFormat);
-	if (GPixelFormats[CoveragePixelFormat].NumComponents > 1){
-		UE_LOG(LogTemp, Error, TEXT("Coverage texture has too many channels. Expected a single channel"));
 		return;
 	}
 
@@ -266,88 +286,99 @@ void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* Cover
 	const int32 SourceHeight = SourceTexture->GetSizeY();
 	const int32 TargetWidth = TargetTexture->GetSizeX();
 	const int32 TargetHeight = TargetTexture->GetSizeY();
+	
+	// Lock the target texture for reading/writing
+	auto Mips = TargetTexture->GetPlatformMips();
+	FTexture2DMipMap& TargetMip = Mips[0];
+	uint8_t* TargetTextureData = (uint8_t*)TargetMip.BulkData.LockReadOnly();// .Lock(LOCK_READ_WRITE);
+	check(TargetTextureData);
 
-	// Lock the source and target texture for reading/writing
-	TArray<FColor> TargetColors;
-	TargetColors.InsertUninitialized(0, TargetWidth * TargetHeight);
-
-	// Get the coverage texture pixels
-	TArray<uint8_t> CoveragePixels;
-	CoveragePixels.InsertUninitialized(0, TargetWidth * TargetHeight);
+	// Fill interim pixel array
+	TArray<FColor> TargetPixelColors;
+	TargetPixelColors.Init(FColor(255, 0, 0, 0), TargetWidth * TargetHeight);
+	for (size_t idx = 0; idx < TargetPixelColors.Num(); ++idx) {
+		//TargetPixelColors[idx] = FColor(TargetTextureData[idx * 4] + 2, TargetTextureData[idx * 4 + 1], TargetTextureData[idx * 4], TargetTextureData[idx * 4 + 3]);
+	}
+	TargetMip.BulkData.Unlock();
 
 	// Iterate through each triangle and copy pixels from source to target
 	for(auto TriID : TriangleIDs)
 	{
-		FVector2D TargetVertex1;
-		FVector2D TargetVertex2;
-		FVector2D TargetVertex3;
+		// The target triangle vertices in UV space we will write our pixel to
+		FVector2D TargetVertex1UV;
+		FVector2D TargetVertex2UV;
+		FVector2D TargetVertex3UV;
 		bool ValidUVs;
-		UGeometryScriptLibrary_MeshQueryFunctions::GetTriangleUVs(SourceMesh, 0, TriID, TargetVertex1, TargetVertex2, TargetVertex3, ValidUVs);
+		UGeometryScriptLibrary_MeshQueryFunctions::GetTriangleUVs(SourceMesh, 0, TriID, TargetVertex1UV, TargetVertex2UV, TargetVertex3UV, ValidUVs);
 
-		// Get WS tri vertex positions
+		// The equivalent worldspace positions of the same vertices for the current mesh.
+		// Currently assuming the triangles are already in world space (when duplicating the source mesh to a dynamic mesh)
+		// TODO: Passin in component transform to calculate vertices in worldspace
 		FVector SourceVertex1;
 		FVector SourceVertex2;
 		FVector SourceVertex3;
 		bool ValidPositions;
 		UGeometryScriptLibrary_MeshQueryFunctions::GetTrianglePositions(SourceMesh, TriID, ValidPositions, SourceVertex1, SourceVertex2, SourceVertex3);
 
-		// Convert source and target UVs to pixel coordinates
-		int32 TargetX1 = FMath::FloorToInt(TargetVertex1.X * TargetWidth);
-		int32 TargetY1 = FMath::FloorToInt(TargetVertex1.Y * TargetHeight);
-		int32 TargetX2 = FMath::FloorToInt(TargetVertex2.X * TargetWidth);
-		int32 TargetY2 = FMath::FloorToInt(TargetVertex2.Y * TargetHeight);
-		int32 TargetX3 = FMath::FloorToInt(TargetVertex3.X * TargetWidth);
-		int32 TargetY3 = FMath::FloorToInt(TargetVertex3.Y * TargetHeight);
+		// Convert target UVs to pixel within the target texture
+		int32 TargetX1 = FMath::FloorToInt(TargetVertex1UV.X * TargetWidth);
+		int32 TargetY1 = FMath::FloorToInt(TargetVertex1UV.Y * TargetHeight);
+		int32 TargetX2 = FMath::FloorToInt(TargetVertex2UV.X * TargetWidth);
+		int32 TargetY2 = FMath::FloorToInt(TargetVertex2UV.Y * TargetHeight);
+		int32 TargetX3 = FMath::FloorToInt(TargetVertex3UV.X * TargetWidth);
+		int32 TargetY3 = FMath::FloorToInt(TargetVertex3UV.Y * TargetHeight);
 
-		// Iterate through target pixels within the triangle bounds
+		// Iterate through pixels in the target texture within a bounding box surrouding the current triangle
 		for (int32 X = FMath::Min3(TargetX1, TargetX2, TargetX3); X <= FMath::Max3(TargetX1, TargetX2, TargetX3); ++X)
 		{
 			for (int32 Y = FMath::Min3(TargetY1, TargetY2, TargetY3); Y <= FMath::Max3(TargetY1, TargetY2, TargetY3); ++Y)
 			{
+				// Make sure we don't sample from pixels outside of the texture just in case the triangle goes off the edge
 				if (X >= 0 && X < TargetWidth && Y >= 0 && Y < TargetHeight) 
 				{
-					int32 TargetIndex = (Y * TargetWidth + X);
-
-					// Get target UV coordinate
+					// Get the UV coordinate of the current pixel in the target texture
 					FVector2f TargetUV = FVector2f(X, Y) / FVector2f(TargetWidth, TargetHeight);
 
-					// Check if the pixel is inside the triangle
-					TArray<FVector2D> TargetVerts{ TargetVertex1, TargetVertex2, TargetVertex3 };
+					// Check if the current pixel is inside the triangle
+					TArray<FVector2D> TargetVerts{ TargetVertex1UV, TargetVertex2UV, TargetVertex3UV };
 					if (FGeomTools2D::IsPointInPolygon(FVector2D(TargetUV), TargetVerts))
 					{
-						// Interpolate source UVs using barycentric coordinates
-						FVector BarycentricCoords = FMath::ComputeBaryCentric2D(FVector(TargetUV.X, TargetUV.Y, 0.0f), FVector(TargetVertex1.X, TargetVertex1.Y, 0.0f), FVector(TargetVertex2.X, TargetVertex2.Y, 0.0f), FVector(TargetVertex3.X, TargetVertex3.Y, 0.0f));
+						// To convert the current texture space pixel coordinate into screenspace coordinates, we calculate the barycentric weights of the current
+						// pixel within the current triangle and then apply these weights to the worldspace coordinates of the source vertexes in order to figure out the WS coordinate
+						// of the current pixel
+						FVector BarycentricCoords = FMath::ComputeBaryCentric2D(FVector(TargetUV.X, TargetUV.Y, 0.0f), FVector(TargetVertex1UV.X, TargetVertex1UV.Y, 0.0f), FVector(TargetVertex2UV.X, TargetVertex2UV.Y, 0.0f), FVector(TargetVertex3UV.X, TargetVertex3UV.Y, 0.0f));
 						FVector SourceWSPos(
 							SourceVertex1.X * BarycentricCoords.X + SourceVertex2.X * BarycentricCoords.Y + SourceVertex3.X * BarycentricCoords.Z,
 							SourceVertex1.Y * BarycentricCoords.X + SourceVertex2.Y * BarycentricCoords.Y + SourceVertex3.Y * BarycentricCoords.Z,
 							SourceVertex1.Z * BarycentricCoords.X + SourceVertex2.Z * BarycentricCoords.Y + SourceVertex3.Z * BarycentricCoords.Z
 						);
 
+						// Convert the WS coords of the current pixel into screenspace so that we can sample from the projected camera texture
 						FVector2D OutPixel(-1.0f, -1.0f);
 						View->ScreenToPixel(View->WorldToScreen(SourceWSPos), OutPixel);
 
+						// Make sure the pixel lies within the source texture
 						if (OutPixel.X >= 0 && OutPixel.X < View->UnconstrainedViewRect.Width() && OutPixel.Y >= 0 && OutPixel.Y < View->UnconstrainedViewRect.Height()) {
+							
+							// Transform the pixel coordinate from screenspace to source texture splace
 							FVector2D SourceUV(
 								OutPixel.X / View->UnconstrainedViewRect.Width(),
 								OutPixel.Y / View->UnconstrainedViewRect.Height()
 							);
-
 							int32 SourceX = SourceUV.X * SourceWidth;
-							int32 SourceY = SourceUV.X * SourceHeight;
-
-							/*UE_LOG(LogTemp, Log, TEXT("-----------------------------------"));
-							UE_LOG(LogTemp, Log, TEXT("Interpolated vertex X:%d, Y:%d Z:%d"), SourceWSPos.X, SourceWSPos.Y, SourceWSPos.Z);
-							UE_LOG(LogTemp, Log, TEXT("Screenspace coord X:%d, Y:%d"), OutPixel.X, OutPixel.Y);
-							UE_LOG(LogTemp, Log, TEXT("UV coord U:%d, V:%d"), SourceUV.X, SourceUV.Y);*/
+							int32 SourceY = SourceUV.Y * SourceHeight;
 
 							// Copy pixel color from source to target
 							if (SourceX >= 0 && SourceX < SourceWidth && SourceY >= 0 && SourceY < SourceHeight)
 							{
-								int32 SourceIndex = (SourceY * SourceWidth + SourceX); // 4 channels (RGBA)
-
 								// Copy RGBA values from source to target
-								TargetColors[TargetIndex] = GetUVPixelFromTexture(SourceTexture, FVector2D(SourceUV));// SourceTextureData[SourceIndex];
-								CoveragePixels[TargetIndex] = 255;
+								int32 SourceIndex = (SourceY * SourceWidth + SourceX);
+								int32 TargetIndex = (Y * TargetWidth + X);// *4;
+
+								// Only write to pixels that haven't already been written to in a previous capture pass
+								if (TargetPixelColors[TargetIndex].A < 255 || ClearCoverageMask) {
+									TargetPixelColors[TargetIndex] = GetUVPixelFromTexture(SourceTexture, FVector2D(SourceUV));
+								}
 							}
 						}
 					}
@@ -356,12 +387,7 @@ void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* Cover
 		}
 	}
 
-	// Update coverage texture
-	// Unlock the render target texture and update it with the modified pixel values
-
-	// Copy colors to target textures
-	ColorBufferToTexture(TargetColors, FIntPoint(TargetWidth, TargetHeight), TargetTexture);
-	ColorBufferToTexture(CoveragePixels.GetData(), FIntPoint(TargetWidth, TargetHeight), CoverageTexture);
+	ColorBufferToTexture(TargetPixelColors, FIntPoint(TargetWidth, TargetHeight), TargetTexture);
 }
 
 FColor UStableDiffusionBlueprintLibrary::GetUVPixelFromTexture(UTexture2D* Texture, FVector2D UV)
@@ -413,12 +439,13 @@ FColor UStableDiffusionBlueprintLibrary::GetUVPixelFromTexture(UTexture2D* Textu
 
 UTexture2D*UStableDiffusionBlueprintLibrary::CreateTextureAsset(const FString& AssetPath, const FString& Name, FIntPoint Size, ETextureSourceFormat Format, FColor Fill)
 {
-	if (AssetPath.IsEmpty() || Name.IsEmpty())
+	if (AssetPath.IsEmpty() || Name.IsEmpty() || Size.GetMin() < 1)
 		return nullptr;
 
 	// Create package
 	FString FullPackagePath = FPaths::Combine(AssetPath, Name);
 	UPackage* Package = CreatePackage(*FullPackagePath);
+	check(Package);
 	Package->FullyLoad();
 	Package->AddToRoot();
 
@@ -451,6 +478,37 @@ UTexture2D*UStableDiffusionBlueprintLibrary::CreateTextureAsset(const FString& A
 	bool bSaved = UPackage::SavePackage(Package, NewTexture, *PackageFileName, PackageArgs);
 
 	return NewTexture;
+}
+
+UProjectionBakeSessionAsset* UStableDiffusionBlueprintLibrary::CreateProjectionBakeSessionAsset(const FProjectionBakeSession& Session, const FString& AssetPath, const FString& Name)
+{
+	if (AssetPath.IsEmpty() || Name.IsEmpty())
+		return nullptr;
+
+	// Create package
+	FString FullPackagePath = FPaths::Combine(AssetPath, Name);
+	UPackage* Package = CreatePackage(*FullPackagePath);
+	Package->FullyLoad();
+
+	UProjectionBakeSessionAsset* NewSessionAsset = NewObject<UProjectionBakeSessionAsset>(Package, *Name, RF_Public | RF_Standalone);
+	check(NewSessionAsset);
+	NewSessionAsset->Session = Session;
+#if WITH_EDITOR
+	NewSessionAsset->PostEditChange();
+#endif
+
+	// Update package
+	Package->MarkPackageDirty();
+	FAssetRegistryModule::AssetCreated(NewSessionAsset);
+
+	// Save session package
+	/*FString PackageFileName = FPackageName::LongPackageNameToFilename(FullPackagePath, FPackageName::GetAssetPackageExtension());
+	FSavePackageArgs PackageArgs;
+	PackageArgs.TopLevelFlags = EObjectFlags::RF_Public | EObjectFlags::RF_Standalone;
+	PackageArgs.bForceByteSwapping = true;
+	bool bSaved = UPackage::SavePackage(Package, NewSessionAsset, *PackageFileName, PackageArgs);*/
+
+	return NewSessionAsset;
 }
 
 FColor UStableDiffusionBlueprintLibrary::LerpColor(const FColor& ColorA, const FColor& ColorB, float Alpha)

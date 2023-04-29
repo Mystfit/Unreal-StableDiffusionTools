@@ -10,6 +10,8 @@
 #include "GeometryScript/GeometryScriptTypes.h"
 #include "GeometryScript/GeometryScriptSelectionTypes.h"
 #include "UDynamicMesh.h"
+#include "Layers/LayersSubsystem.h"
+#include "ProjectionBakeSession.h"
 #include "StableDiffusionToolsSettings.h"
 #include "StableDiffusionBlueprintLibrary.generated.h"
 
@@ -23,6 +25,9 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionBlueprintLibrary : public UBluepr
 public:
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Subsystem")
 	static UStableDiffusionSubsystem* GetStableDiffusionSubsystem();
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Subsystem")
+	static ULayersSubsystem* GetLayersSubsystem();
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Options")
 	static UStableDiffusionToolsSettings* GetPluginOptions();
@@ -49,6 +54,9 @@ public:
 	static FMatrix GetEditorViewportViewMatrix();
 
 	UFUNCTION(BlueprintCallable, Category = "Camera")
+	static FMinimalViewInfo GetEditorViewportViewInfo();
+
+	UFUNCTION(BlueprintCallable, Category = "Camera")
 	static FIntPoint GetEditorViewportSize();
 
 	UFUNCTION(BlueprintCallable, Category = "Camera")
@@ -58,7 +66,7 @@ public:
 	static TArray<AActor*> GetActorsInViewFrustum(const UObject* WorldContextObject, const FMatrix& ViewProjectionMatrix, const FVector& CameraLocation);
 	
 	UFUNCTION(BlueprintCallable, Category = "Texture")
-	static void CopyTextureDataUsingUVs(UTexture2D* CoverageTexture, UTexture2D* SourceTexture, UTexture2D* TargetTexture, const FIntPoint& ScreenSize, const FMatrix& ViewProjectionMatrix, UDynamicMesh* SourceMesh, const TArray<int> TriangleIDs);
+	static void CopyTextureDataUsingUVs(UTexture2D* SourceTexture, UTexture2D* TargetTexture, const FIntPoint& ScreenSize, const FMatrix& ViewProjectionMatrix, UDynamicMesh* SourceMesh, const TArray<int> TriangleIDs, bool ClearCoverageMask);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static FColor GetUVPixelFromTexture(UTexture2D* Texture, FVector2D UV);
@@ -68,6 +76,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static UTexture2D* CreateTextureAsset(const FString& AssetPath, const FString& Name, FIntPoint Size, ETextureSourceFormat Format = ETextureSourceFormat::TSF_BGRA8, FColor Fill = FColor::Black);
+
+	UFUNCTION(BlueprintCallable, Category = "Texture")
+	static UProjectionBakeSessionAsset* CreateProjectionBakeSessionAsset(const FProjectionBakeSession& Session, const FString& AssetPath, const FString& Name);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static FColor LerpColor(const FColor& ColorA, const FColor& ColorB, float Alpha);

@@ -30,7 +30,9 @@ struct FCapturedFramePayload : public IFramePayload {
 	FFrameCaptureComplete OnFrameCapture;
 };
 
+USTRUCT(BlueprintType)
 struct FViewportSceneCapture {
+	GENERATED_BODY()
 	TObjectPtr<ASceneCapture2D> SceneCapture;
 	TObjectPtr<FLevelEditorViewportClient> ViewportClient;
 };
@@ -239,6 +241,12 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Generation")
 	bool bIsUpsampling = false;
 
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Camera")
+	FViewportSceneCapture CreateSceneCaptureFromEditorViewport();
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Camera")
+	void UpdateSceneCaptureCamera(FViewportSceneCapture& SceneCapture);
+
 	TArray<FColor> CopyFrameData(FIntPoint TargetSize, FIntPoint BufferSize, FColor* ColorBuffer);
 
 	static TSharedPtr<FSceneViewport> GetCapturingViewport();
@@ -255,8 +263,6 @@ private:
 	FDelegateHandle ActiveEndframeHandler;
 
 	// Scene Capture Component capture
-	FViewportSceneCapture CreateSceneCaptureCamera();
-	void UpdateSceneCaptureCamera(FViewportSceneCapture& SceneCapture);
 	FViewportSceneCapture CurrentSceneCapture;
 
 	// Capture from the currently active viewport

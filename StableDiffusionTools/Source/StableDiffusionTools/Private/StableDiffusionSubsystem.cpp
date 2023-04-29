@@ -451,7 +451,7 @@ UTextureRenderTarget2D* UStableDiffusionSubsystem::SetLivePreviewForLayer(FIntPo
 	}
 	else {
 		if (!LayerPreviewCapture.SceneCapture) {
-			LayerPreviewCapture = CreateSceneCaptureCamera();
+			LayerPreviewCapture = CreateSceneCaptureFromEditorViewport();
 			//DepthPreviewCapture.SceneCapture->SetIsTemporarilyHiddenInEditor(true);
 			
 			OnLayerPreviewUpdateHandle = FEditorDelegates::OnEditorCameraMoved.AddLambda([this](const FVector& Location, const FRotator& Rotation, ELevelViewportType ViewportType, int32 ViewportIndex) {
@@ -474,10 +474,10 @@ UTextureRenderTarget2D* UStableDiffusionSubsystem::SetLivePreviewForLayer(FIntPo
 void UStableDiffusionSubsystem::DisableLivePreviewForLayer()
 {
 	if (LayerPreviewCapture.SceneCapture && PreviewedLayer->IsValidLowLevel()) {
-		AsyncTask(ENamedThreads::GameThread, [this]() {
-			if(PreviewedLayer)
-				PreviewedLayer->EndCaptureLayer(LayerPreviewCapture.SceneCapture->GetCaptureComponent2D());
+		if (PreviewedLayer)
+			PreviewedLayer->EndCaptureLayer(LayerPreviewCapture.SceneCapture->GetCaptureComponent2D());
 
+		AsyncTask(ENamedThreads::GameThread, [this]() {
 			// Remove camera updater
 			FEditorDelegates::OnEditorCameraMoved.Remove(OnLayerPreviewUpdateHandle);
 			OnLayerPreviewUpdateHandle.Reset();
@@ -490,7 +490,7 @@ void UStableDiffusionSubsystem::DisableLivePreviewForLayer()
 	PreviewedLayer = nullptr;
 }
 
-FViewportSceneCapture UStableDiffusionSubsystem::CreateSceneCaptureCamera()
+FViewportSceneCapture UStableDiffusionSubsystem::CreateSceneCaptureFromEditorViewport()
 {
 	FViewportSceneCapture SceneCapture;
 
@@ -544,7 +544,7 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 		Input.ProcessedLayers.Reserve(ModelOptions.Layers.Num());
 		
 		// Create a scene capture
-		auto SceneCapture = CreateSceneCaptureCamera();
+		auto SceneCapture = CreateSceneCaptureFromEditorViewport();
 
 		for (auto& Layer : ModelOptions.Layers) {
 			// Copy layer
@@ -593,7 +593,7 @@ void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionIn
 	USceneCaptureComponent2D* CaptureComponent = nullptr;
 	if (!Input.CaptureSource) {
 		// Create a default SceneCapture2D that will capture our editor viewport
-		CurrentSceneCapture = CreateSceneCaptureCamera();
+		CurrentSceneCapture = CreateSceneCaptureFromEditorViewport();
 		CaptureComponent = CurrentSceneCapture.SceneCapture->GetCaptureComponent2D();
 	}
 	else {
