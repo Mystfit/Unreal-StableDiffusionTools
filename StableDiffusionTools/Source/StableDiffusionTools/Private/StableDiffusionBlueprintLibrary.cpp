@@ -288,18 +288,17 @@ void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* Sourc
 	const int32 TargetHeight = TargetTexture->GetSizeY();
 	
 	// Lock the target texture for reading/writing
-	auto Mips = TargetTexture->GetPlatformMips();
-	FTexture2DMipMap& TargetMip = Mips[0];
-	uint8_t* TargetTextureData = (uint8_t*)TargetMip.BulkData.LockReadOnly();// .Lock(LOCK_READ_WRITE);
-	check(TargetTextureData);
+	FTexture2DMipMap* Mip = &TargetTexture->PlatformData->Mips[0];
+	FColor* TargetTextureRawData = static_cast<FColor*>(Mip->BulkData.Lock(LOCK_READ_ONLY));
+	check(TargetTextureRawData);
 
 	// Fill interim pixel array
 	TArray<FColor> TargetPixelColors;
-	TargetPixelColors.Init(FColor(255, 0, 0, 0), TargetWidth * TargetHeight);
+	TargetPixelColors.Init(FColor(0, 0, 0, 0), TargetWidth * TargetHeight);
 	for (size_t idx = 0; idx < TargetPixelColors.Num(); ++idx) {
-		//TargetPixelColors[idx] = FColor(TargetTextureData[idx * 4] + 2, TargetTextureData[idx * 4 + 1], TargetTextureData[idx * 4], TargetTextureData[idx * 4 + 3]);
+		TargetPixelColors[idx] = TargetTextureRawData[idx];
 	}
-	TargetMip.BulkData.Unlock();
+	Mip->BulkData.Unlock();
 
 	// Iterate through each triangle and copy pixels from source to target
 	for(auto TriID : TriangleIDs)
@@ -449,18 +448,37 @@ UTexture2D*UStableDiffusionBlueprintLibrary::CreateTextureAsset(const FString& A
 	Package->FullyLoad();
 	Package->AddToRoot();
 
-	// Duplicate texture
+	// Init fill data
 	TArray<FColor> FillPixels;
 	FillPixels.Init(Fill, Size.X * Size.Y);
 	uint8_t* FillData = (uint8_t*)(FillPixels.GetData());
 
-	UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *Name, RF_Public | RF_Standalone);
-	NewTexture->Source.Init(Size.X, Size.Y, 1, 1, Format, FillData);//ETextureSourceFormat::TSF_RGBA8);
-	NewTexture->MipGenSettings = TMGS_NoMipmaps;
+	ERawImageFormat::Type ImgFormat = FImageCoreUtils::ConvertToRawImageFormat(Format);
+	UTexture2D* NewTexture = UTexture2D::CreateTransient(Size.X, Size.Y, FImageCoreUtils::GetPixelFormatForRawImageFormat(ImgFormat), FName(Name));
+	//UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *Name, RF_Public | RF_Standalone);
+	
+	// Make sure transient texture sticks around.
+	NewTexture->ClearFlags(RF_Transient);
+	NewTexture->SetFlags(EObjectFlags::RF_Public | EObjectFlags::RF_Standalone);
+	NewTexture->Rename(nullptr, Package);
+
 	NewTexture->SRGB = true;
+#if WITH_EDITOR
+	NewTexture->MipGenSettings = TMGS_NoMipmaps;
 	NewTexture->DeferCompression = true;
+	NewTexture->CompressionNone = true;
+#endif
+	// Copy into source
+	NewTexture->Source.Init(Size.X, Size.Y, 1, 1, Format, FillData);//ETextureSourceFormat::TSF_RGBA8);
+
+	// Copy into target mip as well
+	auto MipData = NewTexture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+	FMemory::Memcpy(MipData, FillData, FillPixels.Num());
+	NewTexture->GetPlatformData()->Mips[0].BulkData.Unlock();
 
 	NewTexture->UpdateResource();
+	NewTexture->MarkPackageDirty();
+	NewTexture->Modify();
 #if WITH_EDITOR
 	NewTexture->PostEditChange();
 #endif
