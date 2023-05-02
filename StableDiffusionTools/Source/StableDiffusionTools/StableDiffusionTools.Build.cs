@@ -47,7 +47,8 @@ public class StableDiffusionTools : ModuleRules
 				"Blutility",
 				"UMG",
 				"AssetRegistry",
-				"EditorSubsystem",
+                "AssetTools",
+                "EditorSubsystem",
 				"MovieSceneCapture",
 				"RemoteSession",
 				"LevelEditor",
@@ -62,7 +63,8 @@ public class StableDiffusionTools : ModuleRules
                 "GeometryFramework",
 				"GeometryScriptingCore",
                 "DynamicMesh",
-				"ImageCore"
+				"ImageCore",
+                "MaterialEditor"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

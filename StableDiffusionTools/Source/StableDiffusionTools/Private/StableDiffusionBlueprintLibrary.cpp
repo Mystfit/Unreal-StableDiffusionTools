@@ -20,6 +20,10 @@
 #include "GeometryScript/MeshQueryFunctions.h"
 #include "ProjectionBakeSession.h"
 #include "ImageCoreUtils.h"
+#include "IAssetTools.h"
+#include "MaterialEditingLibrary.h"
+#include "Factories/MaterialInstanceConstantFactoryNew.h"
+#include "AssetToolsModule.h"
 
 using namespace UE::Geometry;
 
@@ -151,7 +155,7 @@ FMinimalViewInfo UStableDiffusionBlueprintLibrary::GetEditorViewportViewInfo()
 		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
 		FSceneView* View = EditorClient->CalcSceneView(&ViewFamily);
 
-		ViewInfo.AspectRatio = (float)View->CameraConstrainedViewRect.Height() / (float)View->CameraConstrainedViewRect.Width();
+		ViewInfo.AspectRatio = (float)View->UnconstrainedViewRect.Width() / (float)View->UnconstrainedViewRect.Height();
 		ViewInfo.FOV = View->FOV;
 		ViewInfo.Location = View->ViewLocation;
 		ViewInfo.PostProcessSettings = View->FinalPostProcessSettings;
@@ -527,6 +531,25 @@ UProjectionBakeSessionAsset* UStableDiffusionBlueprintLibrary::CreateProjectionB
 	bool bSaved = UPackage::SavePackage(Package, NewSessionAsset, *PackageFileName, PackageArgs);*/
 
 	return NewSessionAsset;
+}
+
+UMaterialInstanceConstant* UStableDiffusionBlueprintLibrary::CreateMaterialInstanceAsset(UMaterial* ParentMaterial, const FString& Path, const FString& Name)
+{
+	UMaterialInterface* MasterMaterial = ParentMaterial;
+	if (MasterMaterial == nullptr)
+		return nullptr;
+
+	IAssetTools& AssetTools = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools").Get();
+	UMaterialInstanceConstantFactoryNew* Factory = NewObject<UMaterialInstanceConstantFactoryNew>();
+	UMaterialInstanceConstant* MaterialInstance = CastChecked<UMaterialInstanceConstant>(AssetTools.CreateAsset(Name, Path, UMaterialInstanceConstant::StaticClass(), Factory));
+	UMaterialEditingLibrary::SetMaterialInstanceParent(MaterialInstance, MasterMaterial);
+	if (MaterialInstance)
+	{
+		MaterialInstance->SetFlags(RF_Standalone);
+		MaterialInstance->MarkPackageDirty();
+		MaterialInstance->PostEditChange();
+	}
+	return MaterialInstance;
 }
 
 FColor UStableDiffusionBlueprintLibrary::LerpColor(const FColor& ColorA, const FColor& ColorB, float Alpha)

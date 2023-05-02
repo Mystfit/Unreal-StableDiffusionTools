@@ -23,6 +23,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "ImagePlate",
+			"Enabled": true
+		},
+		{
 			"Name": "PythonScriptPlugin",
 			"Enabled": true
 		},

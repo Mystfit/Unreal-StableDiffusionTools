@@ -42,4 +42,7 @@ public:
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Outputs")
     bool Upsampled = false;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Outputs")
+    FMinimalViewInfo View;
 };

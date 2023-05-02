@@ -190,4 +190,7 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	bool DebugPythonImages = false;
+
+	UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Generation")
+	FMinimalViewInfo View;
 };

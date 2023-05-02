@@ -10,6 +10,7 @@
 #include "GeometryScript/GeometryScriptTypes.h"
 #include "GeometryScript/GeometryScriptSelectionTypes.h"
 #include "UDynamicMesh.h"
+#include "Materials/MaterialInstanceConstant.h"
 #include "Layers/LayersSubsystem.h"
 #include "ProjectionBakeSession.h"
 #include "StableDiffusionToolsSettings.h"
@@ -82,6 +83,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static FColor LerpColor(const FColor& ColorA, const FColor& ColorB, float Alpha);
+
+	UFUNCTION(BlueprintCallable, Category = "Texture")
+	static UMaterialInstanceConstant* CreateMaterialInstanceAsset(UMaterial* ParentMaterial, const FString& Path, const FString& Name);
 
 	static UTexture2D* ColorBufferToTexture(const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex);
 };

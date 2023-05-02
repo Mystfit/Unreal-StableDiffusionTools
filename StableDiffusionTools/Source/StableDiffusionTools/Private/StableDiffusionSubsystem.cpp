@@ -330,7 +330,7 @@ void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult&
 	});
 }
 
-bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, const FStableDiffusionGenerationOptions& ImageInputs, bool Upsampled)
+UStableDiffusionImageResultAsset* UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty() || !Texture)
 		return false;
@@ -354,6 +354,7 @@ bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, con
 	NewImageResultAsset->ImageInputs = ImageInputs;
 	NewImageResultAsset->Upsampled = Upsampled;
 	NewImageResultAsset->ImageOutput = NewTexture;
+	NewImageResultAsset->View = View;
 
 	// Update package
 	Package->MarkPackageDirty();
@@ -366,7 +367,7 @@ bool UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, con
 	PackageArgs.bForceByteSwapping = true;
 	bool bSaved = UPackage::SavePackage(Package, NewTexture, *PackageFileName, PackageArgs);
 
-	return bSaved;
+	return NewImageResultAsset;
 }
 
 void UStableDiffusionSubsystem::UpdateImageProgress(int32 Step, int32 Timestep, float Progress, FIntPoint Size, const TArray<FColor>& PixelData)
@@ -542,7 +543,8 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 	if (ModelOptions.Layers.Num()) {
 		Input.ProcessedLayers.Reset();
 		Input.ProcessedLayers.Reserve(ModelOptions.Layers.Num());
-		
+		Input.View = UStableDiffusionBlueprintLibrary::GetEditorViewportViewInfo();
+
 		// Create a scene capture
 		auto SceneCapture = CreateSceneCaptureFromEditorViewport();
 
@@ -599,6 +601,12 @@ void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionIn
 	else {
 		CaptureComponent = Input.CaptureSource;
 	}
+
+
+	// Hold onto camera view info
+	FMinimalViewInfo CaptureSourceView;
+	CaptureComponent->GetCameraView(0, CaptureSourceView);
+	Input.View = CaptureSourceView;
 
 	// Get the capture size from the source
 	auto ViewportSize = GetCapturingViewport()->GetSizeXY();
