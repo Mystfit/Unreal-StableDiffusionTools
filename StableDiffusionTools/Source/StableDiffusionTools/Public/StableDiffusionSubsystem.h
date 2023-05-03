@@ -19,7 +19,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FImageGenerationComplete, FStableDiffusionIm
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FImageGenerationCompleteEx, FStableDiffusionImageResult, Result);
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FModelInitialized, bool);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FModelInitializedEx, bool, Success);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FModelInitializedEx, EModelStatus, ModelStatus);
 DECLARE_MULTICAST_DELEGATE(FPythonLoaded);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FPythonLoadedEx);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDependenciesInstalled, bool, Success);
@@ -161,7 +161,7 @@ public:
 	bool PythonLoaded = false;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
-	bool DependenciesAreInstalled();
+	bool DependenciesAreInstalled() const;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
 	void InstallDependency(FDependencyManifestEntry Dependency, bool ForceReinstall);
@@ -170,13 +170,19 @@ public:
 	FDependenciesInstalled OnDependenciesInstalled;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
-	bool HasToken();
+	bool HasToken() const;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
-	FString GetToken();
+	FString GetToken() const;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	bool LoginUsingToken(const FString& token);
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
+	void SetModelDirty();
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
+	bool IsModelDirty() const;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	void InitModel(const FStableDiffusionModelOptions& Model, bool Async, bool AllowNSFW, EPaddingMode PaddingMode);
@@ -205,8 +211,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Utilities")
 	FString FilepathToLongPackagePath(const FString& Path);
 
-	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Model")
-	bool ModelInitialised;
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
+	EModelStatus GetModelStatus() const;
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Model")
 	FModelInitializedEx OnModelInitializedEx;
@@ -290,4 +296,7 @@ private:
 
 	FViewportSceneCapture LayerPreviewCapture;
 	FDelegateHandle OnLayerPreviewUpdateHandle;
+
+	// Model state
+	bool bIsModelDirty = true;
 };

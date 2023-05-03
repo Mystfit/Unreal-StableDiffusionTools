@@ -25,7 +25,7 @@ class PyDependencyManager(unreal.DependencyManager):
     def install_dependency(self, dependency, force_reinstall):
         status = unreal.DependencyStatus()
         status.name = dependency.name
-        status.installed = False
+        status.status = unreal.DependencyState.UPDATING
         status.return_code = 0
 
         dep_name = f"{dependency.name}=={dependency.version}" if dependency.version else dependency.name
@@ -83,11 +83,11 @@ class PyDependencyManager(unreal.DependencyManager):
                 err = proc.stderr.read() if proc.stderr else "No stderr pipe. Check normal log"
                 self.update_dependency_progress(dependency.name, f"ERROR: Failed to install depdendency {dep_name}\nReturn code was {return_code}\nError was {err}")
                 raise subprocess.CalledProcessError(return_code, " ".join(cmd))
-            status.installed = True
+            status.status = unreal.DependencyState.INSTALLED
             print(f"Return code for {dependency.name} was {return_code}")
 
         except CalledProcessError as e:
-            status.installed = False
+            status.status = unreal.DependencyState.ERROR
             status.message = e.output if e.output else ""
             status.return_code = e.returncode
 
@@ -111,8 +111,8 @@ class PyDependencyManager(unreal.DependencyManager):
             pass
         status.version = package_version
         module_status = importlib.util.find_spec(module_name)
-        status.installed = True if module_status else False
-        print(f"Module {dependency.module} installed for dependency {dependency.name}: {status.installed}")
+        status.status = unreal.DependencyState.INSTALLED if module_status else unreal.DependencyState.NOT_INSTALLED
+        print(f"Module {dependency.module} state for dependency {dependency.name}: {status.status}")
         return status
 
     @unreal.ufunction(override=True)
@@ -121,7 +121,7 @@ class PyDependencyManager(unreal.DependencyManager):
         dependencies_installed = True
         for dependency in dependencies:
             status = self.get_dependency_status(dependency)
-            if not status.installed:
+            if status.status != unreal.DependencyState.INSTALLED:
                 dependencies_installed = False
         #print(f"All dependencies installed? {dependencies_installed}")
         return dependencies_installed

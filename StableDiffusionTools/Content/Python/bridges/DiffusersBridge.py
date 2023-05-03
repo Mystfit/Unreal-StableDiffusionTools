@@ -19,7 +19,7 @@ from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, S
 from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray
-from huggingface_hub.utils import HfFolder
+from huggingface_hub.utils import HfFolder, scan_cache_dir
 
 try:
     from upsampling import RealESRGANModel
@@ -171,8 +171,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def InitModel(self, new_model_options, allow_nsfw, padding_mode):
-        self.model_loaded = False
         result = True
+        self.set_editor_property("ModelStatus", unreal.ModelStatus.LOADING if self.ModelExists(new_model_options.model) else unreal.ModelStatus.DOWNLOADING)
 
         scheduler_module = None
         if new_model_options.scheduler:
@@ -248,10 +248,15 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 self.pipe.safety_checker = self.orig_NSFW_filter
         
         self.set_editor_property("ModelOptions", new_model_options)
-        self.model_loaded = True
+        self.set_editor_property("ModelStatus", unreal.ModelStatus.LOADED)
+
         print("Loaded Stable Diffusion model " + modelname)
 
         return result
+
+    @unreal.ufunction(override=True)
+    def GetTokenWebsiteHint(self):
+        return "https://huggingface.co/settings/tokens"
 
     def InitUpsampler(self):
         upsampler = None
@@ -268,8 +273,13 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             if self.pipe:
                 del self.pipe
                 self.pipe = None
-        self.model_loaded = False
+        self.set_editor_property("ModelStatus", unreal.ModelStatus.UNLOADED)
         torch.cuda.empty_cache()
+
+    @unreal.ufunction(override=True)
+    def ModelExists(self, model_name):
+        cache = scan_cache_dir()
+        return bool(next((repo for repo in cache.repos if repo.repo_id == model_name), False))
 
     @unreal.ufunction(override=True)
     def GenerateImageFromStartImage(self, input):
@@ -401,6 +411,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         pct_complete = (self.start_timestep - timestep) / self.start_timestep
 
         print(f"Step is {step}. Timestep is {timestep} Frequency is {self.update_frequency}. Modulo is {step % self.update_frequency}")
+        pixels = []
+        image_size = (0,0)
         if step % self.update_frequency == 0:
             adjusted_latents = 1 / 0.18215 * latents
             image = self.pipe.vae.decode(adjusted_latents).sample
@@ -408,7 +420,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
             image = self.pipe.numpy_to_pil(image)[0]
             pixels = PILImageToFColorArray(image.convert("RGBA"))
-            self.update_image_progress("inprogress", int(step), int(timestep), float(pct_complete), image.width, image.height, pixels)
+            image_size = (image.width, image.height)
+        
+        self.update_image_progress("inprogress", int(step), int(timestep), float(pct_complete), image_size[0], image_size[1], pixels)
 
         # Image finished we can now abort image generation
         if self.abort and self.executor:

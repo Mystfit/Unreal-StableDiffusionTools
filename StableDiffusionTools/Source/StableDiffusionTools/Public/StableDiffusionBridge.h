@@ -41,6 +41,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
     FString GetToken();
 
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    FString GetTokenWebsiteHint();
+
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Bridge")
  //   USDBridgeToken* CachedToken;
 
@@ -50,10 +53,16 @@ public:
     /** Python stable diffusion implementable functions */
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    bool ModelExists(const FString& ModelName) const;
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     bool InitModel(const FStableDiffusionModelOptions& NewModelOptions, bool AllowNsfw, EPaddingMode PaddingMode);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void ReleaseModel();
+
+    UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Model")
+    bool ModelInitialising = false;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     FStableDiffusionImageResult GenerateImageFromStartImage(const FStableDiffusionInput& InputOptions) const;
@@ -75,6 +84,9 @@ public:
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
     FStableDiffusionModelOptions ModelOptions;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
+    EModelStatus ModelStatus = EModelStatus::Unloaded;
 
     FImageProgress OnImageProgress;
     FImageProgressEx OnImageProgressEx;

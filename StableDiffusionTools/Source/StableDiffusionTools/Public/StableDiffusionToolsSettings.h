@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
+#include "IDetailCustomization.h"
 #include "StableDiffusionBridge.h"
 #include "StableDiffusionToolsSettings.generated.h"
 
@@ -32,4 +33,15 @@ private:
 
 	UPROPERTY(config, EditAnywhere, Category = "Options")
 	TMap<FName, FString> GeneratorTokens;
+};
+
+
+class FStableDiffusionToolsSettingsDetails : public IDetailCustomization
+{
+public:
+	/** Makes a new instance of this detail layout class for a specific detail view requesting it */
+	static TSharedRef<IDetailCustomization> MakeInstance();
+
+	/** IDetailCustomization interface */
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 };

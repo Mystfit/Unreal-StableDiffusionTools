@@ -4,6 +4,16 @@
 #include "UObject/NoExportTypes.h"
 #include "DependencyManager.generated.h"
 
+UENUM(BlueprintType)
+enum class EDependencyState : uint8 {
+    NotInstalled UMETA(DisplayName = "Not installed"),
+    Installed UMETA(DisplayName = "Installed"),
+    Updating UMETA(DisplayName = "Updating"),
+    Queued UMETA(DisplayName = "Queued"),
+    Error UMETA(DisplayName = "Error")
+};
+ENUM_CLASS_FLAGS(EDependencyState);
+
 USTRUCT(BlueprintType)
 struct STABLEDIFFUSIONTOOLS_API FDependencyStatus {
     GENERATED_BODY()
@@ -12,7 +22,7 @@ public:
         FName Name;
 
     UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
-        bool Installed;
+        EDependencyState Status;
 
     UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Dependencies")
         FString Message;
@@ -78,6 +88,12 @@ class STABLEDIFFUSIONTOOLS_API UDependencyManager : public UObject
 public:
     UDependencyManager(const FObjectInitializer& initializer);
 
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
+        void SetIsInstallingDependencies(bool State);
+
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
+        bool IsInstallingDependencies() const;
+
     UFUNCTION(BlueprintCallable, BlueprintImplementableEvent, Category = "StableDiffusion|Dependencies")
         void InstallAllDependencies(bool ForceReinstall);
 
@@ -128,4 +144,5 @@ protected:
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
     void UpdateDependencyProgress(FString DependencyName, FString Line);
 
+    bool bIsInstallingDependencies = false;
 };

@@ -171,11 +171,11 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 						if (OptionSection) {
 							//Reload model if it doesn't match the current options track
 							if (OptionSection->ModelAsset) {
-								if (SDSubsystem->ModelOptions != OptionSection->ModelAsset->Options || !SDSubsystem->ModelInitialised) {
+								if (SDSubsystem->ModelOptions != OptionSection->ModelAsset->Options || SDSubsystem->GetModelStatus() != EModelStatus::Loaded) {
 									SDSubsystem->InitModel(OptionSection->ModelAsset->Options, false, OptionSection->AllowNSFW, OptionSection->PaddingMode);
 								}
 							}
-							if (!SDSubsystem->ModelInitialised) {
+							if (SDSubsystem->GetModelStatus() == EModelStatus::Loaded) {
 								UE_LOG(LogTemp, Error, TEXT("No model asset provided in Stable Diffusion Options section and no model loaded in StableDiffusionSubsystem. Please add a model asset to the Options track or initialize the StableDiffusionSubsystem model."))
 							}
 							// Evaluate curve values

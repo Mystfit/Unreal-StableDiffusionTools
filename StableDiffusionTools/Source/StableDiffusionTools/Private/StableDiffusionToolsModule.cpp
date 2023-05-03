@@ -32,6 +32,9 @@ void FStableDiffusionToolsModule::CreateSettingsSection() {
 		{
 			SettingsSection->OnModified().BindRaw(this, &FStableDiffusionToolsModule::HandleSettingsSaved);
 		}
+
+		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+		PropertyModule.RegisterCustomClassLayout(UStableDiffusionToolsSettings::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FStableDiffusionToolsSettingsDetails::MakeInstance));
 	}
 }
 

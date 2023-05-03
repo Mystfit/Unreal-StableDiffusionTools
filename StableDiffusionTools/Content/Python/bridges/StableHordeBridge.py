@@ -17,6 +17,10 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
         unreal.StableDiffusionBridge.__init__(self)
 
     @unreal.ufunction(override=True)
+    def GetTokenWebsiteHint(self):
+        return "https://stablehorde.net/register"
+
+    @unreal.ufunction(override=True)
     def InitModel(self, new_model_options, allow_nsfw, padding_mode):
         self.model_loaded = True
         headers = {

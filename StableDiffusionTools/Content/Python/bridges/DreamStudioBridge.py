@@ -22,6 +22,10 @@ class DreamStudioBridge(unreal.StableDiffusionBridge):
         return True
 
     @unreal.ufunction(override=True)
+    def GetTokenWebsiteHint(self):
+        return "https://dreamstudio.ai/account"
+
+    @unreal.ufunction(override=True)
     def ReleaseModel(self):
         pass    
 

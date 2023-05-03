@@ -16,6 +16,16 @@ UDependencyManager::UDependencyManager(const FObjectInitializer& initializer)
 	});
 }
 
+void UDependencyManager::SetIsInstallingDependencies(bool State)
+{
+	bIsInstallingDependencies = State;
+}
+
+bool UDependencyManager::IsInstallingDependencies() const
+{
+	return bIsInstallingDependencies;
+}
+
 void UDependencyManager::RestartAndUpdateDependencies()
 {
 	auto Settings = GetMutableDefault<UDependencySettings>();

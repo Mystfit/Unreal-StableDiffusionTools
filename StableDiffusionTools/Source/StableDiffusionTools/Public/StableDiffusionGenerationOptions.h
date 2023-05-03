@@ -33,6 +33,15 @@ enum class EPaddingMode : uint8 {
 };
 ENUM_CLASS_FLAGS(EPaddingMode);
 
+UENUM(BlueprintType)
+enum class EModelStatus : uint8 {
+	Unloaded UMETA(DisplayName = "Unloaded"),
+	Loading UMETA(DisplayName = "Loading"),
+	Loaded UMETA(DisplayName = "Loaded"),
+	Downloading UMETA(DisplayName = "Downloading")
+};
+ENUM_CLASS_FLAGS(EModelStatus);
+
 
 USTRUCT(BlueprintType, meta=(UsesHierarchy=true))
 struct STABLEDIFFUSIONTOOLS_API FStableDiffusionModelOptions

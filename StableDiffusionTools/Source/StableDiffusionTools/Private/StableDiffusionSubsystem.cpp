@@ -102,7 +102,7 @@ void UStableDiffusionSubsystem::CreateBridge(TSubclassOf<UStableDiffusionBridge>
 	
 }
 
-bool UStableDiffusionSubsystem::DependenciesAreInstalled()
+bool UStableDiffusionSubsystem::DependenciesAreInstalled() const
 {
 	return (DependencyManager) ? DependencyManager->AllDependenciesInstalled() : false;
 }
@@ -120,7 +120,7 @@ void UStableDiffusionSubsystem::InstallDependency(FDependencyManifestEntry Depen
 	});
 }
 
-bool UStableDiffusionSubsystem::HasToken()
+bool UStableDiffusionSubsystem::HasToken() const
 {
 	if (GeneratorBridge) {
 		return !GeneratorBridge->GetToken().IsEmpty();
@@ -128,7 +128,7 @@ bool UStableDiffusionSubsystem::HasToken()
 	return false;
 }
 
-FString UStableDiffusionSubsystem::GetToken()
+FString UStableDiffusionSubsystem::GetToken() const
 {
 	if (GeneratorBridge) {
 		return GeneratorBridge->GetToken();
@@ -144,6 +144,16 @@ bool UStableDiffusionSubsystem::LoginUsingToken(const FString& token)
 	return false;
 }
 
+void UStableDiffusionSubsystem::SetModelDirty()
+{ 
+	bIsModelDirty = true;
+}
+
+bool UStableDiffusionSubsystem::IsModelDirty() const
+{
+	return bIsModelDirty;
+}
+
 void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, bool Async, bool AllowNSFW, EPaddingMode PaddingMode)
 {
 	if (GeneratorBridge) {
@@ -155,22 +165,26 @@ void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Mo
 
 		if (Async) {
 			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model, AllowNSFW, PaddingMode]() {
-				this->ModelInitialised = this->GeneratorBridge->InitModel(Model, AllowNSFW, PaddingMode);
-				if (this->ModelInitialised)
+				this->GeneratorBridge->InitModel(Model, AllowNSFW, PaddingMode);
+				if (GetModelStatus() == EModelStatus::Loaded) {
+					bIsModelDirty = false;
 					ModelOptions = Model;
+				}
 
 				AsyncTask(ENamedThreads::GameThread, [this]() {
-					this->OnModelInitializedEx.Broadcast(this->ModelInitialised);
+					this->OnModelInitializedEx.Broadcast(GetModelStatus());
 					});
 				});
 		}
 		else {
-			this->ModelInitialised = this->GeneratorBridge->InitModel(Model, AllowNSFW, PaddingMode);
-			if (this->ModelInitialised)
+			this->GeneratorBridge->InitModel(Model, AllowNSFW, PaddingMode);
+			if (GetModelStatus() == EModelStatus::Loaded) {
 				ModelOptions = Model;
+				bIsModelDirty = false;
+			}
 
 			AsyncTask(ENamedThreads::GameThread, [this]() {
-				this->OnModelInitializedEx.Broadcast(this->ModelInitialised);
+				this->OnModelInitializedEx.Broadcast(GetModelStatus());
 			});
 		}
 	}
@@ -181,7 +195,6 @@ void UStableDiffusionSubsystem::ReleaseModel()
 	if (GeneratorBridge) {
 		GeneratorBridge->ReleaseModel();
 		this->GeneratorBridge->OnImageProgressEx.RemoveDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
-		ModelInitialised = false;
 	}
 }
 
@@ -682,6 +695,12 @@ FString UStableDiffusionSubsystem::FilepathToLongPackagePath(const FString& Path
 	return result;
 }
 
+EModelStatus UStableDiffusionSubsystem::GetModelStatus() const
+{
+	if(GeneratorBridge)
+		return GeneratorBridge->ModelStatus;
+	return EModelStatus::Unloaded;
+}
 
 TArray<FColor> UStableDiffusionSubsystem::CopyFrameData(FIntPoint TargetSize, FIntPoint BufferSize, FColor* ColorBuffer)
 {
