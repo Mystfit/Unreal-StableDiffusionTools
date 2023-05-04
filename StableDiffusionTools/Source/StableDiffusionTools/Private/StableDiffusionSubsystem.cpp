@@ -343,7 +343,7 @@ void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult&
 	});
 }
 
-UStableDiffusionImageResultAsset* UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled)
+UStableDiffusionImageResultAsset* UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty() || !Texture)
 		return false;
@@ -358,7 +358,7 @@ UStableDiffusionImageResultAsset* UStableDiffusionSubsystem::SaveTextureAsset(co
 	FString TexName = "T_" + Name;
 	UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *TexName, RF_Public | RF_Standalone | RF_MarkAsRootSet);
 	NewTexture->AddToRoot();
-	NewTexture = UStableDiffusionBlueprintLibrary::ColorBufferToTexture(SrcMipData, FIntPoint(Texture->GetSizeX(), Texture->GetSizeY()), NewTexture);
+	NewTexture = UStableDiffusionBlueprintLibrary::ColorBufferToTexture(SrcMipData, Size, NewTexture);
 	Texture->Source.UnlockMip(0);
 
 	// Create data asset

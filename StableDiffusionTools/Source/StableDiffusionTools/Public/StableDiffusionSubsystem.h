@@ -203,7 +203,7 @@ public:
 	FImageGenerationCompleteEx OnImageUpsampleCompleteEx;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
-	UStableDiffusionImageResultAsset* SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled = false);
+	UStableDiffusionImageResultAsset* SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled = false);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Utilities")
 	FString OpenImageFilePicker(const FString& StartDir);

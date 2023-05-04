@@ -247,6 +247,7 @@ UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* 
 	} else {
 		TObjectPtr<UTexture2D> NewTex = UTexture2D::CreateTransient(FrameSize.X, FrameSize.Y, EPixelFormat::PF_B8G8R8A8);
 		OutTex = NewTex;
+		UE_LOG(LogTemp, Log, TEXT("Creating transient texture to hold color buffer. Input Width: %d, Height: %d. Texture Width: %d, Height: %d"), FrameSize.X, FrameSize.Y, NewTex->GetSizeX(), NewTex->GetSizeY());
 	}
 
 	OutTex->Source.Init(FrameSize.X, FrameSize.Y, 1, 1, TexFormat);//ETextureSourceFormat::TSF_RGBA8);
