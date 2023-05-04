@@ -11,6 +11,7 @@
 #include "StableDiffusionBridge.h"
 #include "DependencyManager.h"
 #include "StableDiffusionImageResult.h"
+#include "VPFullScreenUserWidgetActor.h"
 #include "StableDiffusionSubsystem.generated.h"
 
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FFrameCaptureComplete, FColor*, FIntPoint, FIntPoint);
@@ -235,6 +236,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Preview")
 	void DisableLivePreviewForLayer();
 
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Overlay")
+	void ShowAspectOverlay();
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Overlay")
+	void HideAspectOverlay();
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Overlay")
+	void UpdateAspectOverlay(float aspect);
+
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Preview")
 	FOnEditorCameraMovedEx OnEditorCameraMovedEx;
 
@@ -256,6 +266,13 @@ public:
 	TArray<FColor> CopyFrameData(FIntPoint TargetSize, FIntPoint BufferSize, FColor* ColorBuffer);
 
 	static TSharedPtr<FSceneViewport> GetCapturingViewport();
+
+	UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Overlay")
+	TSubclassOf<AFullScreenUserWidgetActor> AspectOverlayActorClass;
+
+	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Overlay")
+	float AspectOverlayValue = 1.0f;
+
 
 protected:
 	UFUNCTION(Category = "StableDiffusion|Generation")
@@ -288,6 +305,9 @@ private:
 	// Live preview
 	void LivePreviewUpdate();
 	void OnLivePreviewCheckUpdate(USceneComponent* UpdatedComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);
+
+	// Aspect overlay
+	TObjectPtr<AActor> AspectOverlayActor;
 
 	//FDelegateHandle OnEditorCameraUpdatedDlgHandle;
 	FDelegateHandle OnCaptureCameraUpdatedDlgHandle;

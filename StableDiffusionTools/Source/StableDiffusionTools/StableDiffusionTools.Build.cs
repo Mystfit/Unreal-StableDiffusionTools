@@ -26,7 +26,8 @@ public class StableDiffusionTools : ModuleRules
 			new string[]
 			{
 				"Core",
-				"ActorLayerUtilities"
+				"ActorLayerUtilities",
+                "VPUtilities",
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -49,8 +50,8 @@ public class StableDiffusionTools : ModuleRules
 				"AssetRegistry",
                 "AssetTools",
                 "EditorSubsystem",
-				"MovieSceneCapture",
-				"RemoteSession",
+				"MovieSceneCapture",  
+                "RemoteSession",
 				"LevelEditor",
 				"PythonScriptPlugin",
 				"DesktopPlatform",

@@ -504,6 +504,29 @@ void UStableDiffusionSubsystem::DisableLivePreviewForLayer()
 	PreviewedLayer = nullptr;
 }
 
+void UStableDiffusionSubsystem::ShowAspectOverlay()
+{
+	AspectOverlayActor = GEditor->GetEditorWorldContext().World()->SpawnActor(AspectOverlayActorClass);
+	if (AspectOverlayActor) {
+		AspectOverlayActor->SetIsTemporarilyHiddenInEditor(true);
+	}
+}
+
+void UStableDiffusionSubsystem::HideAspectOverlay()
+{
+	if (IsValid(AspectOverlayActor)) {
+		AspectOverlayActor->Destroy();
+	}
+}
+
+void UStableDiffusionSubsystem::UpdateAspectOverlay(float aspect)
+{
+	AspectOverlayValue = aspect;
+	if (IsValid(AspectOverlayActor)) {
+		/*AspectOverlayActor*/
+	}
+}
+
 FViewportSceneCapture UStableDiffusionSubsystem::CreateSceneCaptureFromEditorViewport()
 {
 	FViewportSceneCapture SceneCapture;
