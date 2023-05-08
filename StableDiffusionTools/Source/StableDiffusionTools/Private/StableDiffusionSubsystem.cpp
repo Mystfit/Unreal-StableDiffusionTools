@@ -506,7 +506,9 @@ void UStableDiffusionSubsystem::DisableLivePreviewForLayer()
 
 void UStableDiffusionSubsystem::ShowAspectOverlay()
 {
-	AspectOverlayActor = GEditor->GetEditorWorldContext().World()->SpawnActor(AspectOverlayActorClass);
+	FActorSpawnParameters Params;
+	Params.ObjectFlags |= RF_Transient;
+	AspectOverlayActor = GEditor->GetEditorWorldContext().World()->SpawnActor<AActor>(AspectOverlayActorClass, FTransform::Identity, Params);
 	if (AspectOverlayActor) {
 		AspectOverlayActor->SetIsTemporarilyHiddenInEditor(true);
 	}
@@ -524,6 +526,20 @@ void UStableDiffusionSubsystem::UpdateAspectOverlay(float aspect)
 	AspectOverlayValue = aspect;
 	if (IsValid(AspectOverlayActor)) {
 		/*AspectOverlayActor*/
+	}
+}
+
+void UStableDiffusionSubsystem::CalculateOverlayBounds(float Aspect, FIntPoint& MinBounds, FIntPoint& MaxBounds)
+{
+	FIntRect Result;
+	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
+	auto Client = EditorViewport->GetClient();
+	if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
+		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
+		FSceneView* View = EditorClient->CalcSceneView(&ViewFamily);
+		Result = EditorViewport->CalculateViewExtents(Aspect, View->UnconstrainedViewRect);
+		MinBounds = Result.Min;
+		MaxBounds = Result.Max;
 	}
 }
 
@@ -575,6 +591,10 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 	// Make sure viewport capture objects are available
 	StartCapturingViewport();
 
+	FIntPoint MinBounds, MaxBounds;
+	CalculateOverlayBounds(float(Input.Options.OutSizeX) / float(Input.Options.OutSizeY), MinBounds, MaxBounds);
+	FIntRect FrameBounds(MinBounds.X, MinBounds.Y, MaxBounds.X, MaxBounds.Y);
+
 	// Process each layer the model has requested
 	if (ModelOptions.Layers.Num()) {
 		Input.ProcessedLayers.Reset();
@@ -587,7 +607,7 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 		for (auto& Layer : ModelOptions.Layers) {
 			// Copy layer
 			FLayerData TargetLayer = Layer;
-			TargetLayer.Processor->BeginCaptureLayer(ViewportSize, SceneCapture.SceneCapture->GetCaptureComponent2D());
+			TargetLayer.Processor->BeginCaptureLayer(FrameBounds.Size(), SceneCapture.SceneCapture->GetCaptureComponent2D());
 			TargetLayer.Processor->CaptureLayer(SceneCapture.SceneCapture->GetCaptureComponent2D());
 			TargetLayer.Processor->EndCaptureLayer(SceneCapture.SceneCapture->GetCaptureComponent2D());
 			TargetLayer.LayerPixels = TargetLayer.Processor->ProcessLayer(TargetLayer.Processor->RenderTarget);
@@ -602,7 +622,7 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 	auto framePtr = MakeShared<FCapturedFramePayload>();
 	framePtr->OnFrameCapture.AddLambda([=](FColor* Pixels, FIntPoint BufferSize, FIntPoint TargetSize) mutable {
 		// Copy frame data
-		TArray<FColor> CopiedFrame = CopyFrameData(TargetSize, BufferSize, Pixels);
+		TArray<FColor> CopiedFrame = CopyFrameData(FrameBounds, BufferSize, Pixels);
 		
 		// Find a final colour layer as a destination for our captured frame
 		auto FinalColorProcessor = Input.ProcessedLayers.FindByPredicate([](const FLayerData& Layer) { return Layer.Processor->IsA<UFinalColorLayerProcessor>(); });
@@ -614,8 +634,8 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 		ViewportCapture->StopCapturingFrames();
 
 		// Set size from viewport
-		Input.Options.InSizeX = ViewportSize.X;
-		Input.Options.InSizeY = ViewportSize.Y;
+		Input.Options.InSizeX = FrameBounds.Size().X;
+		Input.Options.InSizeY = FrameBounds.Size().Y;
 
 		// Only start image generation when we have a frame
 		StartImageGeneration(Input);
@@ -644,9 +664,9 @@ void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionIn
 	CaptureComponent->GetCameraView(0, CaptureSourceView);
 	Input.View = CaptureSourceView;
 
-	// Get the capture size from the source
+	// Make sure input capture size is the same as our ouput texture size
 	auto ViewportSize = GetCapturingViewport()->GetSizeXY();
-	FIntPoint CaptureSize = (CaptureComponent->TextureTarget) ? FIntPoint(CaptureComponent->TextureTarget->SizeX, CaptureComponent->TextureTarget->SizeY) : ViewportSize;
+	FIntPoint CaptureSize(Input.Options.OutSizeX, Input.Options.OutSizeY);
 	
 	// Process each layer the model has requested
 	Input.ProcessedLayers.Reset();
@@ -725,17 +745,19 @@ EModelStatus UStableDiffusionSubsystem::GetModelStatus() const
 	return EModelStatus::Unloaded;
 }
 
-TArray<FColor> UStableDiffusionSubsystem::CopyFrameData(FIntPoint TargetSize, FIntPoint BufferSize, FColor* ColorBuffer)
+TArray<FColor> UStableDiffusionSubsystem::CopyFrameData(FIntRect Bounds, FIntPoint BufferSize, FColor* ColorBuffer)
 {
 	// Copy frame data
 	TArray<FColor> CopiedFrame;
 
-	CopiedFrame.InsertUninitialized(0, TargetSize.X * TargetSize.Y);
+	CopiedFrame.InsertUninitialized(0, Bounds.Size().X * Bounds.Size().Y);
 	FColor* Dest = &CopiedFrame[0];
-	const int32 MaxWidth = FMath::Min(TargetSize.X, BufferSize.X);
-	for (int32 Row = 0; Row < FMath::Min(TargetSize.Y, BufferSize.Y); ++Row)
+	const int32 MaxWidth = FMath::Min(Bounds.Size().X, BufferSize.X);
+
+	ColorBuffer += Bounds.Min.Y * BufferSize.X;
+	for (int32 Row = Bounds.Min.Y; Row < FMath::Min(Bounds.Max.Y, BufferSize.Y); ++Row)
 	{
-		FMemory::Memcpy(Dest, ColorBuffer, sizeof(FColor) * MaxWidth);
+		FMemory::Memcpy(Dest, ColorBuffer + Bounds.Min.X, sizeof(FColor) * MaxWidth);
 		ColorBuffer += BufferSize.X;
 		Dest += MaxWidth;
 	}

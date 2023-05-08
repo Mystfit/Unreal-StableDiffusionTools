@@ -243,7 +243,10 @@ public:
 	void HideAspectOverlay();
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Overlay")
-	void UpdateAspectOverlay(float aspect);
+	void UpdateAspectOverlay(float Aspect);
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Overlay")
+	void CalculateOverlayBounds(float Aspect, FIntPoint& MinBounds, FIntPoint& MaxBounds);
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Preview")
 	FOnEditorCameraMovedEx OnEditorCameraMovedEx;
@@ -263,7 +266,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Camera")
 	void UpdateSceneCaptureCamera(FViewportSceneCapture& SceneCapture);
 
-	TArray<FColor> CopyFrameData(FIntPoint TargetSize, FIntPoint BufferSize, FColor* ColorBuffer);
+	TArray<FColor> CopyFrameData(FIntRect Bounds, FIntPoint BufferSize, FColor* ColorBuffer);
 
 	static TSharedPtr<FSceneViewport> GetCapturingViewport();
 
