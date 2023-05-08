@@ -308,7 +308,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     layer_img_mappings[layer.role] = [layer_img_mappings[layer.role]]
                 layer_img_mappings[layer.role].append(layer_img)
             else:
-                layer_img_mappings[layer.role] = [layer_img]
+                layer_img_mappings[layer.role] = layer_img
 
 
         # Convert unreal pixels to PIL images
