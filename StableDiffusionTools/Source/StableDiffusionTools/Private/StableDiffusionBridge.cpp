@@ -40,11 +40,20 @@ FString UStableDiffusionBridge::GetToken()
     return "";
 }
 
-void UStableDiffusionBridge::UpdateImageProgress(FString prompt, int32 step, int32 timestep, float progress, int32 width, int32 height, const TArray<FColor>& FrameColors)
+void UStableDiffusionBridge::UpdateImageProgress(FString prompt, int32 step, int32 timestep, float progress, int32 width, int32 height, UTexture2D* Texture)
 {
-	AsyncTask(ENamedThreads::GameThread, [this, prompt, step, timestep, progress, width, height, FrameColors] {
-		OnImageProgress.Broadcast(step, timestep, progress, FIntPoint(width, height), FrameColors);
-		OnImageProgressEx.Broadcast(step, timestep, progress, FIntPoint(width, height), FrameColors);
+    AsyncTask(ENamedThreads::GameThread, [this, prompt, step, timestep, progress, width, height, Texture] {
+        if (IsValid(Texture)) {
+            Texture->UpdateResource();
+            while (!Texture->IsAsyncCacheComplete()) {
+                FPlatformProcess::Sleep(0.0f);
+            }
+#if WITH_EDITOR
+            Texture->PostEditChange();
+#endif
+        }
+		OnImageProgress.Broadcast(step, timestep, progress, FIntPoint(width, height), Texture);
+		OnImageProgressEx.Broadcast(step, timestep, progress, FIntPoint(width, height), Texture);
 	});
 }
 

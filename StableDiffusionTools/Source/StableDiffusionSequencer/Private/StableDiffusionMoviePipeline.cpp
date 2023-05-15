@@ -238,10 +238,12 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			}
 			
 			// Generate new SD frame immediately
-			auto SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(Input);
+			UTexture2D* OutTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
+			UTexture2D* PreviewTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
+			auto SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(Input, OutTexture, PreviewTexture);
+			
 			TUniquePtr<FImagePixelData> SDImageDataBuffer16bit;
-
-			if (!SDResult.PixelData.Num()) {
+			if (!IsValid(SDResult.OutTexture)) {
 				UE_LOG(LogTemp, Error, TEXT("Stable diffusion generator failed to return any pixel data on frame %d. Please add a model asset to the Options track or initialize the StableDiffusionSubsystem model."), EffectiveFrame.Value);
 						
 				// Insert blank frame
@@ -251,9 +253,15 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 				SDImageDataBuffer16bit = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(SDImageDataBuffer8bit.Get(), 16);
 			}
 			else {
+				auto Mip = SDResult.OutTexture->GetPlatformData()->Mips[0];
+				FColor* RawPixels = static_cast<FColor*>(Mip.BulkData.Lock(LOCK_READ_ONLY));
+				int NumPixels = SDResult.OutTexture->GetSizeX() * SDResult.OutTexture->GetSizeY();
+				TArray64<FColor> Pixels = TArray64<FColor>(RawPixels, NumPixels);
+				Mip.BulkData.Unlock();
+
 				// Convert 8bit BGRA FColors returned from SD to 16bit BGRA
 				TUniquePtr<TImagePixelData<FColor>> SDImageDataBuffer8bit;
-				SDImageDataBuffer8bit = MakeUnique<TImagePixelData<FColor>>(FIntPoint(SDResult.OutWidth, SDResult.OutHeight), TArray64<FColor>(MoveTemp(SDResult.PixelData)));
+				SDImageDataBuffer8bit = MakeUnique<TImagePixelData<FColor>>(FIntPoint(SDResult.OutWidth, SDResult.OutHeight), TArray64<FColor>(MoveTemp(Pixels)));
 				SDImageDataBuffer16bit = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(SDImageDataBuffer8bit.Get(), 16);
 			}
 
@@ -321,25 +329,35 @@ void UStableDiffusionMoviePipeline::BeginExportImpl(){
 			for (auto file : renderpass.Value.FilePaths) {
 				// Reload image from disk
 				UTexture2D* Image = FImageUtils::ImportFileAsTexture2D(file);
-				FFloat16Color* MipData = reinterpret_cast<FFloat16Color*>(Image->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_ONLY));
-				TArrayView64<FFloat16Color> SourceColors(MipData, Image->GetSizeX() * Image->GetSizeY());
+				if (!IsValid(Image)) {
+					continue;
+				}
+				//FFloat16Color* MipData = reinterpret_cast<FFloat16Color*>(Image->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_ONLY));
+				//TArrayView64<FFloat16Color> SourceColors(MipData, Image->GetSizeX() * Image->GetSizeY());
 
 				// Build our upsample parameters
 				FStableDiffusionImageResult UpsampleInput;
+				UpsampleInput.OutTexture = Image;
 
-				// Convert pixels from FFloat16Color to FColor
-				UpsampleInput.PixelData.InsertUninitialized(0, SourceColors.Num());
-				for (int idx = 0; idx < SourceColors.Num(); ++idx) {
-					UpsampleInput.PixelData[idx] = SourceColors[idx].GetFloats().ToFColor(true);
-				}
-				Image->GetPlatformData()->Mips[0].BulkData.Unlock();
+				//// Convert pixels from FFloat16Color to FColor
+				//UpsampleInput.PixelData.InsertUninitialized(0, SourceColors.Num());
+				//for (int idx = 0; idx < SourceColors.Num(); ++idx) {
+				//	UpsampleInput.PixelData[idx] = SourceColors[idx].GetFloats().ToFColor(true);
+				//}
+				//Image->GetPlatformData()->Mips[0].BulkData.Unlock();
 
 				// Upsample the image data
 				UpsampleInput.OutWidth = Image->GetPlatformData()->SizeX;
 				UpsampleInput.OutHeight = Image->GetPlatformData()->SizeY;
-				auto UpsampleResult = SDSubsystem->GeneratorBridge->UpsampleImage(UpsampleInput);
+				UTexture2D* UpsampledTexture = UTexture2D::CreateTransient(Image->GetSizeX() * 4, Image->GetSizeY() * 4);
+				auto UpsampleResult = SDSubsystem->GeneratorBridge->UpsampleImage(UpsampleInput, UpsampledTexture);
 
-				if (UpsampleResult.PixelData.Num()) {
+				if (IsValid(UpsampleResult.OutTexture)) {
+					UpsampleResult.OutTexture->UpdateResource();
+					while (!UpsampleResult.OutTexture->IsAsyncCacheComplete()) {
+						FPlatformProcess::Sleep(0.0f);
+					}
+
 					// Build an export task that will async write the upsampled image to disk
 					TUniquePtr<FImageWriteTask> ExportTask = MakeUnique<FImageWriteTask>();
 					ExportTask->Format = EImageFormat::EXR;
@@ -355,10 +373,15 @@ void UStableDiffusionMoviePipeline::BeginExportImpl(){
 					ExportTask->Filename = OutputPathResolved;
 
 					// Convert RGBA pixels back to FloatRGBA
+
+					auto Mip = UpsampleResult.OutTexture->GetPlatformData()->Mips[0];
+					FColor* RawPixels = static_cast<FColor*>(Mip.BulkData.Lock(LOCK_READ_ONLY));
+					size_t NumPixels = UpsampleResult.OutTexture->GetSizeX() * UpsampleResult.OutTexture->GetSizeY();
+
 					TArray64<FFloat16Color> ConvertedSrcPixels;
-					ConvertedSrcPixels.InsertUninitialized(0, UpsampleResult.PixelData.Num());
-					for (size_t idx = 0; idx < UpsampleResult.PixelData.Num(); ++idx) {
-						ConvertedSrcPixels[idx] = FFloat16Color(UpsampleResult.PixelData[idx]);
+					ConvertedSrcPixels.InsertUninitialized(0, NumPixels);
+					for (size_t idx = 0; idx < NumPixels; ++idx) {
+						ConvertedSrcPixels[idx] = FFloat16Color(RawPixels[idx]);
 					}
 					TUniquePtr<TImagePixelData<FFloat16Color>> UpscaledPixelData = MakeUnique<TImagePixelData<FFloat16Color>>(
 						FIntPoint(UpsampleResult.OutWidth, UpsampleResult.OutHeight),

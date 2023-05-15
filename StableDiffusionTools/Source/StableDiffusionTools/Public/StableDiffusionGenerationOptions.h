@@ -19,7 +19,8 @@ ENUM_CLASS_FLAGS(EModelCapabilities);
 UENUM(BlueprintType)
 enum class EInputImageSource : uint8 {
 	Viewport UMETA(DisplayName = "Viewport"),
-	SceneCapture2D UMETA(DisplayName = "Scene Capture Actor")
+	SceneCapture2D UMETA(DisplayName = "Scene Capture Actor"),
+	Texture UMETA(DisplayName = "Texture")
 };
 ENUM_CLASS_FLAGS(EInputImageSource);
 
@@ -190,6 +191,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	USceneCaptureComponent2D* CaptureSource;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UTexture2D* OverrideTextureInput;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UTexture2D* TextureOutput;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	TArray<FLayerData> ProcessedLayers;

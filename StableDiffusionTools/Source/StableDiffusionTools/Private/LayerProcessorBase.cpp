@@ -72,8 +72,9 @@ void ULayerProcessorBase::EndCaptureLayer_Implementation(USceneCaptureComponent2
 
 TArray<FColor> ULayerProcessorBase::ProcessLayer(UTextureRenderTarget2D* Layer)
 {
-	check(Layer);
-
+	if (!IsValid(Layer))
+		return TArray<FColor>();
+	
 	// Create destination pixel arrays
 	TArray<FColor> FinalColor;
 	FinalColor.AddUninitialized(Layer->SizeX * Layer->SizeY);
@@ -85,7 +86,8 @@ TArray<FColor> ULayerProcessorBase::ProcessLayer(UTextureRenderTarget2D* Layer)
 
 TArray<FLinearColor> ULayerProcessorBase::ProcessLinearLayer(UTextureRenderTarget2D* Layer)
 {
-	check(Layer);
+	if (!IsValid(Layer))
+		return TArray<FLinearColor>();
 
 	// Create destination pixel arrays
 	TArray<FLinearColor> FinalColor;

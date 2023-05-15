@@ -47,6 +47,7 @@ public class StableDiffusionToolsEditor : ModuleRules
 				"Blutility",
 				"UMG",
 				"UMGEditor",
+				"EditorWidgets",
 				"AssetRegistry",
 				"EditorSubsystem",
 				"EditorScriptingUtilities",

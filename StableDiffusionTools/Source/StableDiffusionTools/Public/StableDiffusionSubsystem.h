@@ -203,9 +203,6 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Outputs")
 	FImageGenerationCompleteEx OnImageUpsampleCompleteEx;
 
-	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
-	UStableDiffusionImageResultAsset* SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled = false);
-
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Utilities")
 	FString OpenImageFilePicker(const FString& StartDir);
 
@@ -279,7 +276,7 @@ public:
 
 protected:
 	UFUNCTION(Category = "StableDiffusion|Generation")
-	void UpdateImageProgress(int32 Step, int32 Timestep, float Progress, FIntPoint Size, const TArray<FColor>& PixelData);
+	void UpdateImageProgress(int32 Step, int32 Timestep, float Progress, FIntPoint Size, UTexture2D* Texture);
 
 private:
 	// Viewport capture
@@ -296,6 +293,9 @@ private:
 
 	// Capture from a provided SceneCapture2D actor
 	void CaptureFromSceneCaptureSource(FStableDiffusionInput Input);
+	
+	// Capture from a provided texture
+	void CaptureFromTextureSource(FStableDiffusionInput Input);
 
 	// Kick off an async render
 	void StartImageGeneration(FStableDiffusionInput Input);

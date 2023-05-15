@@ -12,8 +12,11 @@ public:
     UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
     FStableDiffusionInput Input;
 
+    //UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
+    //TArray<FColor> PixelData;
+
     UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
-    TArray<FColor> PixelData;
+    UTexture2D* OutTexture;
     
     UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
     int32 OutWidth;

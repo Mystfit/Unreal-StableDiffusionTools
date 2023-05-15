@@ -49,6 +49,10 @@
 		{
 			"Name": "GeometryScripting",
 			"Enabled": true
+		},
+		{
+			"Name": "Mutable",
+			"Enabled":  true
 		}
 	],
 	"Modules": [

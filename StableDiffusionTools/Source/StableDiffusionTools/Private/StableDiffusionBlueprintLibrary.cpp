@@ -229,14 +229,26 @@ TArray<AActor*> UStableDiffusionBlueprintLibrary::GetActorsInViewFrustum(const U
 	return ActorsInFrustum;
 }
 
-UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTex)
+UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTex, bool DeferUpdate)
 {
 	if (!FrameColors.Num())
 		return nullptr;
-	return ColorBufferToTexture((uint8*)FrameColors.GetData(), FrameSize, OutTex);
+	return ColorBufferToTexture((uint8*)FrameColors.GetData(), FrameSize, OutTex, DeferUpdate);
 }
 
-UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex)
+TArray<FColor> UStableDiffusionBlueprintLibrary::ReadPixels(UTexture2D* Texture)
+{
+	if (!IsValid(Texture))
+		return TArray<FColor>();
+
+	auto Mip = Texture->GetPlatformData()->Mips[0];
+	FColor* RawPixels = static_cast<FColor*>(Mip.BulkData.Lock(LOCK_READ_ONLY));
+	TArray<FColor> Pixels = TArray<FColor>(RawPixels, Mip.BulkData.GetBulkDataSize() / 4);
+	Mip.BulkData.Unlock();
+	return MoveTemp(Pixels);
+}
+
+UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex, bool DeferUpdate)
 {
 	if (!FrameData) 
 		return nullptr;
@@ -247,13 +259,14 @@ UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* 
 	} else {
 		TObjectPtr<UTexture2D> NewTex = UTexture2D::CreateTransient(FrameSize.X, FrameSize.Y, EPixelFormat::PF_B8G8R8A8);
 		OutTex = NewTex;
-		UE_LOG(LogTemp, Log, TEXT("Creating transient texture to hold color buffer. Input Width: %d, Height: %d. Texture Width: %d, Height: %d"), FrameSize.X, FrameSize.Y, NewTex->GetSizeX(), NewTex->GetSizeY());
+		//UE_LOG(LogTemp, Log, TEXT("Creating transient texture to hold color buffer. Input Width: %d, Height: %d. Texture Width: %d, Height: %d"), FrameSize.X, FrameSize.Y, NewTex->GetSizeX(), NewTex->GetSizeY());
 	}
 
 	OutTex->Source.Init(FrameSize.X, FrameSize.Y, 1, 1, TexFormat);//ETextureSourceFormat::TSF_RGBA8);
 	OutTex->MipGenSettings = TMGS_NoMipmaps;
 	OutTex->SRGB = true;
 	OutTex->DeferCompression = true;
+	OutTex->CompressionSettings = TextureCompressionSettings::TC_VectorDisplacementmap;
 
 	ERawImageFormat::Type ImgFormat = FImageCoreUtils::ConvertToRawImageFormat(OutTex->Source.GetFormat());
 	int NumChannels = GPixelFormats[FImageCoreUtils::GetPixelFormatForRawImageFormat(ImgFormat)].NumComponents;
@@ -261,12 +274,54 @@ UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* 
 	uint8* TextureData = OutTex->Source.LockMip(0);
 	FMemory::Memcpy(TextureData, FrameData, sizeof(uint8) * FrameSize.X * FrameSize.Y * NumChannels);
 	OutTex->Source.UnlockMip(0);
-	OutTex->UpdateResource();
 
+	if (!DeferUpdate) {
+		OutTex->UpdateResource();
 #if WITH_EDITOR
-	OutTex->PostEditChange();
+		OutTex->PostEditChange();
 #endif
+	}
 	return OutTex;
+}
+
+UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled)
+{
+	if (Name.IsEmpty() || PackagePath.IsEmpty() || !Texture)
+		return false;
+
+	// Create package
+	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
+	UPackage* Package = CreatePackage(*FullPackagePath);
+	Package->FullyLoad();
+
+	// Duplicate texture
+	auto SrcMipData = Texture->Source.LockMip(0);// GetPlatformMips()[0].BulkData;
+	FString TexName = "T_" + Name;
+	UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *TexName, RF_Public | RF_Standalone | RF_MarkAsRootSet);
+	NewTexture->AddToRoot();
+	NewTexture = UStableDiffusionBlueprintLibrary::ColorBufferToTexture(SrcMipData, Size, NewTexture);
+	Texture->Source.UnlockMip(0);
+
+	// Create data asset
+	FString AssetName = "DA_" + Name;
+	UStableDiffusionImageResultAsset* NewImageResultAsset = NewObject<UStableDiffusionImageResultAsset>(Package, *AssetName, RF_Public | RF_Standalone | RF_MarkAsRootSet);
+	NewImageResultAsset->ImageInputs = ImageInputs;
+	NewImageResultAsset->Upsampled = Upsampled;
+	NewImageResultAsset->ImageOutput = NewTexture;
+	NewImageResultAsset->View = View;
+
+	// Update package
+	Package->MarkPackageDirty();
+	FAssetRegistryModule::AssetCreated(NewTexture);
+
+	// Save texture pacakge
+	FString PackageFileName = FPackageName::LongPackageNameToFilename(FullPackagePath, FPackageName::GetAssetPackageExtension());
+	FSavePackageArgs PackageArgs;
+	PackageArgs.TopLevelFlags = EObjectFlags::RF_Public | EObjectFlags::RF_Standalone;
+	PackageArgs.bForceByteSwapping = true;
+	bool bSaved = UPackage::SavePackage(Package, NewTexture, *PackageFileName, PackageArgs);
+
+	return NewImageResultAsset;
 }
 
 void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* SourceTexture, UTexture2D* TargetTexture, const FIntPoint& ScreenSize, const FMatrix& ViewProjectionMatrix, UDynamicMesh* SourceMesh, const TArray<int> TriangleIDs, bool ClearCoverageMask)
@@ -293,17 +348,18 @@ void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* Sourc
 	const int32 TargetHeight = TargetTexture->GetSizeY();
 	
 	// Lock the target texture for reading/writing
-	FTexture2DMipMap* Mip = &TargetTexture->PlatformData->Mips[0];
-	FColor* TargetTextureRawData = static_cast<FColor*>(Mip->BulkData.Lock(LOCK_READ_ONLY));
-	check(TargetTextureRawData);
+	// 
+	//FTexture2DMipMap* Mip = &TargetTexture->PlatformData->Mips[0];
+	//FColor* TargetTextureRawData = static_cast<FColor*>(Mip->BulkData.Lock(LOCK_READ_ONLY));
+	//check(TargetTextureRawData);
 
 	// Fill interim pixel array
-	TArray<FColor> TargetPixelColors;
-	TargetPixelColors.Init(FColor(0, 0, 0, 0), TargetWidth * TargetHeight);
-	for (size_t idx = 0; idx < TargetPixelColors.Num(); ++idx) {
-		TargetPixelColors[idx] = TargetTextureRawData[idx];
-	}
-	Mip->BulkData.Unlock();
+	TArray<FColor> TargetPixelColors = ReadPixels(TargetTexture);
+	//TargetPixelColors.Init(FColor(0, 0, 0, 0), TargetWidth * TargetHeight);
+	//for (size_t idx = 0; idx < TargetPixelColors.Num(); ++idx) {
+	//	TargetPixelColors[idx] = TargetTextureRawData[idx];
+	//}
+	//Mip->BulkData.Unlock();
 
 	// Iterate through each triangle and copy pixels from source to target
 	for(auto TriID : TriangleIDs)

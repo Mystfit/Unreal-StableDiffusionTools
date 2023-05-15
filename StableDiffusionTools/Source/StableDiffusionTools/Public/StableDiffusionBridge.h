@@ -9,8 +9,8 @@
 #include "StableDiffusionGenerationOptions.h"
 #include "StableDiffusionBridge.generated.h"
 
-DECLARE_MULTICAST_DELEGATE_FiveParams(FImageProgress, int32, int32, float, FIntPoint, const TArray<FColor>&);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_FiveParams(FImageProgressEx, int32, Step, int32, Timestep, float, Progress, FIntPoint, size, const TArray<FColor>&, PixelData);
+DECLARE_MULTICAST_DELEGATE_FiveParams(FImageProgress, int32, int32, float, FIntPoint, UTexture2D* Texture);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FiveParams(FImageProgressEx, int32, Step, int32, Timestep, float, Progress, FIntPoint, size, UTexture2D*, Texture);
 
 //UCLASS(PerObjectConfig, Config = "Engine")
 //class USDBridgeToken : public UObject
@@ -65,7 +65,7 @@ public:
     bool ModelInitialising = false;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
-    FStableDiffusionImageResult GenerateImageFromStartImage(const FStableDiffusionInput& InputOptions) const;
+    FStableDiffusionImageResult GenerateImageFromStartImage(const FStableDiffusionInput& InputOptions, UTexture* OutTexture, UTexture* PreviewTexture) const;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void StopImageGeneration();
@@ -74,13 +74,13 @@ public:
     void StartUpsample();
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
-    FStableDiffusionImageResult UpsampleImage(const FStableDiffusionImageResult& input_result) const;
+    FStableDiffusionImageResult UpsampleImage(const FStableDiffusionImageResult& input_result, UTexture2D* OutTexture) const;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void StopUpsample();
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
-    void UpdateImageProgress(FString prompt, int32 step, int32 timestep, float progress, int32 width, int32 height, const TArray<FColor>& FrameColors);
+    void UpdateImageProgress(FString prompt, int32 step, int32 timestep, float progress, int32 width, int32 height, UTexture2D* Texture);
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
     FStableDiffusionModelOptions ModelOptions;

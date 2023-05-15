@@ -294,6 +294,9 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, EInpu
 			else if (ImageSourceType == EInputImageSource::SceneCapture2D) {
 				CaptureFromSceneCaptureSource(MoveTempIfPossible(Input));
 			}
+			else if (ImageSourceType == EInputImageSource::Texture) {
+				CaptureFromTextureSource(MoveTempIfPossible(Input));
+			}
 
 			// Restore screen messages and UI
 			GAreScreenMessagesEnabled = bPrevGScreenMessagesEnabled;
@@ -315,12 +318,23 @@ void UStableDiffusionSubsystem::StartImageGeneration(FStableDiffusionInput Input
 	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Input]()
 		{
 			// Generate image
-			FStableDiffusionImageResult result = this->GeneratorBridge->GenerateImageFromStartImage(Input);
+			UTexture2D* OutTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
+			UTexture2D* PreviewTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
+
+			FStableDiffusionImageResult result = this->GeneratorBridge->GenerateImageFromStartImage(Input, OutTexture, PreviewTexture);
+
 			bIsGenerating = false;
 
 			// Create generated texture on game thread
-			AsyncTask(ENamedThreads::GameThread, [this, result]
-			{
+			AsyncTask(ENamedThreads::GameThread, [this, result, OutTexture]
+			{			
+				OutTexture->UpdateResource();
+				while (!OutTexture->IsAsyncCacheComplete()){
+					FPlatformProcess::Sleep(0.0f);
+				}
+#if WITH_EDITOR
+				OutTexture->PostEditChange();
+#endif
 				this->OnImageGenerationCompleteEx.Broadcast(result);
 			});
 	});
@@ -329,63 +343,41 @@ void UStableDiffusionSubsystem::StartImageGeneration(FStableDiffusionInput Input
 
 void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult& input)
 {
-	if (!GeneratorBridge)
+	if (!IsValid(GeneratorBridge) || !IsValid(input.OutTexture))
 		return;
 
 	bIsUpsampling = true;
+	size_t upsampled_width = input.OutTexture->GetSizeX() * 4;
+	size_t upsampled_height = input.OutTexture->GetSizeY() * 4;
 
-	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, input](){
-		auto result = GeneratorBridge->UpsampleImage(input);
-		AsyncTask(ENamedThreads::GameThread, [this, result=MoveTemp(result)]() {
-			bIsUpsampling = false;
+	// Create output texature to hold our upsampled result
+	UTexture2D* OutTexture = UTexture2D::CreateTransient(upsampled_width, upsampled_height);
+	OutTexture->UpdateResource();
+	while (!OutTexture->IsAsyncCacheComplete()) {
+		FPlatformProcess::Sleep(0.0f);
+	}
+
+	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, input, upsampled_width, upsampled_height, OutTexture](){
+		auto result = GeneratorBridge->UpsampleImage(input, OutTexture);
+		bIsUpsampling = false;
+
+		// Process result on game thread
+		AsyncTask(ENamedThreads::GameThread, [this, result=MoveTemp(result), OutTexture]() {
+			OutTexture->UpdateResource();
+			while (!OutTexture->IsAsyncCacheComplete()) {
+				FPlatformProcess::Sleep(0.0f);
+			}
+#if WITH_EDITOR
+			OutTexture->PostEditChange();
+#endif
 			OnImageUpsampleCompleteEx.Broadcast(result);
 		});
 	});
 }
 
-UStableDiffusionImageResultAsset* UStableDiffusionSubsystem::SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled)
+void UStableDiffusionSubsystem::UpdateImageProgress(int32 Step, int32 Timestep, float Progress, FIntPoint Size, UTexture2D* Texture)
 {
-	if (Name.IsEmpty() || PackagePath.IsEmpty() || !Texture)
-		return false;
-
-	// Create package
-	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
-	UPackage* Package = CreatePackage(this, *FullPackagePath);
-	Package->FullyLoad();
-
-	// Duplicate texture
-	auto SrcMipData = Texture->Source.LockMip(0);// GetPlatformMips()[0].BulkData;
-	FString TexName = "T_" + Name;
-	UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *TexName, RF_Public | RF_Standalone | RF_MarkAsRootSet);
-	NewTexture->AddToRoot();
-	NewTexture = UStableDiffusionBlueprintLibrary::ColorBufferToTexture(SrcMipData, Size, NewTexture);
-	Texture->Source.UnlockMip(0);
-
-	// Create data asset
-	FString AssetName = "DA_" + Name;
-	UStableDiffusionImageResultAsset* NewImageResultAsset = NewObject<UStableDiffusionImageResultAsset>(Package, *AssetName, RF_Public | RF_Standalone | RF_MarkAsRootSet);
-	NewImageResultAsset->ImageInputs = ImageInputs;
-	NewImageResultAsset->Upsampled = Upsampled;
-	NewImageResultAsset->ImageOutput = NewTexture;
-	NewImageResultAsset->View = View;
-
-	// Update package
-	Package->MarkPackageDirty();
-	FAssetRegistryModule::AssetCreated(NewTexture);
-	
-	// Save texture pacakge
-	FString PackageFileName = FPackageName::LongPackageNameToFilename(FullPackagePath, FPackageName::GetAssetPackageExtension());
-	FSavePackageArgs PackageArgs;
-	PackageArgs.TopLevelFlags = EObjectFlags::RF_Public | EObjectFlags::RF_Standalone;
-	PackageArgs.bForceByteSwapping = true;
-	bool bSaved = UPackage::SavePackage(Package, NewTexture, *PackageFileName, PackageArgs);
-
-	return NewImageResultAsset;
-}
-
-void UStableDiffusionSubsystem::UpdateImageProgress(int32 Step, int32 Timestep, float Progress, FIntPoint Size, const TArray<FColor>& PixelData)
-{
-	OnImageProgressUpdated.Broadcast(Step, Timestep, Progress, Size, PixelData);
+	OnImageProgressUpdated.Broadcast(Step, Timestep, Progress, Size, Texture);
 }
 
 void UStableDiffusionSubsystem::SetLivePreviewEnabled(bool Enabled, float Delay, USceneCaptureComponent2D* Source)
@@ -665,7 +657,7 @@ void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionIn
 	Input.View = CaptureSourceView;
 
 	// Make sure input capture size is the same as our ouput texture size
-	auto ViewportSize = GetCapturingViewport()->GetSizeXY();
+	//auto ViewportSize = GetCapturingViewport()->GetSizeXY();
 	FIntPoint CaptureSize(Input.Options.OutSizeX, Input.Options.OutSizeY);
 	
 	// Process each layer the model has requested
@@ -691,6 +683,49 @@ void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionIn
 	else {
 		
 	}
+
+	StartImageGeneration(Input);
+}
+
+void UStableDiffusionSubsystem::CaptureFromTextureSource(FStableDiffusionInput Input)
+{
+	if (!Input.OverrideTextureInput)
+		return;
+
+	// Make sure input capture size is the same as our ouput texture size
+	FIntPoint CaptureSize(Input.Options.OutSizeX, Input.Options.OutSizeY);
+
+	// Process each layer the model has requested
+	Input.ProcessedLayers.Reset();
+	Input.ProcessedLayers.Reserve(ModelOptions.Layers.Num());
+	for (auto Layer : ModelOptions.Layers) {
+		Layer.Processor->BeginCaptureLayer(CaptureSize, nullptr);
+		Layer.Processor->CaptureLayer(nullptr);
+		Layer.Processor->EndCaptureLayer(nullptr);
+		Layer.LayerPixels = Layer.Processor->ProcessLayer(Layer.Processor->RenderTarget);
+		Input.ProcessedLayers.Add(MoveTemp(Layer));
+	}
+
+	// Find a final colour layer as a destination for our texture
+	auto FinalColorProcessor = Input.ProcessedLayers.FindByPredicate([](const FLayerData& Layer) { return Layer.Processor->IsA<UFinalColorLayerProcessor>(); });
+	if (FinalColorProcessor) {
+		if (auto Tex = Input.OverrideTextureInput) {
+
+			//auto Mip = Input.OverrideTextureInput->GetPlatformData()->Mips[0];
+			//FColor* TexData = static_cast<FColor*>(Mip.BulkData.Lock(LOCK_READ_ONLY));
+			//for (size_t idx = 0; idx < Input.OverrideTextureInput->GetSizeX() * Input.OverrideTextureInput->GetSizeY(); ++idx) {
+			//	FinalColorProcessor->LayerPixels.Add(TexData[idx]);
+			//}
+			//	
+			////FinalColorProcessor->LayerPixels = TArray<FColor>(TexData, Input.OverrideTextureInput->GetSizeX() * Input.OverrideTextureInput->GetSizeY());
+			//Mip.BulkData.Unlock();
+			FinalColorProcessor->LayerPixels = UStableDiffusionBlueprintLibrary::ReadPixels(Input.OverrideTextureInput);
+		}
+	}
+
+	// Set size from input texture
+	Input.Options.InSizeX = Input.OverrideTextureInput->GetSizeX();
+	Input.Options.InSizeY = Input.OverrideTextureInput->GetSizeY();
 
 	StartImageGeneration(Input);
 }

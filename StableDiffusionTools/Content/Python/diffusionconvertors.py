@@ -20,3 +20,9 @@ def PILImageToFColorArray(image):
         output_pixels.append(unreal.Color(pixel[2], pixel[1], pixel[0], 255))
     return output_pixels
         
+def PILImageToTexture(image, out_texture, defer_update):
+    if not image or not out_texture:
+        return None
+
+    pixels = PILImageToFColorArray(image)
+    return unreal.StableDiffusionBlueprintLibrary.color_buffer_to_texture(pixels, unreal.IntPoint(image.width, image.height), out_texture, defer_update)

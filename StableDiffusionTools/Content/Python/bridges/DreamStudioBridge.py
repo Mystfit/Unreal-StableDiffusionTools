@@ -2,7 +2,7 @@ import unreal
 import os, inspect, random, io
 import PIL
 from PIL import Image
-from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray
+from diffusionconvertors import FColorAsPILImage, PILImageToTexture
 from stability_sdk.client import *
 
 
@@ -30,7 +30,7 @@ class DreamStudioBridge(unreal.StableDiffusionBridge):
         pass    
 
     @unreal.ufunction(override=True)
-    def GenerateImageFromStartImage(self, input):
+    def GenerateImageFromStartImage(self, input, out_texture, preview_texture):
         result = unreal.StableDiffusionImageResult()
         
         guide_img = FColorAsPILImage(input.input_image_pixels, input.options.size_x, input.options.size_y).convert("RGB") if input.input_image_pixels else None
@@ -66,7 +66,7 @@ class DreamStudioBridge(unreal.StableDiffusionBridge):
                 image = Image.open(io.BytesIO(artifact.binary)).convert("RGBA")
                
         result.input = input
-        result.pixel_data = PILImageToFColorArray(image)
+        result.pixel_data = PILImageToTexture(image.convert("RGBA"), out_texture)
         result.out_width = image.width
         result.out_height = image.height
 

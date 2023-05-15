@@ -18,7 +18,7 @@ import diffusers
 from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionDepth2ImgPipeline, StableDiffusionUpscalePipeline
 from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
-from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray
+from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray, PILImageToTexture
 from huggingface_hub.utils import HfFolder, scan_cache_dir
 
 try:
@@ -282,7 +282,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         return bool(next((repo for repo in cache.repos if repo.repo_id == model_name), False))
 
     @unreal.ufunction(override=True)
-    def GenerateImageFromStartImage(self, input):
+    def GenerateImageFromStartImage(self, input, out_texture, preview_texture):
         self.abort = False
         result = unreal.StableDiffusionImageResult()
         model_options = self.get_editor_property("ModelOptions")
@@ -342,6 +342,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # Create prompt
         prompt_tensors = self.build_prompt_tensors(positive_prompts=input.options.positive_prompts, negative_prompts=input.options.negative_prompts, compel=self.compel)
 
+        # Save preview texture
+        self.preview_texture = preview_texture
+
         with torch.inference_mode():
             #with autocast("cuda", dtype=torch.float16):
                 generator = torch.Generator(device="cpu")
@@ -396,7 +399,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 result.input = input
                 result.input.options.seed = seed
                 print(f"Seed was {seed}. Saved as {result.input.options.seed}")
-                result.pixel_data =  PILImageToFColorArray(image.convert("RGBA")) if image else [unreal.Color(0,0,0,255) for i in range(input.options.out_size_x * input.options.out_size_y)]
+                result.out_texture =  PILImageToTexture(image.convert("RGBA"), out_texture, True)
                 result.out_width = image.width if image else input.options.out_size_x
                 result.out_height = image.height if image else input.options.out_size_y
                 result.completed = True if image else False
@@ -411,7 +414,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         pct_complete = (self.start_timestep - timestep) / self.start_timestep
 
         print(f"Step is {step}. Timestep is {timestep} Frequency is {self.update_frequency}. Modulo is {step % self.update_frequency}")
-        pixels = []
+        texture = None
         image_size = (0,0)
         if step % self.update_frequency == 0:
             adjusted_latents = 1 / 0.18215 * latents
@@ -419,10 +422,10 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             image = (image / 2 + 0.5).clamp(0, 1)
             image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
             image = self.pipe.numpy_to_pil(image)[0]
-            pixels = PILImageToFColorArray(image.convert("RGBA"))
+            texture = PILImageToTexture(image.convert("RGBA"), self.preview_texture, True)
             image_size = (image.width, image.height)
         
-        self.update_image_progress("inprogress", int(step), int(timestep), float(pct_complete), image_size[0], image_size[1], pixels)
+        self.update_image_progress("inprogress", int(step), int(timestep), float(pct_complete), image_size[0], image_size[1], texture)
 
         # Image finished we can now abort image generation
         if self.abort and self.executor:
@@ -458,7 +461,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             torch.cuda.empty_cache()
 
     @unreal.ufunction(override=True)
-    def UpsampleImage(self, image_result: unreal.StableDiffusionImageResult):
+    def UpsampleImage(self, image_result: unreal.StableDiffusionImageResult, out_texture):
         upsampled_image = None
         active_upsampler = None
         local_upsampler = None
@@ -471,8 +474,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         if active_upsampler:
             if not isinstance(image_result, unreal.StableDiffusionImageResult):
                 raise ValueError(f"Wrong type passed to upscale. Expected {type(StableDiffusionImageResult)} or List. Received {type(image_result)}")
-                
-            image = FColorAsPILImage(image_result.pixel_data, image_result.out_width,image_result.out_height).convert("RGB")
+            
+            input_pixels = unreal.StableDiffusionBlueprintLibrary.read_pixels(image_result.out_texture)
+            image = FColorAsPILImage(input_pixels, image_result.out_width, image_result.out_height).convert("RGB")
             print(f"Upscaling image result from {image_result.out_width}:{image_result.out_height} to {image_result.out_width * 4}:{image_result.out_height * 4}")
             upsampled_image = active_upsampler(image)
         
@@ -484,7 +488,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # Build result
         result = unreal.StableDiffusionImageResult()
         result.input = image_result.input
-        result.pixel_data =  PILImageToFColorArray(upsampled_image.convert("RGBA"))
+        result.out_texture =  PILImageToTexture(upsampled_image.convert("RGBA"), out_texture, True)
         result.out_width = upsampled_image.width
         result.out_height = upsampled_image.height
         result.upsampled = True

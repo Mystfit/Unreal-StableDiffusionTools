@@ -73,10 +73,16 @@ public:
 	static FColor GetUVPixelFromTexture(UTexture2D* Texture, FVector2D UV);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
-	static UTexture2D* ColorBufferToTexture(const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture);
+	static UTexture2D* ColorBufferToTexture(const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture, bool DeferUpdate = false);
+
+	UFUNCTION(BlueprintCallable, Category = "Texture")
+	static TArray<FColor> ReadPixels(UTexture2D* Texture);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static UTexture2D* CreateTextureAsset(const FString& AssetPath, const FString& Name, FIntPoint Size, ETextureSourceFormat Format = ETextureSourceFormat::TSF_BGRA8, FColor Fill = FColor::Black);
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
+	static UStableDiffusionImageResultAsset* SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled = false);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static UProjectionBakeSessionAsset* CreateProjectionBakeSessionAsset(const FProjectionBakeSession& Session, const FString& AssetPath, const FString& Name);
@@ -87,5 +93,5 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static UMaterialInstanceConstant* CreateMaterialInstanceAsset(UMaterial* ParentMaterial, const FString& Path, const FString& Name);
 
-	static UTexture2D* ColorBufferToTexture(const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex);
+	static UTexture2D* ColorBufferToTexture(const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex, bool DeferUpdate = false);
 };
