@@ -64,6 +64,15 @@ public:
 	static FVector GetEditorViewportDirection();
 
 	UFUNCTION(BlueprintCallable, Category = "Camera")
+	static void SetEditorViewportRealtimeOverride(bool Realtime);
+
+	UFUNCTION(BlueprintCallable, Category = "Camera")
+	static void ClearEditorViewportRealtimeOverride();
+
+	UFUNCTION(BlueprintCallable, Category = "Camera")
+	static bool GetEditorViewportRealtime();
+
+	UFUNCTION(BlueprintCallable, Category = "Camera")
 	static TArray<AActor*> GetActorsInViewFrustum(const UObject* WorldContextObject, const FMatrix& ViewProjectionMatrix, const FVector& CameraLocation);
 	
 	UFUNCTION(BlueprintCallable, Category = "Texture")
@@ -94,4 +103,8 @@ public:
 	static UMaterialInstanceConstant* CreateMaterialInstanceAsset(UMaterial* ParentMaterial, const FString& Path, const FString& Name);
 
 	static UTexture2D* ColorBufferToTexture(const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex, bool DeferUpdate = false);
+
+private:
+	static FEditorViewportClient* GetEditorClient();
+	static FSceneView* CalculateEditorView(FSceneViewport* EditorViewport);
 };

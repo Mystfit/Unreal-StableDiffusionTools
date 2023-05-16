@@ -28,6 +28,9 @@ public class StableDiffusionTools : ModuleRules
 				"Core",
 				"ActorLayerUtilities",
                 "VPUtilities",
+                "GeometryFramework",
+                "GeometryScriptingCore",
+                "DynamicMesh"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -61,9 +64,6 @@ public class StableDiffusionTools : ModuleRules
 				"ImageWriteQueue",
 				"RHI",
 				"RenderCore",
-                "GeometryFramework",
-				"GeometryScriptingCore",
-                "DynamicMesh",
 				"ImageCore",
                 "MaterialEditor"
 				// ... add private dependencies that you statically link with here ...	

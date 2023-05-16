@@ -20,6 +20,7 @@
 #include "GenericPlatform/GenericPlatformProcess.h"
 #include "ImageWriteTask.h"
 #include "ImageWriteQueue.h"
+#include "StableDiffusionBlueprintLibrary.h"
 #include "StableDiffusionToolsModule.h"
 #include "Runtime/Launch/Resources/Version.h"
 
@@ -373,27 +374,21 @@ void UStableDiffusionMoviePipeline::BeginExportImpl(){
 					ExportTask->Filename = OutputPathResolved;
 
 					// Convert RGBA pixels back to FloatRGBA
-
-					auto Mip = UpsampleResult.OutTexture->GetPlatformData()->Mips[0];
-					FColor* RawPixels = static_cast<FColor*>(Mip.BulkData.Lock(LOCK_READ_ONLY));
-					size_t NumPixels = UpsampleResult.OutTexture->GetSizeX() * UpsampleResult.OutTexture->GetSizeY();
-
+					TArray<FColor> SrcPixels = UStableDiffusionBlueprintLibrary::ReadPixels(UpsampleResult.OutTexture);
 					TArray64<FFloat16Color> ConvertedSrcPixels;
-					ConvertedSrcPixels.InsertUninitialized(0, NumPixels);
-					for (size_t idx = 0; idx < NumPixels; ++idx) {
-						ConvertedSrcPixels[idx] = FFloat16Color(RawPixels[idx]);
+					ConvertedSrcPixels.InsertUninitialized(0, SrcPixels.Num());
+					for (size_t idx = 0; idx < SrcPixels.Num(); ++idx) {
+						ConvertedSrcPixels[idx] = FFloat16Color(SrcPixels[idx]);
 					}
 					TUniquePtr<TImagePixelData<FFloat16Color>> UpscaledPixelData = MakeUnique<TImagePixelData<FFloat16Color>>(
 						FIntPoint(UpsampleResult.OutWidth, UpsampleResult.OutHeight),
 						MoveTemp(ConvertedSrcPixels)
 						);
 					ExportTask->PixelData = MoveTemp(UpscaledPixelData);
-
-					// Enque image write
+					
+					// Enqueue image write
 					GetPipeline()->ImageWriteQueue->Enqueue(MoveTemp(ExportTask));
 				}
-
-				
 			}
 
 			SDSubsystem->GeneratorBridge->StopUpsample();

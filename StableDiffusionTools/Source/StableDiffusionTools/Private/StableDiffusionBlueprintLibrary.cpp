@@ -89,16 +89,7 @@ FVector2d UStableDiffusionBlueprintLibrary::ProjectViewportWorldToUV(const FVect
 {
 	FVector2d Result;
 
-	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
-	auto Client = EditorViewport->GetClient();
-	if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
-		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
-		FSceneView* View = EditorClient->CalcSceneView(&ViewFamily);
-		
-
-		//// Orig projection method - seems to break with verts behind the camera
-		//View->WorldToPixel(WorldPosition, Result);
-		
+	if (FSceneView* View = UStableDiffusionBlueprintLibrary::CalculateEditorView(UStableDiffusionSubsystem::GetCapturingViewport().Get())) {
 		auto ProjPlane = View->Project(WorldPosition);
 		Result.X = ProjPlane.X * 0.5f + 0.5f;
 		Result.Y = ProjPlane.Y * -0.5f + 0.5f;
@@ -109,11 +100,7 @@ FVector2d UStableDiffusionBlueprintLibrary::ProjectViewportWorldToUV(const FVect
 
 FMatrix UStableDiffusionBlueprintLibrary::GetEditorViewportViewProjectionMatrix()
 {
-	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
-	auto Client = EditorViewport->GetClient();
-	if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
-		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
-		FSceneView* View = EditorClient->CalcSceneView(&ViewFamily);
+	if (FSceneView* View = UStableDiffusionBlueprintLibrary::CalculateEditorView(UStableDiffusionSubsystem::GetCapturingViewport().Get())) {
 		return View->ViewMatrices.GetViewProjectionMatrix();
 	}
 
@@ -122,11 +109,7 @@ FMatrix UStableDiffusionBlueprintLibrary::GetEditorViewportViewProjectionMatrix(
 
 FTransform UStableDiffusionBlueprintLibrary::GetEditorViewportCameraTransform()
 {
-	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
-	auto Client = EditorViewport->GetClient();
-	if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
-		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
-		FSceneView* View = EditorClient->CalcSceneView(&ViewFamily);
+	if (FSceneView* View = UStableDiffusionBlueprintLibrary::CalculateEditorView(UStableDiffusionSubsystem::GetCapturingViewport().Get())) {
 		return FTransform(View->ViewRotation, View->ViewLocation);
 	}	
 	
@@ -135,11 +118,7 @@ FTransform UStableDiffusionBlueprintLibrary::GetEditorViewportCameraTransform()
 
 FMatrix UStableDiffusionBlueprintLibrary::GetEditorViewportViewMatrix()
 {
-	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
-	auto Client = EditorViewport->GetClient();
-	if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
-		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
-		FSceneView* View = EditorClient->CalcSceneView(&ViewFamily);
+	if (FSceneView* View = UStableDiffusionBlueprintLibrary::CalculateEditorView(UStableDiffusionSubsystem::GetCapturingViewport().Get())) {
 		return View->ViewMatrices.GetViewMatrix();
 	}
 
@@ -149,12 +128,7 @@ FMatrix UStableDiffusionBlueprintLibrary::GetEditorViewportViewMatrix()
 FMinimalViewInfo UStableDiffusionBlueprintLibrary::GetEditorViewportViewInfo()
 {
 	FMinimalViewInfo ViewInfo;
-	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
-	auto Client = EditorViewport->GetClient();
-	if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
-		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
-		FSceneView* View = EditorClient->CalcSceneView(&ViewFamily);
-
+	if (FSceneView* View = UStableDiffusionBlueprintLibrary::CalculateEditorView(UStableDiffusionSubsystem::GetCapturingViewport().Get())) {
 		ViewInfo.AspectRatio = (float)View->UnconstrainedViewRect.Width() / (float)View->UnconstrainedViewRect.Height();
 		ViewInfo.FOV = View->FOV;
 		ViewInfo.Location = View->ViewLocation;
@@ -168,11 +142,7 @@ FMinimalViewInfo UStableDiffusionBlueprintLibrary::GetEditorViewportViewInfo()
 
 FIntPoint UStableDiffusionBlueprintLibrary::GetEditorViewportSize()
 {
-	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
-	auto Client = EditorViewport->GetClient();
-	if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
-		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
-		FSceneView* View = EditorClient->CalcSceneView(&ViewFamily);
+	if (FSceneView* View = UStableDiffusionBlueprintLibrary::CalculateEditorView(UStableDiffusionSubsystem::GetCapturingViewport().Get())) {
 		return FIntPoint(View->UnconstrainedViewRect.Width(), View->UnconstrainedViewRect.Height());
 	}
 	return FIntPoint(0, 0);
@@ -180,18 +150,33 @@ FIntPoint UStableDiffusionBlueprintLibrary::GetEditorViewportSize()
 
 FVector UStableDiffusionBlueprintLibrary::GetEditorViewportDirection()
 {
-	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
-	auto Client = EditorViewport->GetClient();
-	if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
-		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
-		FSceneView* View = EditorClient->CalcSceneView(&ViewFamily);
+	if (FSceneView* View = UStableDiffusionBlueprintLibrary::CalculateEditorView(UStableDiffusionSubsystem::GetCapturingViewport().Get())) {
 		return View->GetViewDirection();
 	}
-
 	return FVector::ForwardVector;
 }
 
+void UStableDiffusionBlueprintLibrary::SetEditorViewportRealtimeOverride(bool Realtime)
+{
+	if (auto EditorClient = UStableDiffusionBlueprintLibrary::GetEditorClient()) {
+		EditorClient->AddRealtimeOverride(Realtime, FText::FromString("Stable Diffusion Tools"));
+	}
+}
 
+void UStableDiffusionBlueprintLibrary::ClearEditorViewportRealtimeOverride()
+{
+	if (auto EditorClient = UStableDiffusionBlueprintLibrary::GetEditorClient()) {
+		EditorClient->RemoveRealtimeOverride();
+	}
+}
+
+bool UStableDiffusionBlueprintLibrary::GetEditorViewportRealtime()
+{
+	if (auto EditorClient = UStableDiffusionBlueprintLibrary::GetEditorClient()) {
+		return EditorClient->IsRealtime();
+	}
+	return true;
+}
 
 TArray<AActor*> UStableDiffusionBlueprintLibrary::GetActorsInViewFrustum(const UObject* WorldContextObject, const FMatrix& ViewProjectionMatrix, const FVector& CameraLocation)
 {
@@ -284,6 +269,30 @@ UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* 
 	return OutTex;
 }
 
+FEditorViewportClient* UStableDiffusionBlueprintLibrary::GetEditorClient()
+{
+	if (auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport()) {
+		auto Client = EditorViewport->GetClient();
+		if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
+			return EditorClient;
+		}
+	}
+	
+	return nullptr;
+}
+
+FSceneView* UStableDiffusionBlueprintLibrary::CalculateEditorView(FSceneViewport* EditorViewport)
+{
+	if (EditorViewport) {
+		auto Client = EditorViewport->GetClient();
+		if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
+			FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport, EditorClient->GetScene(), EditorClient->EngineShowFlags));
+			return EditorClient->CalcSceneView(&ViewFamily);
+		}
+	}
+	return nullptr;
+}
+
 UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty() || !Texture)
@@ -333,13 +342,7 @@ void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* Sourc
 	}
 
 	// Hack. Get the editor viewport
-	FSceneView* View = nullptr;
-	auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport();
-	auto Client = EditorViewport->GetClient();
-	if (FEditorViewportClient* EditorClient = StaticCast<FEditorViewportClient*>(Client)) {
-		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(EditorViewport.Get(), EditorClient->GetScene(), EditorClient->EngineShowFlags));
-		View = EditorClient->CalcSceneView(&ViewFamily);
-	}
+	FSceneView* View = UStableDiffusionBlueprintLibrary::CalculateEditorView(UStableDiffusionSubsystem::GetCapturingViewport().Get());
 
 	// Get source and target texture sizes
 	const int32 SourceWidth = SourceTexture->GetSizeX();
