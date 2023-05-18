@@ -25,6 +25,9 @@ public:
 	bool OnAreAssetsValidForDrop(TArrayView<FAssetData> DraggedAssets) const;
 	void HandlePlacementDropped(const FDragDropEvent& DragDropEvent, TArrayView<FAssetData> DroppedAssetData);
 
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "StableDIffusion|UI")
+	void UpdateViewportImage(UTexture* Texture, FIntPoint Size);
+
 	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|UI", meta = (BindWidget))
 	UNativeWidgetHost* AssetDropTarget;
 
