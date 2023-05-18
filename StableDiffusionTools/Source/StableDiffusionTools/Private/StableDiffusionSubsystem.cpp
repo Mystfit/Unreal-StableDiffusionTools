@@ -247,19 +247,6 @@ TSharedPtr<FSceneViewport> UStableDiffusionSubsystem::GetCapturingViewport()
 	return OutSceneViewport;
 }
 
-void UStableDiffusionSubsystem::StartCapturingViewport()
-{
-	// Find active viewport
-	TSharedPtr<FSceneViewport> OutSceneViewport = GetCapturingViewport();
-	SetCaptureViewport(OutSceneViewport.ToSharedRef(), OutSceneViewport->GetSize());
-}
-
-void UStableDiffusionSubsystem::SetCaptureViewport(TSharedRef<FSceneViewport> Viewport, FIntPoint FrameSize)
-{
-	ViewportCapture = MakeShared<FFrameGrabber>(Viewport, FrameSize);
-	ViewportCapture->StartCapturingFrames();
-}
-
 void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, EInputImageSource ImageSourceType)
 {
 	if (!GeneratorBridge)
@@ -588,9 +575,6 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 {
 	auto ViewportSize = GetCapturingViewport()->GetSizeXY();
 
-	// Make sure viewport capture objects are available
-	StartCapturingViewport();
-
 	FIntPoint MinBounds, MaxBounds;
 	CalculateOverlayBounds(float(Input.Options.OutSizeX) / float(Input.Options.OutSizeY), MinBounds, MaxBounds);
 	FIntRect FrameBounds(MinBounds.X, MinBounds.Y, MaxBounds.X, MaxBounds.Y);
@@ -618,31 +602,22 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 		SceneCapture.SceneCapture->Destroy();
 	}
 
-	// Create a frame payload we will wait on to be filled with a frame
-	auto framePtr = MakeShared<FCapturedFramePayload>();
-	framePtr->OnFrameCapture.AddLambda([=](FColor* Pixels, FIntPoint BufferSize, FIntPoint TargetSize) mutable {
-		// Copy frame data
-		TArray<FColor> CopiedFrame = CopyFrameData(FrameBounds, BufferSize, Pixels);
-		
-		// Find a final colour layer as a destination for our captured frame
-		auto FinalColorProcessor = Input.ProcessedLayers.FindByPredicate([](const FLayerData& Layer) { return Layer.Processor->IsA<UFinalColorLayerProcessor>(); });
-		if (FinalColorProcessor) {
-			FinalColorProcessor->LayerPixels = MoveTemp(CopiedFrame);
-		}
+	// Take the screenshot of the active viewport
+	TArray<FColor> Pixels;
+	GetViewportScreenShot(UStableDiffusionSubsystem::GetCapturingViewport().Get(), Pixels, FrameBounds);
 
-		// Don't need to keep capturing whilst generating
-		ViewportCapture->StopCapturingFrames();
+	// Find a final colour layer as a destination for our captured frame
+	auto FinalColorProcessor = Input.ProcessedLayers.FindByPredicate([](const FLayerData& Layer) { return Layer.Processor->IsA<UFinalColorLayerProcessor>(); });
+	if (FinalColorProcessor) {
+		FinalColorProcessor->LayerPixels = MoveTemp(Pixels);
+	}
 
-		// Set size from viewport
-		Input.Options.InSizeX = FrameBounds.Size().X;
-		Input.Options.InSizeY = FrameBounds.Size().Y;
+	// Set size from viewport
+	Input.Options.InSizeX = FrameBounds.Size().X;
+	Input.Options.InSizeY = FrameBounds.Size().Y;
 
-		// Only start image generation when we have a frame
-		StartImageGeneration(Input);
-	});
-
-	// Start frame capture
-	ViewportCapture->CaptureThisFrame(framePtr);
+	// Only start image generation when we have a frame
+	StartImageGeneration(Input);
 }
 
 void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionInput Input)
@@ -745,7 +720,7 @@ EModelStatus UStableDiffusionSubsystem::GetModelStatus() const
 	return EModelStatus::Unloaded;
 }
 
-TArray<FColor> UStableDiffusionSubsystem::CopyFrameData(FIntRect Bounds, FIntPoint BufferSize, FColor* ColorBuffer)
+TArray<FColor> UStableDiffusionSubsystem::CopyFrameData(FIntRect Bounds, FIntPoint BufferSize, const FColor* ColorBuffer)
 {
 	// Copy frame data
 	TArray<FColor> CopiedFrame;

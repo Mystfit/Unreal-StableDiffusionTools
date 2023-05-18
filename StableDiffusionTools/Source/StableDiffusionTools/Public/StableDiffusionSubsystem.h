@@ -266,7 +266,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Camera")
 	void UpdateSceneCaptureCamera(FViewportSceneCapture& SceneCapture);
 
-	TArray<FColor> CopyFrameData(FIntRect Bounds, FIntPoint BufferSize, FColor* ColorBuffer);
+	TArray<FColor> CopyFrameData(FIntRect Bounds, FIntPoint BufferSize, const FColor* ColorBuffer);
 
 	static TSharedPtr<FSceneViewport> GetCapturingViewport();
 
@@ -282,12 +282,6 @@ protected:
 	void UpdateImageProgress(int32 Step, int32 Timestep, float Progress, FIntPoint Size, const TArray<FColor>& PixelData);
 
 private:
-	// Viewport capture
-	void StartCapturingViewport();
-	void SetCaptureViewport(TSharedRef<FSceneViewport> Viewport, FIntPoint FrameSize);
-	TSharedPtr<FFrameGrabber> ViewportCapture;
-	FDelegateHandle ActiveEndframeHandler;
-
 	// Scene Capture Component capture
 	FViewportSceneCapture CurrentSceneCapture;
 
