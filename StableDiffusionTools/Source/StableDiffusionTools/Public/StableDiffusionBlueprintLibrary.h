@@ -88,6 +88,9 @@ public:
 	static TArray<FColor> ReadPixels(UTexture2D* Texture);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
+	static void UpdateTextureSync(UTexture* Texture);
+
+	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static UTexture2D* CreateTextureAsset(const FString& AssetPath, const FString& Name, FIntPoint Size, ETextureSourceFormat Format = ETextureSourceFormat::TSF_BGRA8, FColor Fill = FColor::Black);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")

@@ -315,10 +315,7 @@ void UStableDiffusionSubsystem::StartImageGeneration(FStableDiffusionInput Input
 			// Create generated texture on game thread
 			AsyncTask(ENamedThreads::GameThread, [this, result, OutTexture]
 			{			
-				OutTexture->UpdateResource();
-				while (!OutTexture->IsAsyncCacheComplete()){
-					FPlatformProcess::Sleep(0.0f);
-				}
+				UStableDiffusionBlueprintLibrary::UpdateTextureSync(OutTexture);
 #if WITH_EDITOR
 				OutTexture->PostEditChange();
 #endif
@@ -339,10 +336,7 @@ void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult&
 
 	// Create output texature to hold our upsampled result
 	UTexture2D* OutTexture = UTexture2D::CreateTransient(upsampled_width, upsampled_height);
-	OutTexture->UpdateResource();
-	while (!OutTexture->IsAsyncCacheComplete()) {
-		FPlatformProcess::Sleep(0.0f);
-	}
+	UStableDiffusionBlueprintLibrary::UpdateTextureSync(OutTexture);
 
 	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, input, upsampled_width, upsampled_height, OutTexture](){
 		auto result = GeneratorBridge->UpsampleImage(input, OutTexture);
@@ -350,10 +344,7 @@ void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult&
 
 		// Process result on game thread
 		AsyncTask(ENamedThreads::GameThread, [this, result=MoveTemp(result), OutTexture]() {
-			OutTexture->UpdateResource();
-			while (!OutTexture->IsAsyncCacheComplete()) {
-				FPlatformProcess::Sleep(0.0f);
-			}
+			UStableDiffusionBlueprintLibrary::UpdateTextureSync(OutTexture);
 #if WITH_EDITOR
 			OutTexture->PostEditChange();
 #endif

@@ -233,6 +233,17 @@ TArray<FColor> UStableDiffusionBlueprintLibrary::ReadPixels(UTexture2D* Texture)
 	return MoveTemp(Pixels);
 }
 
+void UStableDiffusionBlueprintLibrary::UpdateTextureSync(UTexture* Texture)
+{
+	if(!IsValid(Texture))
+		return;
+
+	Texture->UpdateResource();
+	while (!Texture->IsAsyncCacheComplete()) {
+		FPlatformProcess::Sleep(0.0f);
+	}
+}
+
 UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex, bool DeferUpdate)
 {
 	if (!FrameData) 
