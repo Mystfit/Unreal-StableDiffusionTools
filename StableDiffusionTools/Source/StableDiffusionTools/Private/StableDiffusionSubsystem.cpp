@@ -676,22 +676,9 @@ void UStableDiffusionSubsystem::CaptureFromTextureSource(FStableDiffusionInput I
 	auto FinalColorProcessor = Input.ProcessedLayers.FindByPredicate([](const FLayerData& Layer) { return Layer.Processor->IsA<UFinalColorLayerProcessor>(); });
 	if (FinalColorProcessor) {
 		if (auto Tex = Input.OverrideTextureInput) {
-
-			//auto Mip = Input.OverrideTextureInput->GetPlatformData()->Mips[0];
-			//FColor* TexData = static_cast<FColor*>(Mip.BulkData.Lock(LOCK_READ_ONLY));
-			//for (size_t idx = 0; idx < Input.OverrideTextureInput->GetSizeX() * Input.OverrideTextureInput->GetSizeY(); ++idx) {
-			//	FinalColorProcessor->LayerPixels.Add(TexData[idx]);
-			//}
-			//	
-			////FinalColorProcessor->LayerPixels = TArray<FColor>(TexData, Input.OverrideTextureInput->GetSizeX() * Input.OverrideTextureInput->GetSizeY());
-			//Mip.BulkData.Unlock();
 			FinalColorProcessor->LayerPixels = UStableDiffusionBlueprintLibrary::ReadPixels(Input.OverrideTextureInput);
 		}
 	}
-
-	// Set size from input texture
-	Input.Options.InSizeX = Input.OverrideTextureInput->GetSizeX();
-	Input.Options.InSizeY = Input.OverrideTextureInput->GetSizeY();
 
 	StartImageGeneration(Input);
 }

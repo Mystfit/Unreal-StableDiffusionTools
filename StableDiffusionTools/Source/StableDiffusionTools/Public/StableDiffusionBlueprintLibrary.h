@@ -82,10 +82,13 @@ public:
 	static FColor GetUVPixelFromTexture(UTexture2D* Texture, FVector2D UV);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
+	static UTexture2D* CreateTransientTexture(int32 InSizeX, int32 InSizeY, EPixelFormat InFormat = PF_B8G8R8A8, const FName InName = NAME_None);
+
+	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static UTexture2D* ColorBufferToTexture(const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture, bool DeferUpdate = false);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
-	static TArray<FColor> ReadPixels(UTexture2D* Texture);
+	static TArray<FColor> ReadPixels(UTexture* Texture);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static void UpdateTextureSync(UTexture* Texture);

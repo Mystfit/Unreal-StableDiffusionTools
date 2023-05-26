@@ -193,7 +193,7 @@ public:
 	USceneCaptureComponent2D* CaptureSource;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
-	UTexture2D* OverrideTextureInput;
+	UTexture* OverrideTextureInput;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	UTexture2D* TextureOutput;

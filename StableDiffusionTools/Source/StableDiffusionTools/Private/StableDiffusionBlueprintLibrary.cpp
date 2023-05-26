@@ -221,15 +221,31 @@ UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const TArray<
 	return ColorBufferToTexture((uint8*)FrameColors.GetData(), FrameSize, OutTex, DeferUpdate);
 }
 
-TArray<FColor> UStableDiffusionBlueprintLibrary::ReadPixels(UTexture2D* Texture)
+TArray<FColor> UStableDiffusionBlueprintLibrary::ReadPixels(UTexture* Texture)
 {
-	if (!IsValid(Texture))
-		return TArray<FColor>();
+	TArray<FColor> Pixels;
 
-	auto Mip = Texture->GetPlatformData()->Mips[0];
-	FColor* RawPixels = static_cast<FColor*>(Mip.BulkData.Lock(LOCK_READ_ONLY));
-	TArray<FColor> Pixels = TArray<FColor>(RawPixels, Mip.BulkData.GetBulkDataSize() / 4);
-	Mip.BulkData.Unlock();
+	if (!IsValid(Texture))
+		return Pixels;
+
+	if (auto Tex2D = Cast<UTexture2D>(Texture)) {
+		auto Mip = Tex2D->GetPlatformData()->Mips[0];
+		FColor* RawPixels = static_cast<FColor*>(Mip.BulkData.Lock(LOCK_READ_ONLY));
+		Pixels = TArray<FColor>(RawPixels, Mip.BulkData.GetBulkDataSize() / 4);
+		Mip.BulkData.Unlock();
+	}
+	else if (auto RenderTarget2D = Cast<UTextureRenderTarget2D>(Texture)) {
+		FTextureRenderTargetResource* RT_Resource = nullptr;
+		if (IsInGameThread()) {
+			RT_Resource = RenderTarget2D->GameThread_GetRenderTargetResource();
+		}
+		else if(IsInRenderingThread()){
+			RT_Resource = RenderTarget2D->GetRenderTargetResource();
+		}
+		
+		RT_Resource->ReadPixels(Pixels, FReadSurfaceDataFlags(RCM_MinMax));
+	}
+
 	return MoveTemp(Pixels);
 }
 
@@ -511,7 +527,13 @@ FColor UStableDiffusionBlueprintLibrary::GetUVPixelFromTexture(UTexture2D* Textu
 	return InterpolatedColor;
 }
 
-UTexture2D*UStableDiffusionBlueprintLibrary::CreateTextureAsset(const FString& AssetPath, const FString& Name, FIntPoint Size, ETextureSourceFormat Format, FColor Fill)
+UTexture2D* UStableDiffusionBlueprintLibrary::CreateTransientTexture(int32 InSizeX, int32 InSizeY, EPixelFormat InFormat, const FName InName) {
+	auto Tex =  UTexture2D::CreateTransient(InSizeX, InSizeY, InFormat, InName);
+	UpdateTextureSync(Tex);
+	return Tex;
+}
+
+UTexture2D* UStableDiffusionBlueprintLibrary::CreateTextureAsset(const FString& AssetPath, const FString& Name, FIntPoint Size, ETextureSourceFormat Format, FColor Fill)
 {
 	if (AssetPath.IsEmpty() || Name.IsEmpty() || Size.GetMin() < 1)
 		return nullptr;
