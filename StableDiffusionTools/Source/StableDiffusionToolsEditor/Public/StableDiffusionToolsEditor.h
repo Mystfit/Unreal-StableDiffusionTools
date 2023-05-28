@@ -25,6 +25,8 @@ public:
 	void OpenDependencyInstallerWindow();
 
 	void CreatePanel(const FString& BlueprintAssetPath, const FString& PanelLabel);
+
+	void RegisterCustomAssetActions();
 	
 private:
 	void AddMenuEntry(FMenuBuilder& MenuBuilder);

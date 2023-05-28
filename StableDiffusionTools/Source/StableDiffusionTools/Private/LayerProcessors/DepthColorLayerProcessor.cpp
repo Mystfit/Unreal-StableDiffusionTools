@@ -23,7 +23,11 @@ void UDepthLayerProcessor::BeginCaptureLayer_Implementation(FIntPoint Size, USce
 
 UTextureRenderTarget2D* UDepthLayerProcessor::CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame)
 {
-	check(DepthMatInst);
+	if (!DepthMatInst) {
+		UE_LOG(LogTemp, Error, TEXT("No dynamic material instance set for %s instance"), *this->StaticClass()->GetDisplayNameText().ToString());
+		return nullptr;
+	}
+
 	DepthMatInst->SetScalarParameterValue("DepthScale", SceneDepthScale);
 	DepthMatInst->SetScalarParameterValue("StartDepth", SceneDepthOffset);
 

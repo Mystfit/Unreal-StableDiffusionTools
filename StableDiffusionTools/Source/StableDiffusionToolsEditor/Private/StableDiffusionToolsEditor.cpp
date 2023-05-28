@@ -2,6 +2,8 @@
 
 #include "StableDiffusionToolsEditor.h"
 #include "StableDiffusionToolsStyle.h"
+#include "StableDiffusionGenerationAssetActions.h"
+#include "StableDiffusionGenerationAssetThumbnailRenderer.h"
 #include "StableDiffusionToolsCommands.h"
 #include "SDDependencyInstallerWidget.h"
 #include "StableDiffusionSubsystem.h"
@@ -50,7 +52,10 @@ void FStableDiffusionToolsEditorModule::StartupModule()
 		LevelEditorModule.GetMenuExtensibilityManager()->AddExtender(NewMenuExtender);
 	}
 
+	RegisterCustomAssetActions();
 
+	// Register thumbnails
+	UThumbnailManager::Get().RegisterCustomRenderer(UStableDiffusionImageResultAsset::StaticClass(), UStableDiffusionGenerationAssetThumbnailRenderer::StaticClass());
 }
 
 void FStableDiffusionToolsEditorModule::ShutdownModule()
@@ -97,6 +102,14 @@ void FStableDiffusionToolsEditorModule::AddMenuEntry(FMenuBuilder& MenuBuilder)
 	MenuBuilder.AddMenuEntry(FStableDiffusionToolsCommands::Get().OpenDependenciesWindow);
 	MenuBuilder.EndSection();
 }
+
+void FStableDiffusionToolsEditorModule::RegisterCustomAssetActions()
+{
+	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+	TSharedRef<FStableDiffusionImageResultAssetActions> Action = MakeShareable(new FStableDiffusionImageResultAssetActions());
+	AssetTools.RegisterAssetTypeActions(Action);
+}
+
 
 #undef LOCTEXT_NAMESPACE
 	

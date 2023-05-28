@@ -4,6 +4,7 @@
 #include "PromptAsset.h"
 #include "ActorLayerUtilities.h"
 #include "LayerProcessorBase.h"
+
 #include "StableDiffusionGenerationOptions.generated.h"
 
 UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))

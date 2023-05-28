@@ -28,32 +28,10 @@ void UStableDiffusionViewportWidget::NativeConstruct() {
 				else if (Asset.IsInstanceOf(UStableDiffusionImageResultAsset::StaticClass())) {
 					if (auto ImageResult = Cast<UStableDiffusionImageResultAsset>(Asset.GetAsset())) {
 						if (IsValid(ImageResult->ImageOutput)) {
-							UpdateViewportImage(ImageResult->ImageOutput, FIntPoint(ImageResult->ImageOutput->GetSizeX(), ImageResult->ImageOutput->GetSizeY()));
+							UpdateFromDataAsset(ImageResult);
 						}
 					}
 				}
 			}
 	}));
-}
-
-bool UStableDiffusionViewportWidget::OnAreAssetsValidForDrop(TArrayView<FAssetData> DraggedAssets) const {
-	for (auto Asset : DraggedAssets) {
-		if (Asset.IsInstanceOf(UTexture2D::StaticClass()) || Asset.IsInstanceOf(UStableDiffusionImageResultAsset::StaticClass())) {
-			return true;
-		}
-	}
-	return false;
-}
-
-void UStableDiffusionViewportWidget::HandlePlacementDropped(const FDragDropEvent& DragDropEvent, TArrayView<FAssetData> DroppedAssetData) {
-	for (auto Asset : DroppedAssetData) {
-		if (Asset.IsInstanceOf(UTexture2D::StaticClass())) {
-			ViewportImage->SetBrushFromTexture(Cast<UTexture2D>(Asset.GetAsset()));
-		}
-		else if (Asset.IsInstanceOf(UStableDiffusionImageResultAsset::StaticClass())) {
-			if (auto ImageResult = Cast<UStableDiffusionImageResultAsset>(Asset.GetAsset())) {
-				ViewportImage->SetBrushFromTexture(ImageResult->ImageOutput);
-			}
-		}
-	}
 }

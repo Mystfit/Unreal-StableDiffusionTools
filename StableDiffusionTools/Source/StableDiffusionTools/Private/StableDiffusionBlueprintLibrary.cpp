@@ -333,14 +333,13 @@ UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::SaveTextureA
 	// Duplicate texture
 	auto SrcMipData = Texture->Source.LockMip(0);// GetPlatformMips()[0].BulkData;
 	FString TexName = "T_" + Name;
-	UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *TexName, RF_Public | RF_Standalone | RF_MarkAsRootSet);
-	NewTexture->AddToRoot();
+	UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *TexName, RF_Public | RF_Standalone);
 	NewTexture = UStableDiffusionBlueprintLibrary::ColorBufferToTexture(SrcMipData, Size, NewTexture);
 	Texture->Source.UnlockMip(0);
 
 	// Create data asset
 	FString AssetName = "DA_" + Name;
-	UStableDiffusionImageResultAsset* NewImageResultAsset = NewObject<UStableDiffusionImageResultAsset>(Package, *AssetName, RF_Public | RF_Standalone | RF_MarkAsRootSet);
+	UStableDiffusionImageResultAsset* NewImageResultAsset = NewObject<UStableDiffusionImageResultAsset>(Package, *AssetName, RF_Public | RF_Standalone);
 	NewImageResultAsset->ImageInputs = ImageInputs;
 	NewImageResultAsset->Upsampled = Upsampled;
 	NewImageResultAsset->ImageOutput = NewTexture;

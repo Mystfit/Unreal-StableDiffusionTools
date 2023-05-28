@@ -3,6 +3,7 @@
 #include "ISettingsSection.h"
 #include "StableDiffusionToolsSettings.h"
 #include "StableDiffusionSubsystem.h"
+#include "AssetToolsModule.h"
 #include "IPythonScriptPlugin.h"
 
 #define LOCTEXT_NAMESPACE "FStableDiffusionToolsModule"
@@ -56,7 +57,6 @@ bool FStableDiffusionToolsModule::HandleSettingsSaved() {
 	}
 	return false;
 }
-
 
 IMPLEMENT_MODULE(FStableDiffusionToolsModule, StableDiffusionTools)
 

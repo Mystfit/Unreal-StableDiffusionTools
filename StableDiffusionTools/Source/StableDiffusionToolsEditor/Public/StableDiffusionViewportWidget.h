@@ -22,11 +22,12 @@ class STABLEDIFFUSIONTOOLSEDITOR_API UStableDiffusionViewportWidget :
 	GENERATED_BODY()
 public:
 	virtual void NativeConstruct() override;
-	bool OnAreAssetsValidForDrop(TArrayView<FAssetData> DraggedAssets) const;
-	void HandlePlacementDropped(const FDragDropEvent& DragDropEvent, TArrayView<FAssetData> DroppedAssetData);
 
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "StableDIffusion|UI")
 	void UpdateViewportImage(UTexture* Texture, FIntPoint Size);
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "StableDIffusion|UI")
+	void UpdateFromDataAsset(UStableDiffusionImageResultAsset* Asset);
 
 	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|UI", meta = (BindWidget))
 	UNativeWidgetHost* AssetDropTarget;
