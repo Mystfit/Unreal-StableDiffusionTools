@@ -29,6 +29,9 @@ public:
 
     UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
     bool Completed = false;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Outputs")
+    FMinimalViewInfo View;
 };
 
 
@@ -41,11 +44,5 @@ public:
     FStableDiffusionGenerationOptions ImageInputs;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Outputs")
-    UTexture2D* ImageOutput;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Outputs")
-    bool Upsampled = false;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Outputs")
-    FMinimalViewInfo View;
+    FStableDiffusionImageResult ImageOutput;
 };

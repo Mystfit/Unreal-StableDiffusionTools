@@ -341,9 +341,9 @@ UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::SaveTextureA
 	FString AssetName = "DA_" + Name;
 	UStableDiffusionImageResultAsset* NewImageResultAsset = NewObject<UStableDiffusionImageResultAsset>(Package, *AssetName, RF_Public | RF_Standalone);
 	NewImageResultAsset->ImageInputs = ImageInputs;
-	NewImageResultAsset->Upsampled = Upsampled;
-	NewImageResultAsset->ImageOutput = NewTexture;
-	NewImageResultAsset->View = View;
+	NewImageResultAsset->ImageOutput.Upsampled = Upsampled;
+	NewImageResultAsset->ImageOutput.OutTexture = NewTexture;
+	NewImageResultAsset->ImageOutput.View = View;
 
 	// Update package
 	Package->MarkPackageDirty();
