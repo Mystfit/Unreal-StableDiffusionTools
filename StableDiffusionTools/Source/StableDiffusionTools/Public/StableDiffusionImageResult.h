@@ -15,7 +15,7 @@ public:
     //UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
     //TArray<FColor> PixelData;
 
-    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Outputs")
     UTexture2D* OutTexture;
     
     UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
@@ -24,7 +24,7 @@ public:
     UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
     int32 OutHeight;
 
-    UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Outputs")
     bool Upsampled = false;
 
     UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")

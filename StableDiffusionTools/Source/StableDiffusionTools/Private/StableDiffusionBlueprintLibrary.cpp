@@ -320,7 +320,7 @@ FSceneView* UStableDiffusionBlueprintLibrary::CalculateEditorView(FSceneViewport
 	return nullptr;
 }
 
-UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled)
+UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::CreateImageResultAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty() || !Texture)
 		return false;
@@ -349,12 +349,12 @@ UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::SaveTextureA
 	Package->MarkPackageDirty();
 	FAssetRegistryModule::AssetCreated(NewTexture);
 
-	// Save texture pacakge
-	FString PackageFileName = FPackageName::LongPackageNameToFilename(FullPackagePath, FPackageName::GetAssetPackageExtension());
-	FSavePackageArgs PackageArgs;
-	PackageArgs.TopLevelFlags = EObjectFlags::RF_Public | EObjectFlags::RF_Standalone;
-	PackageArgs.bForceByteSwapping = true;
-	bool bSaved = UPackage::SavePackage(Package, NewTexture, *PackageFileName, PackageArgs);
+	//// Save texture pacakge
+	//FString PackageFileName = FPackageName::LongPackageNameToFilename(FullPackagePath, FPackageName::GetAssetPackageExtension());
+	//FSavePackageArgs PackageArgs;
+	//PackageArgs.TopLevelFlags = EObjectFlags::RF_Public | EObjectFlags::RF_Standalone;
+	//PackageArgs.bForceByteSwapping = true;
+	//bool bSaved = UPackage::SavePackage(Package, NewTexture, *PackageFileName, PackageArgs);
 
 	return NewImageResultAsset;
 }

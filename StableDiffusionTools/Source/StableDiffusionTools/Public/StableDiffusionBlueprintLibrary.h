@@ -97,7 +97,7 @@ public:
 	static UTexture2D* CreateTextureAsset(const FString& AssetPath, const FString& Name, FIntPoint Size, ETextureSourceFormat Format = ETextureSourceFormat::TSF_BGRA8, FColor Fill = FColor::Black);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
-	static UStableDiffusionImageResultAsset* SaveTextureAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled = false);
+	static UStableDiffusionImageResultAsset* CreateImageResultAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled = false);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static UProjectionBakeSessionAsset* CreateProjectionBakeSessionAsset(const FProjectionBakeSession& Session, const FString& AssetPath, const FString& Name);
