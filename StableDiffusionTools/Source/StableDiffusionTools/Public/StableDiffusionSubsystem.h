@@ -35,7 +35,7 @@ USTRUCT(BlueprintType)
 struct FViewportSceneCapture {
 	GENERATED_BODY()
 	TObjectPtr<ASceneCapture2D> SceneCapture;
-	TObjectPtr<FLevelEditorViewportClient> ViewportClient;
+	FLevelEditorViewportClient* ViewportClient;
 };
 
 struct FStencilValues
