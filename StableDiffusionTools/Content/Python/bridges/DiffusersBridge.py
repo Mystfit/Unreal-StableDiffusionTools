@@ -198,7 +198,33 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         exec(new_model_options.python_model_arguments_script, globals(), init_script_locals)
         for key, val in init_script_locals.items():
             if "pipearg_" in key:
-                kwargs[key.replace('pipearg_', '')] = val
+                new_key = key.replace('pipearg_', '')
+                if new_key in kwargs:
+                    try:
+                        if not hasattr(kwargs[new_key], "__len__"):
+                            kwargs[new_key] = [kwargs[new_key]]
+                    except KeyError:
+                        kwargs[new_key] = [kwargs[new_key]]
+                    kwargs[new_key].append(val)
+                else:
+                    kwargs[new_key] = val
+
+        # Run layer processor init script to generate extra args
+        for layer in new_model_options.layers:
+            layer_init_script_locals = {}
+            exec(layer.processor.python_model_init_script, globals(), layer_init_script_locals)
+            for key, val in layer_init_script_locals.items():
+                if "pipearg_" in key:
+                    new_key = key.replace('pipearg_', '')
+                    if new_key in kwargs:
+                        try:
+                            if not hasattr(kwargs[new_key], "__len__"):
+                                kwargs[new_key] = [kwargs[new_key]]
+                        except KeyError:
+                            kwargs[new_key] = [kwargs[new_key]]
+                        kwargs[new_key].append(val)
+                    else:
+                        kwargs[new_key] = val
         
         if new_model_options.revision:
             kwargs["revision"] = new_model_options.revision
@@ -476,7 +502,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 raise ValueError(f"Wrong type passed to upscale. Expected {type(StableDiffusionImageResult)} or List. Received {type(image_result)}")
             
             input_pixels = unreal.StableDiffusionBlueprintLibrary.read_pixels(image_result.out_texture)
-            image = FColorAsPILImage(input_pixels, image_result.out_width, image_result.out_height).convert("RGB")
+            image = FColorAsPILImage(input_pixels, image_result.out_texture.blueprint_get_size_x(), image_result.out_texture.blueprint_get_size_y()).convert("RGB")
             print(f"Upscaling image result from {image_result.out_width}:{image_result.out_height} to {image_result.out_width * 4}:{image_result.out_height * 4}")
             upsampled_image = active_upsampler(image)
         
