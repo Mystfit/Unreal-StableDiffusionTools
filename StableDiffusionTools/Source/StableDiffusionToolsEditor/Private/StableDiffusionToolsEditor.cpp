@@ -16,6 +16,7 @@
 #include "AssetRegistryModule.h"
 #include "EditorUtilityWidget.h"
 #include "EditorAssetLibrary.h"
+#include "LayerProcessorOptionsCustomization.h"
 #include "EditorUtilitySubsystem.h"
 
 static const FName StableDiffusionToolsTabName("Stable Diffusion Tools");
@@ -53,6 +54,7 @@ void FStableDiffusionToolsEditorModule::StartupModule()
 	}
 
 	RegisterCustomAssetActions();
+	RegisterDetailCustomization();
 
 	// Register thumbnails
 	UThumbnailManager::Get().RegisterCustomRenderer(UStableDiffusionImageResultAsset::StaticClass(), UStableDiffusionGenerationAssetThumbnailRenderer::StaticClass());
@@ -109,6 +111,16 @@ void FStableDiffusionToolsEditorModule::RegisterCustomAssetActions()
 	TSharedRef<FStableDiffusionImageResultAssetActions> Action = MakeShareable(new FStableDiffusionImageResultAssetActions());
 	AssetTools.RegisterAssetTypeActions(Action);
 }
+
+void FStableDiffusionToolsEditorModule::RegisterDetailCustomization()
+{
+	const FName PropertyEditor("PropertyEditor");
+	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditor);
+	
+	PropertyModule.RegisterCustomPropertyTypeLayout(FLayerData::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FLayerDataCustomization::MakeInstance));
+	PropertyModule.RegisterCustomPropertyTypeLayout(ULayerProcessorOptions::StaticClass()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FLayerProcessorOptionsCustomization::MakeInstance));
+}
+
 
 
 #undef LOCTEXT_NAMESPACE

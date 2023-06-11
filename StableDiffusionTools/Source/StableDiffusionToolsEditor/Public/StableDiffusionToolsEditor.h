@@ -27,6 +27,7 @@ public:
 	void CreatePanel(const FString& BlueprintAssetPath, const FString& PanelLabel);
 
 	void RegisterCustomAssetActions();
+	void RegisterDetailCustomization();
 	
 private:
 	void AddMenuEntry(FMenuBuilder& MenuBuilder);

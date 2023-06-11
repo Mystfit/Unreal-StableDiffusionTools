@@ -18,6 +18,16 @@ enum ELayerBitDepth
 };
 
 
+UENUM()
+enum ELayerImageType
+{
+	image UMETA(DisplayName = "Img2Img"),
+	control_image UMETA(DisplayName = "ControlNet"),
+	custom UMETA(DisplayName = "Custom"),
+	ELayerImageType_MAX
+};
+
+
 /**
  * 
  */
@@ -35,6 +45,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Stable Diffusion|Layer source"))
 	FString PythonModelInitScript;
 
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Layer processor")
+	ULayerProcessorOptions* AllocateLayerOptions();
+
 	/*
 	* Script to run just the model generates a new image. Performs any python image transformations required.
 	*/
@@ -45,9 +58,9 @@ public:
 	TEnumAsByte<ELayerBitDepth> CaptureBitDepth = EightBit;
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Layer processor")
-	void BeginCaptureLayer(FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr);
+	void BeginCaptureLayer(FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr, UObject* LayerOptions = nullptr);
 
-	virtual UTextureRenderTarget2D* CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame = true);
+	virtual UTextureRenderTarget2D* CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame = true, UObject* LayerOptions = nullptr);
 	
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Layer processor")
 	void EndCaptureLayer(USceneCaptureComponent2D* CaptureSource = nullptr);
@@ -72,12 +85,21 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Stable Diffusion|Layer source")
 	UMaterialInterface* PostMaterial;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Stable Diffusion|Layer source")
+	TEnumAsByte<ELayerImageType> DefaultLayerType;
+
 protected:
 	UTextureRenderTarget2D* GetOrAllocateRenderTarget(FIntPoint Size);
 
 	UMaterialInterface* ActivePostMaterialInstance;
 }; 
 
+
+UCLASS(BlueprintType, meta = (DisplayName = "Layer options"))
+class STABLEDIFFUSIONTOOLS_API ULayerProcessorOptions : public UObject
+{
+	GENERATED_BODY()
+};
 
 
 USTRUCT(BlueprintType)
@@ -88,12 +110,18 @@ public:
 	UPROPERTY(BlueprintReadWrite, Transient)
 		TArray<FColor> LayerPixels;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta=(UsesHierarchy=true, Category = "Stable Diffusion|Layer source"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta=(UsesHierarchy=true, Category = "Layers"))
 		ULayerProcessorBase* Processor;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (UsesHierarchy = true, Category = "Layers"))
+		ULayerProcessorOptions* ProcessorOptions;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (UsesHierarchy = true, Category = "Layers"))
+		TEnumAsByte<ELayerImageType> LayerType;
 
 	/*
 	* Identifying role key for this layer that will be used to assign it to the correct pipe keyword argument
 	*/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Stable Diffusion|Layer source")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Category = "Layers", EditCondition = "LayerType == ELayerImageType::custom", EditConditionHides))
 		FString Role = "image";
 };

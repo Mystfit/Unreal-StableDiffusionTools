@@ -56,7 +56,7 @@ public:
     bool ModelExists(const FString& ModelName) const;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
-    bool InitModel(const FStableDiffusionModelOptions& NewModelOptions, bool AllowNsfw, EPaddingMode PaddingMode);
+    bool InitModel(const FStableDiffusionModelOptions& NewModelOptions, const TArray<FLayerData>& Layers, bool AllowNsfw, EPaddingMode PaddingMode);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void ReleaseModel();

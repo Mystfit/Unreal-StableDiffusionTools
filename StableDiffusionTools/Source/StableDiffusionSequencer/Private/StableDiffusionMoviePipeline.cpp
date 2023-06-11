@@ -83,7 +83,7 @@ void UStableDiffusionMoviePipeline::SetupForPipelineImpl(UMoviePipeline* InPipel
 					if (OptionsSection) {
 						if (OptionsSection->ModelAsset) {
 							if (SDSubsystem->ModelOptions != OptionsSection->ModelAsset->Options) {
-								SDSubsystem->InitModel(OptionsSection->ModelAsset->Options, false, AllowNSFW, PaddingMode);
+								SDSubsystem->InitModel(OptionsSection->ModelAsset->Options, OptionsSection->Layers, false, AllowNSFW, PaddingMode);
 							}
 						}
 					}
@@ -173,7 +173,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 							//Reload model if it doesn't match the current options track
 							if (OptionSection->ModelAsset) {
 								if (SDSubsystem->ModelOptions != OptionSection->ModelAsset->Options || SDSubsystem->GetModelStatus() != EModelStatus::Loaded) {
-									SDSubsystem->InitModel(OptionSection->ModelAsset->Options, false, OptionSection->AllowNSFW, OptionSection->PaddingMode);
+									SDSubsystem->InitModel(OptionSection->ModelAsset->Options, OptionSection->Layers, false, OptionSection->AllowNSFW, OptionSection->PaddingMode);
 								}
 							}
 							if (SDSubsystem->GetModelStatus() == EModelStatus::Loaded) {
@@ -183,6 +183,9 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 							OptionSection->GetStrengthChannel().Evaluate(FullFrameTime, Input.Options.Strength);
 							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Input.Options.Iterations);
 							OptionSection->GetSeedChannel().Evaluate(FullFrameTime, Input.Options.Seed);
+
+							// Add controlnet layers
+							Input.InputLayers = OptionSection->Layers;
 						}
 					}
 				}
@@ -209,10 +212,10 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			}
 
 			// Start a new capture pass for each layer
-			for (auto Layer : SDSubsystem->ModelOptions.Layers) {
+			for (auto Layer : Input.InputLayers) {
 				// Copy layer
 				FLayerData TargetLayer = Layer;
-				TargetLayer.Processor->BeginCaptureLayer(FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY));
+				TargetLayer.Processor->BeginCaptureLayer(FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY), nullptr, Layer.ProcessorOptions);
 
 				TSharedPtr<FSceneViewFamilyContext> ViewFamily;
 				FSceneView* View = BeginSDLayerPass(InOutSampleState, ViewFamily);

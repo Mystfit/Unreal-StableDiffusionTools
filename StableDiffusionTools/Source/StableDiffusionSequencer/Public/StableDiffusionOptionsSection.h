@@ -18,6 +18,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Model", meta = (Multiline = true))
 	UStableDiffusionModelAsset* ModelAsset;
 
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Layers")
+	TArray<FLayerData> Layers;
+
 	UPROPERTY(EditAnywhere, Category = "Model options")
 	bool AllowNSFW = false;
 

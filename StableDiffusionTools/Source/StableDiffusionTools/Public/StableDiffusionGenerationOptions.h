@@ -78,8 +78,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model", meta = (Bitmask, BitmaskEnum = EModelCapabilities))
 		int32 Capabilities = (int32)(EModelCapabilities::STRENGTH);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UsesHierarchy=true, Category="Stable Diffusion|Model"))
-	TArray<FLayerData> Layers;
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UsesHierarchy=true, Category="Stable Diffusion|Model"))
+	//TArray<FLayerData> Layers;
 
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
 	{
@@ -175,8 +175,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	FStableDiffusionGenerationOptions Options;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
-	TArray<FActorLayer> InpaintLayers;
+	/*UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	TArray<FActorLayer> InpaintLayers;*/
 
 	/*
 	//
@@ -198,6 +198,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	UTexture2D* TextureOutput;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	TArray<FLayerData> InputLayers;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	TArray<FLayerData> ProcessedLayers;

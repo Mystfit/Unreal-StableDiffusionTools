@@ -30,6 +30,18 @@ private:
 	bool RestoreOnDelete;
 };
 
+
+UCLASS(meta = (DisplayName = "Layer options"))
+class STABLEDIFFUSIONTOOLS_API UStencilLayerOptions : public ULayerProcessorOptions
+{
+	GENERATED_BODY()
+public:
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Layer options")
+		FActorLayer ActorLayer;
+};
+
+
 UCLASS(meta = (DisplayName = "Actor stencil layer"))
 class STABLEDIFFUSIONTOOLS_API UStencilLayerProcessor: public ULayerProcessorBase
 {
@@ -38,13 +50,9 @@ class STABLEDIFFUSIONTOOLS_API UStencilLayerProcessor: public ULayerProcessorBas
 public:
 	static FString StencilLayerMaterialAsset;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Layer options")
-	FActorLayer ActorLayer;
-
-	virtual void BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr) override;
-
-	virtual UTextureRenderTarget2D* CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame = true) override;
-
+	virtual ULayerProcessorOptions* AllocateLayerOptions_Implementation() override;
+	virtual void BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr, UObject* LayerOptions = nullptr) override;
+	virtual UTextureRenderTarget2D* CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame = true, UObject* LayerOptions = nullptr) override;
 	virtual void EndCaptureLayer_Implementation(USceneCaptureComponent2D* CaptureSource = nullptr) override;
 
 	FActorLayerStencilState ActorLayerState;

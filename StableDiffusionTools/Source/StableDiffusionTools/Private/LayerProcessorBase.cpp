@@ -5,7 +5,7 @@
 #include "Components/SceneCaptureComponent2D.h"
 
 
-void ULayerProcessorBase::BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource)
+void ULayerProcessorBase::BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource, UObject* LayerOptions)
 {
 	if (!CaptureSource)
 		return;
@@ -37,7 +37,12 @@ void ULayerProcessorBase::BeginCaptureLayer_Implementation(FIntPoint Size, UScen
 		CaptureSource->AddOrUpdateBlendable(ActivePostMaterialInstance);
 }
 
-UTextureRenderTarget2D* ULayerProcessorBase::CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame)
+ULayerProcessorOptions* ULayerProcessorBase::AllocateLayerOptions_Implementation()
+{
+	return nullptr;
+}
+
+UTextureRenderTarget2D* ULayerProcessorBase::CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame, UObject* LayerOptions)
 {
 	if (!CaptureSource)
 		return nullptr;

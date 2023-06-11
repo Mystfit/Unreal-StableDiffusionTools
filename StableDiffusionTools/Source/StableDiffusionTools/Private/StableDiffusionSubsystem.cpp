@@ -154,7 +154,7 @@ bool UStableDiffusionSubsystem::IsModelDirty() const
 	return bIsModelDirty;
 }
 
-void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, bool Async, bool AllowNSFW, EPaddingMode PaddingMode)
+void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, const TArray<FLayerData>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode)
 {
 	if (GeneratorBridge) {
 		// Unload any loaded models first
@@ -164,8 +164,8 @@ void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Mo
 		this->GeneratorBridge->OnImageProgressEx.AddUniqueDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
 
 		if (Async) {
-			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model, AllowNSFW, PaddingMode]() {
-				this->GeneratorBridge->InitModel(Model, AllowNSFW, PaddingMode);
+			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model, Layers, AllowNSFW, PaddingMode]() mutable {
+				this->GeneratorBridge->InitModel(Model, Layers, AllowNSFW, PaddingMode);
 				if (GetModelStatus() == EModelStatus::Loaded) {
 					bIsModelDirty = false;
 					ModelOptions = Model;
@@ -177,7 +177,7 @@ void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Mo
 				});
 		}
 		else {
-			this->GeneratorBridge->InitModel(Model, AllowNSFW, PaddingMode);
+			this->GeneratorBridge->InitModel(Model, Layers, AllowNSFW, PaddingMode);
 			if (GetModelStatus() == EModelStatus::Loaded) {
 				ModelOptions = Model;
 				bIsModelDirty = false;
@@ -563,19 +563,19 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 	FIntRect FrameBounds(MinBounds.X, MinBounds.Y, MaxBounds.X, MaxBounds.Y);
 
 	// Process each layer the model has requested
-	if (ModelOptions.Layers.Num()) {
+	if (Input.InputLayers.Num()) {
 		Input.ProcessedLayers.Reset();
-		Input.ProcessedLayers.Reserve(ModelOptions.Layers.Num());
+		Input.ProcessedLayers.Reserve(Input.InputLayers.Num());
 		Input.View = UStableDiffusionBlueprintLibrary::GetEditorViewportViewInfo();
 
 		// Create a scene capture
 		auto SceneCapture = CreateSceneCaptureFromEditorViewport();
 
-		for (auto& Layer : ModelOptions.Layers) {
+		for (auto& Layer : Input.InputLayers) {
 			// Copy layer
 			FLayerData TargetLayer = Layer;
-			TargetLayer.Processor->BeginCaptureLayer(FrameBounds.Size(), SceneCapture.SceneCapture->GetCaptureComponent2D());
-			TargetLayer.Processor->CaptureLayer(SceneCapture.SceneCapture->GetCaptureComponent2D());
+			TargetLayer.Processor->BeginCaptureLayer(FrameBounds.Size(), SceneCapture.SceneCapture->GetCaptureComponent2D(), Layer.ProcessorOptions);
+			TargetLayer.Processor->CaptureLayer(SceneCapture.SceneCapture->GetCaptureComponent2D(), true, Layer.ProcessorOptions);
 			TargetLayer.Processor->EndCaptureLayer(SceneCapture.SceneCapture->GetCaptureComponent2D());
 			TargetLayer.LayerPixels = TargetLayer.Processor->ProcessLayer(TargetLayer.Processor->RenderTarget);
 			Input.ProcessedLayers.Add(MoveTemp(TargetLayer));
@@ -628,10 +628,10 @@ void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionIn
 	
 	// Process each layer the model has requested
 	Input.ProcessedLayers.Reset();
-	Input.ProcessedLayers.Reserve(ModelOptions.Layers.Num());
-	for (auto Layer : ModelOptions.Layers) {
-		Layer.Processor->BeginCaptureLayer(CaptureSize, CaptureComponent);
-		Layer.Processor->CaptureLayer(CaptureComponent);
+	Input.ProcessedLayers.Reserve(Input.InputLayers.Num());
+	for (auto Layer : Input.InputLayers) {
+		Layer.Processor->BeginCaptureLayer(CaptureSize, CaptureComponent, Layer.ProcessorOptions);
+		Layer.Processor->CaptureLayer(CaptureComponent, true, Layer.ProcessorOptions);
 		Layer.Processor->EndCaptureLayer(CaptureComponent);
 		Layer.LayerPixels = Layer.Processor->ProcessLayer(Layer.Processor->RenderTarget);
 		Input.ProcessedLayers.Add(MoveTemp(Layer));
@@ -663,9 +663,9 @@ void UStableDiffusionSubsystem::CaptureFromTextureSource(FStableDiffusionInput I
 
 	// Process each layer the model has requested
 	Input.ProcessedLayers.Reset();
-	Input.ProcessedLayers.Reserve(ModelOptions.Layers.Num());
-	for (auto Layer : ModelOptions.Layers) {
-		Layer.Processor->BeginCaptureLayer(CaptureSize, nullptr);
+	Input.ProcessedLayers.Reserve(Input.InputLayers.Num());
+	for (auto Layer : Input.InputLayers) {
+		Layer.Processor->BeginCaptureLayer(CaptureSize);
 		Layer.Processor->CaptureLayer(nullptr);
 		Layer.Processor->EndCaptureLayer(nullptr);
 		Layer.LayerPixels = Layer.Processor->ProcessLayer(Layer.Processor->RenderTarget);

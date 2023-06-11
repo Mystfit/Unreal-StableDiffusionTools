@@ -21,13 +21,23 @@ FScopedActorLayerStencil::~FScopedActorLayerStencil()
 		State.RestoreActorLayer();
 }
 
-void UStencilLayerProcessor::BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource)
+ULayerProcessorOptions* UStencilLayerProcessor::AllocateLayerOptions_Implementation()
+{
+	return NewObject<UStencilLayerOptions>();
+}
+
+void UStencilLayerProcessor::BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource, UObject* LayerOptions)
 {
 	if (!CaptureSource)
 		return;
 
 	LastBloomState = CaptureSource->ShowFlags.Bloom;
 	CaptureSource->ShowFlags.SetBloom(false);
+
+	FActorLayer ActorLayer;
+	if (auto ActorOptions = Cast<UStencilLayerOptions>(LayerOptions)) {
+		ActorLayer = ActorOptions->ActorLayer;
+	}
 
 	ActorLayerState.CaptureActorLayer(ActorLayer);
 
@@ -36,10 +46,10 @@ void UStencilLayerProcessor::BeginCaptureLayer_Implementation(FIntPoint Size, US
 	}
 	ActivePostMaterialInstance = StencilMatInst;
 
-	Super::BeginCaptureLayer_Implementation(Size, CaptureSource);
+	Super::BeginCaptureLayer_Implementation(Size, CaptureSource, LayerOptions);
 }
 
-UTextureRenderTarget2D* UStencilLayerProcessor::CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame){
+UTextureRenderTarget2D* UStencilLayerProcessor::CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame, UObject* LayerOptions){
 	ULayerProcessorBase::CaptureLayer(CaptureSource, SingleFrame);
 	return RenderTarget;
 }

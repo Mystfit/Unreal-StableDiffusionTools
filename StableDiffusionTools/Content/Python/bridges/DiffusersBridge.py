@@ -48,6 +48,15 @@ def patch_conv(padding_mode):
     cls.__init__ = __init__
 
 
+def layer_type_name(layer_type: unreal.LayerImageType):
+    layer_type_map = {
+        unreal.LayerImageType.IMAGE: "image",
+        unreal.LayerImageType.CONTROL_IMAGE: "control_image",
+        unreal.LayerImageType.CUSTOM: "custom",
+    }
+    return layer_type_map[layer_type]
+
+
 def preprocess_init_image(image: Image, width: int, height: int):
     image = image.resize((width, height), resample=Image.LANCZOS)
     image = np.array(image).astype(np.float32) / 255.0
@@ -170,7 +179,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.start_timestep = -1
 
     @unreal.ufunction(override=True)
-    def InitModel(self, new_model_options, allow_nsfw, padding_mode):
+    def InitModel(self, new_model_options, layers, allow_nsfw, padding_mode):
         result = True
         self.set_editor_property("ModelStatus", unreal.ModelStatus.LOADING if self.ModelExists(new_model_options.model) else unreal.ModelStatus.DOWNLOADING)
 
@@ -210,7 +219,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     kwargs[new_key] = val
 
         # Run layer processor init script to generate extra args
-        for layer in new_model_options.layers:
+        for layer in layers:
             layer_init_script_locals = {}
             exec(layer.processor.python_model_init_script, globals(), layer_init_script_locals)
             for key, val in layer_init_script_locals.items():
@@ -327,14 +336,15 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 print(f"Running image transform script for layer {layer}")
                 exec(layer.processor.python_transform_script, transform_script_args, transform_script_locals)
                 layer_img = transform_script_locals["result_image"] if "result_image" in transform_script_locals else layer_img
-                
-
-            if layer.role in layer_img_mappings:
-                if not hasattr(layer_img_mappings[layer.role], "__len__"):
-                    layer_img_mappings[layer.role] = [layer_img_mappings[layer.role]]
-                layer_img_mappings[layer.role].append(layer_img)
+            
+            
+            role = layer.role if layer.layer_type == unreal.LayerImageType.CUSTOM else layer_type_name(layer.layer_type)
+            if role in layer_img_mappings:
+                if not hasattr(layer_img_mappings[role], "__len__"):
+                    layer_img_mappings[role] = [layer_img_mappings[role]]
+                layer_img_mappings[role].append(layer_img)
             else:
-                layer_img_mappings[layer.role] = layer_img
+                layer_img_mappings[role] = layer_img
 
 
         # Convert unreal pixels to PIL images
@@ -350,13 +360,14 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         print(f"Capabilities value {model_options.capabilities}, Depth map value: {unreal.ModelCapabilities.DEPTH.value}, Using depthmap? {depth_active}")
         print(f"Capabilities value {model_options.capabilities}, Inpaint value: {unreal.ModelCapabilities.INPAINT.value}, Using inpaint? {inpaint_active}")
         print(f"Capabilities value {model_options.capabilities}, Strength value: {unreal.ModelCapabilities.STRENGTH.value}, Using strength? {strength_active}")
-        print(f"Capabilities value {model_options.capabilities}, Strength value: {unreal.ModelCapabilities.CONTROL.value}, Using controlnet? {controlnet_active}")
+        print(f"Capabilities value {model_options.capabilities}, ControlNet value: {unreal.ModelCapabilities.CONTROL.value}, Using controlnet? {controlnet_active}")
 
         # DEBUG: Show input images
         if input.debug_python_images:
             for key, val in layer_img_mappings.items():
-                if hasattr(layer_img_mappings[layer.role], "__len__"):
-                    for img in layer_img_mappings[layer.role]:
+                role = layer.role if layer.layer_type == unreal.LayerImageType.CUSTOM else layer_type_name(layer.layer_type)
+                if hasattr(layer_img_mappings[role], "__len__"):
+                    for img in layer_img_mappings[role]:
                         img.show()
                 else:
                     layer_img_mappings[key].show()

@@ -186,7 +186,7 @@ public:
 	bool IsModelDirty() const;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
-	void InitModel(const FStableDiffusionModelOptions& Model, bool Async, bool AllowNSFW, EPaddingMode PaddingMode);
+	void InitModel(const FStableDiffusionModelOptions& Model, const TArray<FLayerData>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	void ReleaseModel();
