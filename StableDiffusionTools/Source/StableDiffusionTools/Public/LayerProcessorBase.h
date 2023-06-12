@@ -21,10 +21,11 @@ enum ELayerBitDepth
 UENUM()
 enum ELayerImageType
 {
+	unknown UMETA(DisplayName = "Unknown", Hidden), 
 	image UMETA(DisplayName = "Img2Img"),
 	control_image UMETA(DisplayName = "ControlNet"),
 	custom UMETA(DisplayName = "Custom"),
-	ELayerImageType_MAX
+	ELayerImageType_MAX UMETA(Hidden)
 };
 
 
