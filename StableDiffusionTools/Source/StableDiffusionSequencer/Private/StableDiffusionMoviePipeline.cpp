@@ -151,6 +151,8 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			// Get input image from rendered data
 			// TODO: Add float colour support to the generated images
 			FStableDiffusionInput Input;
+			Input.PreviewIterationRate = -1;
+			Input.DebugPythonImages = DebugPythonImages;
 			Input.Options.InSizeX = RenderTarget->GetSizeXY().X;
 			Input.Options.InSizeY = RenderTarget->GetSizeXY().Y;
 			Input.Options.OutSizeX = RenderTarget->GetSizeXY().X;
@@ -176,7 +178,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 									SDSubsystem->InitModel(OptionSection->ModelAsset->Options, OptionSection->Layers, false, OptionSection->AllowNSFW, OptionSection->PaddingMode);
 								}
 							}
-							if (SDSubsystem->GetModelStatus() == EModelStatus::Loaded) {
+							if (SDSubsystem->GetModelStatus() != EModelStatus::Loaded) {
 								UE_LOG(LogTemp, Error, TEXT("No model asset provided in Stable Diffusion Options section and no model loaded in StableDiffusionSubsystem. Please add a model asset to the Options track or initialize the StableDiffusionSubsystem model."))
 							}
 							// Evaluate curve values
@@ -243,8 +245,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			
 			// Generate new SD frame immediately
 			UTexture2D* OutTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
-			UTexture2D* PreviewTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
-			auto SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(Input, OutTexture, PreviewTexture);
+			auto SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(Input, OutTexture, nullptr);
 			
 			TUniquePtr<FImagePixelData> SDImageDataBuffer16bit;
 			if (!IsValid(SDResult.OutTexture)) {
@@ -257,11 +258,13 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 				SDImageDataBuffer16bit = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(SDImageDataBuffer8bit.Get(), 16);
 			}
 			else {
-				auto Mip = SDResult.OutTexture->GetPlatformData()->Mips[0];
-				FColor* RawPixels = static_cast<FColor*>(Mip.BulkData.Lock(LOCK_READ_ONLY));
-				int NumPixels = SDResult.OutTexture->GetSizeX() * SDResult.OutTexture->GetSizeY();
-				TArray64<FColor> Pixels = TArray64<FColor>(RawPixels, NumPixels);
-				Mip.BulkData.Unlock();
+				//auto Mip = SDResult.OutTexture->GetPlatformData()->Mips[0];
+				//FColor* RawPixels = static_cast<FColor*>(Mip.BulkData.Lock(LOCK_READ_ONLY));
+				//int NumPixels = SDResult.OutTexture->GetSizeX() * SDResult.OutTexture->GetSizeY();
+				//TArray64<FColor> Pixels = TArray64<FColor>(RawPixels, NumPixels);
+				//Mip.BulkData.Unlock();
+				UStableDiffusionBlueprintLibrary::UpdateTextureSync(OutTexture);
+				TArray<FColor> Pixels = UStableDiffusionBlueprintLibrary::ReadPixels(OutTexture);
 
 				// Convert 8bit BGRA FColors returned from SD to 16bit BGRA
 				TUniquePtr<TImagePixelData<FColor>> SDImageDataBuffer8bit;

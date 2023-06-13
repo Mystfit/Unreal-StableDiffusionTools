@@ -255,8 +255,11 @@ void UStableDiffusionBlueprintLibrary::UpdateTextureSync(UTexture* Texture)
 		return;
 
 	Texture->UpdateResource();
-	while (!Texture->IsAsyncCacheComplete()) {
-		FPlatformProcess::Sleep(0.0f);
+
+	int NumChecks = 25;
+	while (!Texture->IsAsyncCacheComplete() && NumChecks > 0) {
+		NumChecks--;
+		FPlatformProcess::Sleep(UE_SMALL_NUMBER);
 	}
 }
 

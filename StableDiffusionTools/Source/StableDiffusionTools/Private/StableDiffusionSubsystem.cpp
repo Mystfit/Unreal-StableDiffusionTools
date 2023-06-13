@@ -273,8 +273,15 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, EInpu
 					LevelEditorSubsystem->EditorSetGameView(true);
 				}
 			}
-
 #endif
+			// We need a minimum of one layer processor
+			if (!Input.InputLayers.Num()) {
+				FLayerData Layer;
+				Layer.LayerType = ELayerImageType::image;
+				Layer.Processor = NewObject<UFinalColorLayerProcessor>();
+				Input.InputLayers.Add(Layer);
+			}
+
 			if (ImageSourceType == EInputImageSource::Viewport) {
 				CaptureFromViewportSource(MoveTempIfPossible(Input));
 			}

@@ -31,7 +31,7 @@ private:
 };
 
 
-UCLASS(meta = (DisplayName = "Layer options"))
+UCLASS(Blueprintable, meta = (DisplayName = "Layer options"))
 class STABLEDIFFUSIONTOOLS_API UStencilLayerOptions : public ULayerProcessorOptions
 {
 	GENERATED_BODY()

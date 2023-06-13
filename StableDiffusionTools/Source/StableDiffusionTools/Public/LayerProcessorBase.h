@@ -32,7 +32,7 @@ enum ELayerImageType
 /**
  * 
  */
-UCLASS(BlueprintType, meta=(DisplayName = "Base layer processor"))
+UCLASS(Blueprintable, meta=(DisplayName = "Base layer processor"))
 class STABLEDIFFUSIONTOOLS_API ULayerProcessorBase : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
@@ -96,7 +96,7 @@ protected:
 }; 
 
 
-UCLASS(BlueprintType, meta = (DisplayName = "Layer options"))
+UCLASS(Blueprintable, BlueprintType, meta = (DisplayName = "Layer options"))
 class STABLEDIFFUSIONTOOLS_API ULayerProcessorOptions : public UObject
 {
 	GENERATED_BODY()

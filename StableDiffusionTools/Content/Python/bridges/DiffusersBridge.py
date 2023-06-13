@@ -337,7 +337,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 exec(layer.processor.python_transform_script, transform_script_args, transform_script_locals)
                 layer_img = transform_script_locals["result_image"] if "result_image" in transform_script_locals else layer_img
             
-            
             role = layer.role if layer.layer_type == unreal.LayerImageType.CUSTOM else layer_type_name(layer.layer_type)
             if role in layer_img_mappings:
                 if not hasattr(layer_img_mappings[role], "__len__"):
@@ -431,12 +430,15 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
                 if input.debug_python_images and image:
                     image.show()
+
+                if not image:
+                    print("No image was generated")
                 
                 # Gather result data
                 result.input = input
                 result.input.options.seed = seed
                 print(f"Seed was {seed}. Saved as {result.input.options.seed}")
-                result.out_texture =  PILImageToTexture(image.convert("RGBA"), out_texture, True)
+                result.out_texture = PILImageToTexture(image.convert("RGBA"), out_texture, True) if image else out_texture
                 result.out_width = image.width if image else input.options.out_size_x
                 result.out_height = image.height if image else input.options.out_size_y
                 result.completed = True if image else False
@@ -453,7 +455,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         print(f"Step is {step}. Timestep is {timestep} Frequency is {self.update_frequency}. Modulo is {step % self.update_frequency}")
         texture = None
         image_size = (0,0)
-        if step % self.update_frequency == 0:
+        if step % self.update_frequency == 0 and self.preview_texture:
             adjusted_latents = 1 / 0.18215 * latents
             image = self.pipe.vae.decode(adjusted_latents).sample
             image = (image / 2 + 0.5).clamp(0, 1)

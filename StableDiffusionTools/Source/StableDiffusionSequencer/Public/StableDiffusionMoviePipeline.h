@@ -64,7 +64,7 @@ public:
 	* The prefix to add to each upscaled frame. If empty, the upscaled frame will overwrite the source frame.
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Outputs")
-	FString UpscaledFramePrefix;
+	FString UpscaledFramePrefix = "UP_";
 
 	/**
 	* If you encounter false positive NSFW black frames in your animation, then enabling this option may help
@@ -77,6 +77,12 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Outputs")
 	bool AllowNSFW;
+
+	/**
+	* Debug generated images from python
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Outputs")
+	bool DebugPythonImages = false;
 
 
 protected:
