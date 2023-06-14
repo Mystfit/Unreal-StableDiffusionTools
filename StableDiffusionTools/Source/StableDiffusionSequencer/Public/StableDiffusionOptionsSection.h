@@ -18,14 +18,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Model", meta = (Multiline = true))
 	UStableDiffusionModelAsset* ModelAsset;
 
-	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Layers")
-	TArray<FLayerData> Layers;
+	//UPROPERTY(EditAnywhere, Category = "Model options")
+	//bool AllowNSFW = false;
 
-	UPROPERTY(EditAnywhere, Category = "Model options")
-	bool AllowNSFW = false;
-
-	UPROPERTY(EditAnywhere, Category = "Model options")
-	TEnumAsByte<EPaddingMode> PaddingMode = EPaddingMode::zeros;
+	//UPROPERTY(EditAnywhere, Category = "Model options")
+	//TEnumAsByte<EPaddingMode> PaddingMode = EPaddingMode::zeros;
 
 	/**
 	 * Public access to this section's internal data function

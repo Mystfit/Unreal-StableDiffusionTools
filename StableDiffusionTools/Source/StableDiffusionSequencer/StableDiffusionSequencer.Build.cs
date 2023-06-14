@@ -45,6 +45,7 @@ public class StableDiffusionSequencer: ModuleRules
 				"SlateCore",
 				"UMG",
 				"AssetRegistry",
+				"Sequencer",
 				"MovieSceneCapture",
 				"MovieRenderPipelineRenderPasses",
 				"MovieRenderPipelineSettings",

@@ -46,7 +46,8 @@ public class StableDiffusionSequencerEditor: ModuleRules
 				"UMG",
 				"AssetRegistry",
 				"MovieScene",
-				"Sequencer",
+                "MovieSceneTracks",
+                "Sequencer",
 				"StableDiffusionTools",
 				"StableDiffusionSequencer"
 				// ... add private dependencies that you statically link with here ...	

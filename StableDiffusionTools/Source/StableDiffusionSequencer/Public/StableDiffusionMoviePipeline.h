@@ -10,6 +10,7 @@
 #include "StableDiffusionBridge.h"
 #include "MoviePipelineDeferredPasses.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "StableDiffusionLayerProcessorTrack.h"
 #include "StableDiffusionMoviePipeline.generated.h"
 
 
@@ -97,4 +98,6 @@ private:
 	//FMoviePipelinePassIdentifier StencilPassIdentifier;
 	UStableDiffusionOptionsTrack* OptionsTrack;
 	TArray<UStableDiffusionPromptMovieSceneTrack*> PromptTracks;
+	TArray<UStableDiffusionLayerProcessorTrack*> LayerProcessorTracks;
+
 };
