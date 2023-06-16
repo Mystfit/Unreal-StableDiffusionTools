@@ -14,22 +14,14 @@ ULayerProcessorOptions* UDepthLayerProcessor::AllocateLayerOptions_Implementatio
 }
 
 void UDepthLayerProcessor::BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource, UObject* LayerOptions) {
-	if (!CaptureSource)
-		return;
-
 	if (!DepthMatInst) {
 		DepthMatInst = UMaterialInstanceDynamic::Create(PostMaterial, this);
 	}
 
-	float SceneDepthScale = 2000.0f;
-	float SceneDepthOffset = 0.0f;
 	if (auto DepthOptions = Cast<UDepthLayerOptions>(LayerOptions)) {
-		SceneDepthScale = DepthOptions->SceneDepthScale;
-		SceneDepthOffset = DepthOptions->SceneDepthOffset;
+		DepthMatInst->SetScalarParameterValue("DepthScale", DepthOptions->SceneDepthScale);
+		DepthMatInst->SetScalarParameterValue("StartDepth", DepthOptions->SceneDepthOffset);
 	}
-
-	DepthMatInst->SetScalarParameterValue("DepthScale", SceneDepthScale);
-	DepthMatInst->SetScalarParameterValue("StartDepth", SceneDepthOffset);
 
 	ActivePostMaterialInstance = DepthMatInst;
 	Super::BeginCaptureLayer_Implementation(Size, CaptureSource, LayerOptions);
@@ -50,9 +42,6 @@ UTextureRenderTarget2D* UDepthLayerProcessor::CaptureLayer(USceneCaptureComponen
 }
 
 void UDepthLayerProcessor::EndCaptureLayer_Implementation(USceneCaptureComponent2D* CaptureSource) {
-	if (!CaptureSource)
-		return;
-
 	Super::EndCaptureLayer_Implementation(CaptureSource);
 }
 

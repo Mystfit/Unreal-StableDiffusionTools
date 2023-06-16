@@ -4,6 +4,7 @@
 #include "SLevelViewport.h"
 #include "Dialogs/Dialogs.h"
 #include "GeomTools.h"
+#include "TextureCompiler.h"
 #include "UObject/SavePackage.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Camera/CameraTypes.h"
@@ -257,10 +258,13 @@ void UStableDiffusionBlueprintLibrary::UpdateTextureSync(UTexture* Texture)
 	Texture->UpdateResource();
 
 	int NumChecks = 25;
-	while (!Texture->IsAsyncCacheComplete() && NumChecks > 0) {
-		NumChecks--;
-		FPlatformProcess::Sleep(UE_SMALL_NUMBER);
-	}
+
+#if WITH_EDITOR
+	FTextureCompilingManager::Get().FinishCompilation({ Texture });
+#endif
+
+	Texture->SetForceMipLevelsToBeResident(30.0f);
+	Texture->WaitForStreaming();
 }
 
 UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex, bool DeferUpdate)

@@ -2,7 +2,7 @@ from asyncio.windows_utils import pipe
 import pipes
 from turtle import update
 import unreal
-import os, inspect, importlib, random, threading, ctypes, time, traceback, pprint
+import os, inspect, importlib, random, threading, ctypes, time, traceback, pprint, gc
 
 import numpy as np
 
@@ -258,7 +258,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
         # Performance options for low VRAM gpus
         #self.pipe.enable_sequential_cpu_offload()
-        self.pipe.enable_attention_slicing()
+        self.pipe.enable_attention_slicing(1)
         try:
             self.pipe.unet = torch.compile(self.pipe.unet)
         except RuntimeError as e:
@@ -445,7 +445,10 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
                 # Cleanup
                 self.start_timestep = -1
-                #self.executor = None
+                del self.executor 
+                self.executor = None
+                gc.collect()
+                torch.cuda.empty_cache()
 
         return result
 
@@ -497,6 +500,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             if self.upsampler:
                 del self.upsampler
                 self.upsampler = None
+            gc.collect()
             torch.cuda.empty_cache()
 
     @unreal.ufunction(override=True)
@@ -518,18 +522,24 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             image = FColorAsPILImage(input_pixels, image_result.out_texture.blueprint_get_size_x(), image_result.out_texture.blueprint_get_size_y()).convert("RGB")
             print(f"Upscaling image result from {image_result.out_width}:{image_result.out_height} to {image_result.out_width * 4}:{image_result.out_height * 4}")
             upsampled_image = active_upsampler(image)
+            print("Upsample complete")
         
         # Free local upsampler to restore VRAM
         if local_upsampler:
             del local_upsampler
-        torch.cuda.empty_cache()
+       
 
         # Build result
         result = unreal.StableDiffusionImageResult()
         result.input = image_result.input
-        result.out_texture =  PILImageToTexture(upsampled_image.convert("RGBA"), out_texture, True)
+        result.out_texture =  PILImageToTexture(upsampled_image.convert("RGBA"), out_texture, True) if upsampled_image else None
         result.out_width = upsampled_image.width
         result.out_height = upsampled_image.height
         result.upsampled = True
+        result.completed = True
+
+        # Cleanup
+        #gc.collect()
+        #torch.cuda.empty_cache()
 
         return result

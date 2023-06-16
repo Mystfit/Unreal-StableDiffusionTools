@@ -86,8 +86,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Stable Diffusion|Layer source")
 	UMaterialInterface* PostMaterial;
 
+	UMaterialInterface* GetActivePostMaterial();
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Stable Diffusion|Layer source")
 	TEnumAsByte<ELayerImageType> DefaultLayerType;
+
+	
 
 protected:
 	UTextureRenderTarget2D* GetOrAllocateRenderTarget(FIntPoint Size);

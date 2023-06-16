@@ -191,13 +191,13 @@ public:
 	*/
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
-	USceneCaptureComponent2D* CaptureSource;
+	USceneCaptureComponent2D* CaptureSource = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
-	UTexture* OverrideTextureInput;
+	UTexture* OverrideTextureInput = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
-	UTexture2D* TextureOutput;
+	UTexture2D* TextureOutput = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
 	TArray<FLayerData> InputLayers;

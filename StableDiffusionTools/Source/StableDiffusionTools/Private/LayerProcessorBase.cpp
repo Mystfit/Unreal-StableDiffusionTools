@@ -103,6 +103,11 @@ TArray<FLinearColor> ULayerProcessorBase::ProcessLinearLayer(UTextureRenderTarge
 	return MoveTemp(FinalColor);
 }
 
+UMaterialInterface* ULayerProcessorBase::GetActivePostMaterial()
+{
+	return ActivePostMaterialInstance;
+}
+
 UTextureRenderTarget2D* ULayerProcessorBase::GetOrAllocateRenderTarget(FIntPoint Size)
 {
 	if (!RenderTarget->IsValidLowLevel() || RenderTarget->SizeX != Size.X || RenderTarget->SizeY != Size.Y) {

@@ -64,6 +64,11 @@ void UStableDiffusionMoviePipeline::SetupForPipelineImpl(UMoviePipeline* InPipel
 {
 	Super::SetupForPipelineImpl(InPipeline);
 
+	// Reset track containers
+	LayerProcessorTracks.Reset();
+	PromptTracks.Reset();
+	OptionsTrack = nullptr;
+
 	// Make sure model is loaded before we render
 	auto SDSubsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>();
 
@@ -75,21 +80,6 @@ void UStableDiffusionMoviePipeline::SetupForPipelineImpl(UMoviePipeline* InPipel
 	for (auto Track : Tracks) {
 		if (auto MasterOptionsTrack = Cast<UStableDiffusionOptionsTrack>(Track)) {
 			OptionsTrack = MasterOptionsTrack;
-			//if (SDSubsystem) {
-			//	auto Sections = OptionsTrack->GetAllSections();
-			//	if (Sections.Num()) {
-			//		// Use the first found SD options section to pull model info from
-			//		auto OptionsSection = Cast<UStableDiffusionOptionsSection>(Sections[0]);
-			//		if (OptionsSection) {
-			//			if (OptionsSection->ModelAsset) {
-			//				if (SDSubsystem->ModelOptions != OptionsSection->ModelAsset->Options) {
-			//					// If the model has changed, re-init the model
-			//					//SDSubsystem->InitModel(OptionsSection->ModelAsset->Options, OptionsSection->Layers, false, AllowNSFW, PaddingMode);
-			//				}
-			//			}
-			//		}
-			//	}
-			//}
 		} else if (auto PromptTrack = Cast<UStableDiffusionPromptMovieSceneTrack>(Track)){
 			PromptTracks.Add(PromptTrack);
 		}
@@ -97,8 +87,6 @@ void UStableDiffusionMoviePipeline::SetupForPipelineImpl(UMoviePipeline* InPipel
 			LayerProcessorTracks.Add(LayerProcessorTrack);
 		}
 	}
-
-
 }
 
 void UStableDiffusionMoviePipeline::SetupImpl(const MoviePipeline::FMoviePipelineRenderPassInitSettings& InPassInitSettings)
@@ -218,6 +206,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 									Layer.Role = Track->Role;
 									Layer.Processor = LayerProcessor;
 									Layer.ProcessorOptions = LayerOptions;
+									//Layers.Add(MoveTemp(Layer));
 									Input.InputLayers.Add(MoveTemp(Layer));
 								}
 							}
@@ -247,18 +236,19 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			}
 
 			// Start a new capture pass for each layer
-			for (auto Layer : Input.InputLayers) {
-				// Copy layer
-				if (Layer.Processor) {
+			for (auto& Layer : Input.InputLayers) {
+				if (Layer.Processor) {			
+					//Copy the layer to avoid modifying the original layer array
 					FLayerData TargetLayer = Layer;
-					TargetLayer.Processor->BeginCaptureLayer(FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY), nullptr, Layer.ProcessorOptions);
-
+					
+					// Prepare rendering the layer
 					TSharedPtr<FSceneViewFamilyContext> ViewFamily;
 					FSceneView* View = BeginSDLayerPass(InOutSampleState, ViewFamily);
+					TargetLayer.Processor->BeginCaptureLayer(FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY), nullptr, TargetLayer.ProcessorOptions);
 
 					// Set up post processing material from layer processor
-					View->FinalPostProcessSettings.AddBlendable(TargetLayer.Processor->PostMaterial, 1.0f);
-					IBlendableInterface* BlendableInterface = Cast<IBlendableInterface>(TargetLayer.Processor->PostMaterial);
+					View->FinalPostProcessSettings.AddBlendable(TargetLayer.Processor->GetActivePostMaterial(), 1.0f);
+					IBlendableInterface* BlendableInterface = Cast<IBlendableInterface>(TargetLayer.Processor->GetActivePostMaterial());
 					if (BlendableInterface) {
 						ViewFamily->EngineShowFlags.SetPostProcessMaterial(true);
 						BlendableInterface->OverrideBlendableSettings(*View, 1.f);
@@ -266,7 +256,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 					ViewFamily->EngineShowFlags.SetPostProcessing(true);
 					View->FinalPostProcessSettings.bBufferVisualizationDumpRequired = true;
 
-					// Render
+					// Render the layer
 					GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.Get());
 					RenderTarget->ReadPixels(TargetLayer.LayerPixels, FReadSurfaceDataFlags());
 
@@ -316,11 +306,6 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 				SDImageDataBuffer16bit = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(SDImageDataBuffer8bit.Get(), 16);
 			}
 			else {
-				//auto Mip = SDResult.OutTexture->GetPlatformData()->Mips[0];
-				//FColor* RawPixels = static_cast<FColor*>(Mip.BulkData.Lock(LOCK_READ_ONLY));
-				//int NumPixels = SDResult.OutTexture->GetSizeX() * SDResult.OutTexture->GetSizeY();
-				//TArray64<FColor> Pixels = TArray64<FColor>(RawPixels, NumPixels);
-				//Mip.BulkData.Unlock();
 				UStableDiffusionBlueprintLibrary::UpdateTextureSync(OutTexture);
 				TArray<FColor> Pixels = UStableDiffusionBlueprintLibrary::ReadPixels(OutTexture);
 
@@ -397,25 +382,35 @@ void UStableDiffusionMoviePipeline::BeginExportImpl(){
 				if (!IsValid(Image)) {
 					continue;
 				}
-				//FFloat16Color* MipData = reinterpret_cast<FFloat16Color*>(Image->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_ONLY));
-				//TArrayView64<FFloat16Color> SourceColors(MipData, Image->GetSizeX() * Image->GetSizeY());
+				UStableDiffusionBlueprintLibrary::UpdateTextureSync(Image);
 
+				// Read half-float pixels from source texture
+				FFloat16Color* MipData = reinterpret_cast<FFloat16Color*>(Image->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_ONLY));
+				TArrayView64<FFloat16Color> SourceColors(MipData, Image->GetSizeX() * Image->GetSizeY());
+
+				// Convert pixels from FFloat16Color to FColor
+				TArray<FColor> QuantitizedPixelData;
+				QuantitizedPixelData.InsertUninitialized(0, SourceColors.Num());
+				for (int idx = 0; idx < SourceColors.Num(); ++idx) {
+					QuantitizedPixelData[idx] = SourceColors[idx].GetFloats().ToFColor(true);
+				}
+
+				// Unlock source texture since we've converted the pixel data
+				Image->GetPlatformData()->Mips[0].BulkData.Unlock();
+				
 				// Build our upsample parameters
 				FStableDiffusionImageResult UpsampleInput;
-				UpsampleInput.OutTexture = Image;
-
-				//// Convert pixels from FFloat16Color to FColor
-				//UpsampleInput.PixelData.InsertUninitialized(0, SourceColors.Num());
-				//for (int idx = 0; idx < SourceColors.Num(); ++idx) {
-				//	UpsampleInput.PixelData[idx] = SourceColors[idx].GetFloats().ToFColor(true);
-				//}
-				//Image->GetPlatformData()->Mips[0].BulkData.Unlock();
-
-				// Upsample the image data
-				UpsampleInput.OutWidth = Image->GetPlatformData()->SizeX;
-				UpsampleInput.OutHeight = Image->GetPlatformData()->SizeY;
-				UTexture2D* UpsampledTexture = UTexture2D::CreateTransient(Image->GetSizeX() * 4, Image->GetSizeY() * 4);
-				auto UpsampleResult = SDSubsystem->GeneratorBridge->UpsampleImage(UpsampleInput, UpsampledTexture);
+				UpsampleInput.OutWidth = Image->GetSizeX();
+				UpsampleInput.OutHeight = Image->GetSizeY();
+				UpsampleInput.Upsampled = false;
+				UpsampleInput.Completed = false;
+				UpsampleInput.OutTexture = UStableDiffusionBlueprintLibrary::ColorBufferToTexture(QuantitizedPixelData, FIntPoint(Image->GetSizeX(), Image->GetSizeY()), nullptr, true);
+				UStableDiffusionBlueprintLibrary::UpdateTextureSync(UpsampleInput.OutTexture);
+				
+				// Create a destination texture that is 4x times larger than the input to hold the upsample result
+				// TODO: Allow for arbitary resize factors 
+				UTexture2D* UpsampledTexture = UTexture2D::CreateTransient(UpsampleInput.OutTexture->GetSizeX() * 4, UpsampleInput.OutTexture->GetSizeY() * 4);
+				FStableDiffusionImageResult UpsampleResult = SDSubsystem->GeneratorBridge->UpsampleImage(UpsampleInput, UpsampledTexture);
 
 				if (IsValid(UpsampleResult.OutTexture)) {
 					UStableDiffusionBlueprintLibrary::UpdateTextureSync(UpsampleResult.OutTexture);

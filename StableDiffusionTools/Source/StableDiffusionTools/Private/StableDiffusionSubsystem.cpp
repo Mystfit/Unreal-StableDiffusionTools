@@ -346,6 +346,8 @@ void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult&
 	UStableDiffusionBlueprintLibrary::UpdateTextureSync(OutTexture);
 
 	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, input, upsampled_width, upsampled_height, OutTexture](){
+		FTaskTagScope(ETaskTag::EParallelRenderingThread);
+
 		auto result = GeneratorBridge->UpsampleImage(input, OutTexture);
 		bIsUpsampling = false;
 
