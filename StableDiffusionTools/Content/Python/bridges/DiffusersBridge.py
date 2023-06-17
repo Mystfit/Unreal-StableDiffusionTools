@@ -179,19 +179,19 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.start_timestep = -1
 
     @unreal.ufunction(override=True)
-    def InitModel(self, new_model_options, layers, allow_nsfw, padding_mode):
+    def InitModel(self, new_model_options, new_pipeline_options, layers, allow_nsfw, padding_mode):
         result = True
         self.set_editor_property("ModelStatus", unreal.ModelStatus.LOADING if self.ModelExists(new_model_options.model) else unreal.ModelStatus.DOWNLOADING)
 
         scheduler_module = None
-        if new_model_options.scheduler:
-            scheduler_cls = getattr(diffusers, new_model_options.scheduler)
+        if new_pipeline_options.scheduler:
+            scheduler_cls = getattr(diffusers, new_pipeline_options.scheduler)
             print("Using scheduler class: {scheduler_cls}")
 
         # Set pipeline
-        print(f"Requested pipeline: {new_model_options.diffusion_pipeline}")
-        if new_model_options.diffusion_pipeline:
-            ActivePipeline = getattr(diffusers, new_model_options.diffusion_pipeline)
+        print(f"Requested pipeline: {new_pipeline_options.diffusion_pipeline}")
+        if new_pipeline_options.diffusion_pipeline:
+            ActivePipeline = getattr(diffusers, new_pipeline_options.diffusion_pipeline)
         print(f"Loaded pipeline: {ActivePipeline}")
 
         modelname = new_model_options.model if new_model_options.model else "CompVis/stable-diffusion-v1-5"
@@ -204,7 +204,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
         # Run model init script to generate extra args
         init_script_locals = {}
-        exec(new_model_options.python_model_arguments_script, globals(), init_script_locals)
+        exec(new_pipeline_options.python_model_arguments_script, globals(), init_script_locals)
         for key, val in init_script_locals.items():
             if "pipearg_" in key:
                 new_key = key.replace('pipearg_', '')
@@ -237,8 +237,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         
         if new_model_options.revision:
             kwargs["revision"] = new_model_options.revision
-        if new_model_options.custom_pipeline:
-            kwargs["custom_pipeline"] = new_model_options.custom_pipeline
+        if new_pipeline_options.custom_pipeline:
+            kwargs["custom_pipeline"] = new_pipeline_options.new_pipeline_options
         
         # Padding mode injection
         patch_conv(padding_mode=padding_mode)
@@ -283,11 +283,16 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 self.pipe.safety_checker = self.orig_NSFW_filter
         
         self.set_editor_property("ModelOptions", new_model_options)
+        self.set_editor_property("PipelineOptions", new_pipeline_options)
         self.set_editor_property("ModelStatus", unreal.ModelStatus.LOADED)
 
         print("Loaded Stable Diffusion model " + modelname)
 
         return result
+
+    @unreal.ufunction(override=True)
+    def AvailableSchedulers(self):
+        pass
 
     @unreal.ufunction(override=True)
     def GetTokenWebsiteHint(self):
@@ -321,6 +326,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.abort = False
         result = unreal.StableDiffusionImageResult()
         model_options = self.get_editor_property("ModelOptions")
+        pipeline_options = self.get_editor_property("PipelineOptions")
         if not hasattr(self, "pipe"):
             print("Could not find a pipe attribute. Has it been GC'd?")
             return
@@ -351,15 +357,15 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         #mask_img = FColorAsPILImage(input.mask_image_pixels, input.options.size_x, input.options.size_y).convert("RGB")  if input.mask_image_pixels else None
         
         # Capability flags
-        inpaint_active = (model_options.capabilities & unreal.ModelCapabilities.INPAINT.value) == unreal.ModelCapabilities.INPAINT.value
-        depth_active = (model_options.capabilities & unreal.ModelCapabilities.DEPTH.value)  == unreal.ModelCapabilities.DEPTH.value
-        strength_active = (model_options.capabilities & unreal.ModelCapabilities.STRENGTH.value)  == unreal.ModelCapabilities.STRENGTH.value
-        controlnet_active = (model_options.capabilities & unreal.ModelCapabilities.CONTROL.value)  == unreal.ModelCapabilities.CONTROL.value
+        inpaint_active = (pipeline_options.capabilities & unreal.PipelineCapabilities.INPAINT.value) == unreal.PipelineCapabilities.INPAINT.value
+        depth_active = (pipeline_options.capabilities & unreal.PipelineCapabilities.DEPTH.value)  == unreal.PipelineCapabilities.DEPTH.value
+        strength_active = (pipeline_options.capabilities & unreal.PipelineCapabilities.STRENGTH.value)  == unreal.PipelineCapabilities.STRENGTH.value
+        controlnet_active = (pipeline_options.capabilities & unreal.PipelineCapabilities.CONTROL.value)  == unreal.PipelineCapabilities.CONTROL.value
         mask_active = depth_active or inpaint_active
-        print(f"Capabilities value {model_options.capabilities}, Depth map value: {unreal.ModelCapabilities.DEPTH.value}, Using depthmap? {depth_active}")
-        print(f"Capabilities value {model_options.capabilities}, Inpaint value: {unreal.ModelCapabilities.INPAINT.value}, Using inpaint? {inpaint_active}")
-        print(f"Capabilities value {model_options.capabilities}, Strength value: {unreal.ModelCapabilities.STRENGTH.value}, Using strength? {strength_active}")
-        print(f"Capabilities value {model_options.capabilities}, ControlNet value: {unreal.ModelCapabilities.CONTROL.value}, Using controlnet? {controlnet_active}")
+        print(f"Capabilities value {pipeline_options.capabilities}, Depth map value: {unreal.PipelineCapabilities.DEPTH.value}, Using depthmap? {depth_active}")
+        print(f"Capabilities value {pipeline_options.capabilities}, Inpaint value: {unreal.PipelineCapabilities.INPAINT.value}, Using inpaint? {inpaint_active}")
+        print(f"Capabilities value {pipeline_options.capabilities}, Strength value: {unreal.PipelineCapabilities.STRENGTH.value}, Using strength? {strength_active}")
+        print(f"Capabilities value {pipeline_options.capabilities}, ControlNet value: {unreal.PipelineCapabilities.CONTROL.value}, Using controlnet? {controlnet_active}")
 
         # DEBUG: Show input images
         if input.debug_python_images:
@@ -382,73 +388,71 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.preview_texture = preview_texture
 
         with torch.inference_mode():
-            #with autocast("cuda", dtype=torch.float16):
-                generator = torch.Generator(device="cpu")
-                generator.manual_seed(seed)
-                generation_args = {
-                    "prompt_embeds": prompt_tensors,
-                    "num_inference_steps": input.options.iterations, 
-                    "generator": generator, 
-                    "guidance_scale": input.options.guidance_scale, 
-                    "callback": self.ImageProgressStep,
-                    "callback_steps": 1
-                }
-                self.update_frequency = input.preview_iteration_rate
+            generator = torch.Generator(device="cpu")
+            generator.manual_seed(seed)
+            generation_args = {
+                "prompt_embeds": prompt_tensors,
+                "num_inference_steps": input.options.iterations, 
+                "generator": generator, 
+                "guidance_scale": input.options.guidance_scale, 
+                "callback": self.ImageProgressStep,
+                "callback_steps": 1
+            }
+            self.update_frequency = input.preview_iteration_rate
 
-                # Set the timestep in the scheduler early so we can get the start timestep
-                self.pipe.scheduler.set_timesteps(input.options.iterations, device=self.pipe._execution_device)
-                print(self.pipe.scheduler.timesteps)
-                self.start_timestep = int(self.pipe.scheduler.timesteps.cpu().numpy()[0])
-                #self.pipe.scheduler.set_timesteps(input.options.iterations, device=self.pipe._execution_device)
-                print(f"Start timestep is {self.start_timestep}")
+            # Set the timestep in the scheduler early so we can get the start timestep
+            self.pipe.scheduler.set_timesteps(input.options.iterations, device=self.pipe._execution_device)
+            print(self.pipe.scheduler.timesteps)
+            self.start_timestep = int(self.pipe.scheduler.timesteps.cpu().numpy()[0])
+            print(f"Start timestep is {self.start_timestep}")
 
-                # Different capability flags use different keywords in the pipeline
-                if strength_active:
-                    generation_args["strength"] = input.options.strength
+            # Different capability flags use different keywords in the pipeline
+            if strength_active:
+                generation_args["strength"] = input.options.strength
 
-                # Add processed input layers                 
-                generation_args.update(layer_img_mappings)
-                print(layer_img_mappings)
-                
-                if input.debug_python_images:
-                    print("Generation args:")
-                    pprint.pprint(generation_args)
-                
-                # Create executor to generate the image in its own thread that we can abort if needed
-                self.executor = AbortableExecutor("ImageThread", lambda generation_args=generation_args: self.pipe(**generation_args))
-                self.executor.start()
+            # Add processed input layers                 
+            generation_args.update(layer_img_mappings)
+            print(layer_img_mappings)
+            
+            if input.debug_python_images:
+                print("Generation args:")
+                pprint.pprint(generation_args)
+            
+            # Create executor to generate the image in its own thread that we can abort if needed
+            self.executor = AbortableExecutor("ImageThread", lambda generation_args=generation_args: self.pipe(**generation_args))
+            self.executor.start()
 
-                # Block until executor completes
-                self.executor.join()
-                if not self.executor.result or not self.executor.completed:
-                    print(f"Image generation was aborted")
-                    self.abort = False
+            # Block until executor completes
+            self.executor.join()
+            if not self.executor.result or not self.executor.completed:
+                print(f"Image generation was aborted")
+                self.abort = False
 
-                # Gather result images
-                images = self.executor.result.images if self.executor.result else None #self.pipe(**generation_args).images
-                image = images[0] if images else None
+            # Gather result images
+            images = self.executor.result.images if self.executor.result else None #self.pipe(**generation_args).images
+            image = images[0] if images else None
 
-                if input.debug_python_images and image:
-                    image.show()
+            if input.debug_python_images and image:
+                image.show()
 
-                if not image:
-                    print("No image was generated")
-                
-                # Gather result data
-                result.input = input
-                result.input.options.seed = seed
-                print(f"Seed was {seed}. Saved as {result.input.options.seed}")
-                result.out_texture = PILImageToTexture(image.convert("RGBA"), out_texture, True) if image else out_texture
-                result.out_width = image.width if image else input.options.out_size_x
-                result.out_height = image.height if image else input.options.out_size_y
-                result.completed = True if image else False
+            if not image:
+                print("No image was generated")
+            
+            # Gather result data
+            result.input = input
+            result.input.options.seed = seed
+            print(f"Seed was {seed}. Saved as {result.input.options.seed}")
+            result.out_texture = PILImageToTexture(image.convert("RGBA"), out_texture, True) if image else out_texture
+            result.out_width = image.width if image else input.options.out_size_x
+            result.out_height = image.height if image else input.options.out_size_y
+            result.completed = True if image else False
 
-                # Cleanup
-                self.start_timestep = -1
-                del self.executor 
-                self.executor = None
-                gc.collect()
-                torch.cuda.empty_cache()
+            # Cleanup
+            self.start_timestep = -1
+            del self.executor 
+            self.executor = None
+            gc.collect()
+            torch.cuda.empty_cache()
 
         return result
 

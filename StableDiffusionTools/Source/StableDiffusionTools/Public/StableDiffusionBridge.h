@@ -56,10 +56,13 @@ public:
     bool ModelExists(const FString& ModelName) const;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
-    bool InitModel(const FStableDiffusionModelOptions& NewModelOptions, const TArray<FLayerData>& Layers, bool AllowNsfw, EPaddingMode PaddingMode);
+    bool InitModel(const FStableDiffusionModelOptions& NewModelOptions, const FStableDiffusionPipelineOptions& NewPipelineOptions, const TArray<FLayerData>& Layers, bool AllowNsfw, EPaddingMode PaddingMode);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void ReleaseModel();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+	TArray<FString> AvailableSchedulers();
 
     UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Model")
     bool ModelInitialising = false;
@@ -84,6 +87,9 @@ public:
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
     FStableDiffusionModelOptions ModelOptions;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
+	FStableDiffusionPipelineOptions PipelineOptions;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
     EModelStatus ModelStatus = EModelStatus::Unloaded;

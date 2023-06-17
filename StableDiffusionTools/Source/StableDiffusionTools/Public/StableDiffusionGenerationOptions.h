@@ -8,14 +8,14 @@
 #include "StableDiffusionGenerationOptions.generated.h"
 
 UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
-enum class EModelCapabilities : uint8 {
+enum class EPipelineCapabilities : uint8 {
 	None = 0 UMETA(Hidden),
 	INPAINT = 0x01,
 	DEPTH = 0x02,
 	STRENGTH = 0x04,
 	CONTROL = 0x08
 };
-ENUM_CLASS_FLAGS(EModelCapabilities);
+ENUM_CLASS_FLAGS(EPipelineCapabilities);
 
 UENUM(BlueprintType)
 enum class EInputImageSource : uint8 {
@@ -59,44 +59,82 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
 		FString Precision = "fp16";
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		FString DiffusionPipeline = "StableDiffusionImg2ImgPipeline";
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		FString CustomPipeline = "lpw_stable_diffusion";
-
-	/*
-	* Process and add any additional keyword arguments for the model pipe in Python at model init.
-	* Any local variable in this script prefixed with the substring 'pipearg_' will be added to the pipe's keyword argument list
-	*/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Stable Diffusion|Model"))
-		FString PythonModelArgumentsScript;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		FString Scheduler;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model", meta = (Bitmask, BitmaskEnum = EModelCapabilities))
-		int32 Capabilities = (int32)(EModelCapabilities::STRENGTH);
-
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UsesHierarchy=true, Category="Stable Diffusion|Model"))
-	//TArray<FLayerData> Layers;
+	// UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+	// FString DiffusionPipeline;
+	//
+	// UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+	// FString CustomPipeline;
+	//
+	// /*
+	// * Process and add any additional keyword arguments for the model pipe in Python at model init.
+	// * Any local variable in this script prefixed with the substring 'pipearg_' will be added to the pipe's keyword argument list
+	// */
+	// UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Stable Diffusion|Model"))
+	// FString PythonModelArgumentsScript;
+	//
+	// UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+	// FString Scheduler;
+	//
+	// UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model", meta = (Bitmask, BitmaskEnum = EModelCapabilities))
+	// int32 Capabilities = (int32)(EModelCapabilities::STRENGTH);
 
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
 	{
 		return Model.Equals(Other.Model) &&
 			Revision.Equals(Other.Revision) &&
-			Precision.Equals(Other.Precision) &&
-			CustomPipeline.Equals(Other.CustomPipeline) &&
-			Capabilities == Other.Capabilities;
+			Precision.Equals(Other.Precision);
 	}
 
 	FORCEINLINE bool operator!=(const FStableDiffusionModelOptions& Other)
 	{
 		return !Model.Equals(Other.Model) ||
 			!Revision.Equals(Other.Revision) ||
-			!Precision.Equals(Other.Precision) ||
+			!Precision.Equals(Other.Precision);
+	}
+};
+
+
+USTRUCT(BlueprintType, meta=(UsesHierarchy=true))
+struct STABLEDIFFUSIONTOOLS_API FStableDiffusionPipelineOptions
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Pipeline")
+	FString DiffusionPipeline;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Pipeline")
+	FString CustomPipeline;
+
+	/*
+	* Process and add any additional keyword arguments for the model pipe in Python at model init.
+	* Any local variable in this script prefixed with the substring 'pipearg_' will be added to the pipe's keyword argument list
+	*/
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Stable Diffusion|Pipeline"))
+	FString PythonModelArgumentsScript;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Pipeline")
+	FString Scheduler;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Pipeline", meta = (Bitmask, BitmaskEnum = EPipelineCapabilities))
+	int32 Capabilities = (int32)(EPipelineCapabilities::STRENGTH);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Pipeline", meta = (Bitmask, BitmaskEnum = EPipelineCapabilities))
+	TArray<FLayerData> RequiredLayers;
+
+	FORCEINLINE bool operator==(const FStableDiffusionPipelineOptions& Other)
+	{
+		return DiffusionPipeline.Equals(Other.DiffusionPipeline) &&
+			CustomPipeline.Equals(Other.CustomPipeline) &&
+			Scheduler.Equals(Other.Scheduler) &&
+			Capabilities == Other.Capabilities;
+	}
+
+	FORCEINLINE bool operator!=(const FStableDiffusionPipelineOptions& Other)
+	{
+		return !DiffusionPipeline.Equals(Other.DiffusionPipeline) ||
 			!CustomPipeline.Equals(Other.CustomPipeline) ||
-			!(Capabilities == Other.Capabilities);
+			!Scheduler.Equals(Other.Scheduler) ||
+			!Capabilities == Other.Capabilities;
 	}
 };
 
@@ -108,6 +146,16 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionModelAsset : public UPrimaryDataA
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
 	FStableDiffusionModelOptions Options;
+};
+
+
+UCLASS()
+class STABLEDIFFUSIONTOOLS_API UStableDiffusionPipelineAsset : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Pipeline")
+	FStableDiffusionPipelineOptions Options;
 };
 
 

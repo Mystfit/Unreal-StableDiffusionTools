@@ -20,7 +20,7 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
         return "https://stablehorde.net/register"
 
     @unreal.ufunction(override=True)
-    def InitModel(self, new_model_options, layers, allow_nsfw, padding_mode):
+    def InitModel(self, new_model_options, new_pipeline_options, layers, allow_nsfw, padding_mode):
         self.model_loaded = True
         headers = {
             "accept": "application/json",
@@ -32,6 +32,8 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
             self.model_loaded = False
 
         self.set_editor_property("ModelOptions", new_model_options)
+        self.set_editor_property("PipelineOptions", new_pipeline_options)
+        
         return self.model_loaded
 
     @unreal.ufunction(override=True)

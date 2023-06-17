@@ -154,7 +154,7 @@ bool UStableDiffusionSubsystem::IsModelDirty() const
 	return bIsModelDirty;
 }
 
-void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, const TArray<FLayerData>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode)
+void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, const FStableDiffusionPipelineOptions& Pipeline, const TArray<FLayerData>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode)
 {
 	if (GeneratorBridge) {
 		// Unload any loaded models first
@@ -164,11 +164,12 @@ void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Mo
 		this->GeneratorBridge->OnImageProgressEx.AddUniqueDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
 
 		if (Async) {
-			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model, Layers, AllowNSFW, PaddingMode]() mutable {
-				this->GeneratorBridge->InitModel(Model, Layers, AllowNSFW, PaddingMode);
+			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model, Pipeline, Layers, AllowNSFW, PaddingMode]() mutable {
+				this->GeneratorBridge->InitModel(Model, Pipeline, Layers, AllowNSFW, PaddingMode);
 				if (GetModelStatus() == EModelStatus::Loaded) {
 					bIsModelDirty = false;
 					ModelOptions = Model;
+					PipelineOptions = Pipeline;
 				}
 
 				AsyncTask(ENamedThreads::GameThread, [this]() {
@@ -177,9 +178,10 @@ void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Mo
 				});
 		}
 		else {
-			this->GeneratorBridge->InitModel(Model, Layers, AllowNSFW, PaddingMode);
+			this->GeneratorBridge->InitModel(Model, Pipeline, Layers, AllowNSFW, PaddingMode);
 			if (GetModelStatus() == EModelStatus::Loaded) {
 				ModelOptions = Model;
+				PipelineOptions = Pipeline;
 				bIsModelDirty = false;
 			}
 
@@ -346,7 +348,7 @@ void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult&
 	UStableDiffusionBlueprintLibrary::UpdateTextureSync(OutTexture);
 
 	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, input, upsampled_width, upsampled_height, OutTexture](){
-		FTaskTagScope(ETaskTag::EParallelRenderingThread);
+		FTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
 
 		auto result = GeneratorBridge->UpsampleImage(input, OutTexture);
 		bIsUpsampling = false;
