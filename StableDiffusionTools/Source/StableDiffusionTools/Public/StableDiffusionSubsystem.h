@@ -20,7 +20,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FImageGenerationComplete, FStableDiffusionIm
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FImageGenerationCompleteEx, FStableDiffusionImageResult, Result);
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FModelInitialized, bool);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FModelInitializedEx, EModelStatus, ModelStatus);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FModelInitializedEx, FStableDiffusionModelInitResult, ModelStatus);
 DECLARE_MULTICAST_DELEGATE(FPythonLoaded);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FPythonLoadedEx);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDependenciesInstalled, bool, Success);
@@ -210,7 +210,7 @@ public:
 	FString FilepathToLongPackagePath(const FString& Path);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
-	EModelStatus GetModelStatus() const;
+	FStableDiffusionModelInitResult GetModelStatus() const;
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Model")
 	FModelInitializedEx OnModelInitializedEx;

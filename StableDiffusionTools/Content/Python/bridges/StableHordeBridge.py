@@ -21,6 +21,7 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def InitModel(self, new_model_options, new_pipeline_options, layers, allow_nsfw, padding_mode):
+        result = unreal.StableDiffusionModelInitResult()
         self.model_loaded = True
         headers = {
             "accept": "application/json",
@@ -33,8 +34,10 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
 
         self.set_editor_property("ModelOptions", new_model_options)
         self.set_editor_property("PipelineOptions", new_pipeline_options)
-        
-        return self.model_loaded
+
+        result.model_status = unreal.ModelStatus.LOADED
+        self.set_editor_property("ModelStatus", result)
+        return result
 
     @unreal.ufunction(override=True)
     def ReleaseModel(self):

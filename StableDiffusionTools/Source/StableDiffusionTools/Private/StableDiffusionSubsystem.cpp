@@ -165,28 +165,28 @@ void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Mo
 
 		if (Async) {
 			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model, Pipeline, Layers, AllowNSFW, PaddingMode]() mutable {
-				this->GeneratorBridge->InitModel(Model, Pipeline, Layers, AllowNSFW, PaddingMode);
-				if (GetModelStatus() == EModelStatus::Loaded) {
+				auto Result = this->GeneratorBridge->InitModel(Model, Pipeline, Layers, AllowNSFW, PaddingMode);
+				if (Result.ModelStatus == EModelStatus::Loaded) {
 					bIsModelDirty = false;
 					ModelOptions = Model;
 					PipelineOptions = Pipeline;
 				}
 
-				AsyncTask(ENamedThreads::GameThread, [this]() {
-					this->OnModelInitializedEx.Broadcast(GetModelStatus());
+				AsyncTask(ENamedThreads::GameThread, [this, Result]() {
+					this->OnModelInitializedEx.Broadcast(Result);
 					});
 				});
 		}
 		else {
-			this->GeneratorBridge->InitModel(Model, Pipeline, Layers, AllowNSFW, PaddingMode);
-			if (GetModelStatus() == EModelStatus::Loaded) {
+			auto Result = this->GeneratorBridge->InitModel(Model, Pipeline, Layers, AllowNSFW, PaddingMode);
+			if (Result.ModelStatus == EModelStatus::Loaded) {
 				ModelOptions = Model;
 				PipelineOptions = Pipeline;
 				bIsModelDirty = false;
 			}
 
-			AsyncTask(ENamedThreads::GameThread, [this]() {
-				this->OnModelInitializedEx.Broadcast(GetModelStatus());
+			AsyncTask(ENamedThreads::GameThread, [this, Result]() {
+				this->OnModelInitializedEx.Broadcast(Result);
 			});
 		}
 	}
@@ -737,11 +737,11 @@ FString UStableDiffusionSubsystem::FilepathToLongPackagePath(const FString& Path
 	return result;
 }
 
-EModelStatus UStableDiffusionSubsystem::GetModelStatus() const
+FStableDiffusionModelInitResult UStableDiffusionSubsystem::GetModelStatus() const
 {
 	if(GeneratorBridge)
 		return GeneratorBridge->ModelStatus;
-	return EModelStatus::Unloaded;
+	return FStableDiffusionModelInitResult();
 }
 
 TArray<FColor> UStableDiffusionSubsystem::CopyFrameData(FIntRect Bounds, FIntPoint BufferSize, const FColor* ColorBuffer)

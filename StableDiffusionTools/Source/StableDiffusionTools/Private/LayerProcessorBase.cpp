@@ -4,6 +4,20 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "Components/SceneCaptureComponent2D.h"
 
+const TMap<ELayerImageType, FString> ULayerProcessorBase::ReverseLayerImageTypeLookup = {
+	{unknown, "unknown"},
+	{image, "image"},
+	{control_image, "control_image"},
+	{custom, "custom"}
+};
+
+const TMap<FString, ELayerImageType> ULayerProcessorBase::LayerImageTypeLookup = {
+	{"unknown", unknown},
+	{"image", image},
+	{"control_image", control_image},
+	{"custom", custom}
+};
+
 
 void ULayerProcessorBase::BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource, UObject* LayerOptions)
 {

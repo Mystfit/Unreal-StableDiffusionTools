@@ -303,6 +303,20 @@ UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* 
 	return OutTex;
 }
 
+FString UStableDiffusionBlueprintLibrary::LayerTypeToString(ELayerImageType LayerType)
+{
+	if(ULayerProcessorBase::ReverseLayerImageTypeLookup.Contains(LayerType))
+		return ULayerProcessorBase::ReverseLayerImageTypeLookup[LayerType];
+	return "";
+}
+
+ELayerImageType UStableDiffusionBlueprintLibrary::StringToLayerType(FString LayerName)
+{
+	if (ULayerProcessorBase::LayerImageTypeLookup.Contains(LayerName))
+		return ULayerProcessorBase::LayerImageTypeLookup[LayerName];
+	return ELayerImageType::unknown;
+}
+
 FEditorViewportClient* UStableDiffusionBlueprintLibrary::GetEditorClient()
 {
 	if (auto EditorViewport = UStableDiffusionSubsystem::GetCapturingViewport()) {

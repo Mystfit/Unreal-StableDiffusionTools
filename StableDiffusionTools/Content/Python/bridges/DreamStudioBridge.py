@@ -13,14 +13,19 @@ class DreamStudioBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def InitModel(self, new_model_options, new_pipeline_options, layers, allow_nsfw, padding_mode):
+        result = unreal.StableDiffusionModelInitResult()
         self.set_editor_property("ModelOptions", new_model_options)
         self.set_editor_property("PipelineOptions", new_pipeline_options)
         self.model_loaded = True
         self.stability_api = StabilityInference(
             "grpc.stability.ai:443", self.get_token(), engine=new_model_options.model, verbose=True
         )
+        
         print("Loaded DreamStudio model")
-        return True
+        result.model_status = unreal.ModelStatus.LOADED
+        self.set_editor_property("ModelStatus", result)
+
+        return result
 
     @unreal.ufunction(override=True)
     def GetTokenWebsiteHint(self):
@@ -82,7 +87,7 @@ class DreamStudioBridge(unreal.StableDiffusionBridge):
         pass
 
     @unreal.ufunction(override=True)
-    def UpsampleImage(self, image_result: unreal.StableDiffusionImageResult):
+    def UpsampleImage(self, image_result: unreal.StableDiffusionImageResult, out_texture):
         unreal.log_warn("Upsampler not yet implemented for DreamStudio bridge")
 
         # Build result

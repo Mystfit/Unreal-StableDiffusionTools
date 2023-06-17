@@ -110,6 +110,12 @@ public:
 
 	static UTexture2D* ColorBufferToTexture(const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex, bool DeferUpdate = false);
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Texture")
+	static FString LayerTypeToString(ELayerImageType LayerType);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Texture")
+	static ELayerImageType StringToLayerType(FString LayerName);
+
 private:
 	static FEditorViewportClient* GetEditorClient();
 	static FSceneView* CalculateEditorView(FSceneViewport* EditorViewport);

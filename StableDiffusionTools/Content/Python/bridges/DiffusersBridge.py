@@ -20,6 +20,7 @@ from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionS
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray, PILImageToTexture
 from huggingface_hub.utils import HfFolder, scan_cache_dir
+from huggingface_hub.utils._errors import LocalEntryNotFoundError
 
 try:
     from upsampling import RealESRGANModel
@@ -167,7 +168,6 @@ class AbortableExecutor(threading.Thread):
 
 @unreal.uclass()
 class DiffusersBridge(unreal.StableDiffusionBridge):
-
     def __init__(self):
         unreal.StableDiffusionBridge.__init__(self)
         self.upsampler = None
@@ -180,8 +180,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def InitModel(self, new_model_options, new_pipeline_options, layers, allow_nsfw, padding_mode):
-        result = True
-        self.set_editor_property("ModelStatus", unreal.ModelStatus.LOADING if self.ModelExists(new_model_options.model) else unreal.ModelStatus.DOWNLOADING)
+        result = unreal.StableDiffusionModelInitResult()
+        result.model_status = unreal.ModelStatus.LOADING if self.ModelExists(new_model_options.model) else unreal.ModelStatus.DOWNLOADING
+        self.set_editor_property("ModelStatus", result)
 
         scheduler_module = None
         if new_pipeline_options.scheduler:
@@ -248,7 +249,18 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         torch.backends.cuda.matmul.allow_tf32 = True
 
         # Load model
-        self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
+        try:
+            self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
+        except LocalEntryNotFoundError as e:
+            result.model_status = unreal.ModelStatus.ERROR
+            result.error_msg = f"Failed to load the model due to a missing local model or a download error. Full exception: {e}"
+            print(result.error_msg)
+            return result
+        except ValueError as e:
+            result.model_status = unreal.ModelStatus.ERROR
+            result.error_msg = f"Incorrect values passed to the model init function. Full exception: {e}"
+            print(result.error_msg)
+            return result
 
         if scheduler_module:
             self.pipe.scheduler = scheduler_cls.from_config(self.pipe.scheduler.config)
@@ -282,12 +294,12 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             if hasattr(self, "orig_NSFW_filter"):
                 self.pipe.safety_checker = self.orig_NSFW_filter
         
+        result.model_status = unreal.ModelStatus.LOADED
         self.set_editor_property("ModelOptions", new_model_options)
         self.set_editor_property("PipelineOptions", new_pipeline_options)
-        self.set_editor_property("ModelStatus", unreal.ModelStatus.LOADED)
+        self.set_editor_property("ModelStatus", result)
 
         print("Loaded Stable Diffusion model " + modelname)
-
         return result
 
     @unreal.ufunction(override=True)

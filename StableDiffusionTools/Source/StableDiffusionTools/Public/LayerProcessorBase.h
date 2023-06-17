@@ -91,7 +91,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Stable Diffusion|Layer source")
 	TEnumAsByte<ELayerImageType> DefaultLayerType;
 
-	
+	static const TMap<ELayerImageType, FString> ReverseLayerImageTypeLookup;
+	static const TMap<FString, ELayerImageType> LayerImageTypeLookup;
+
 
 protected:
 	UTextureRenderTarget2D* GetOrAllocateRenderTarget(FIntPoint Size);
