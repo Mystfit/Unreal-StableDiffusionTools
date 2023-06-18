@@ -44,6 +44,9 @@ public:
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     FString GetTokenWebsiteHint();
 
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
+    FDirectoryPath GetSettingsLORASavePath() const;
+
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Bridge")
  //   USDBridgeToken* CachedToken;
 
@@ -56,7 +59,7 @@ public:
     bool ModelExists(const FString& ModelName) const;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
-    FStableDiffusionModelInitResult InitModel(const FStableDiffusionModelOptions& NewModelOptions, const FStableDiffusionPipelineOptions& NewPipelineOptions, const TArray<FLayerData>& Layers, bool AllowNsfw, EPaddingMode PaddingMode);
+    FStableDiffusionModelInitResult InitModel(const FStableDiffusionModelOptions& NewModelOptions, const FStableDiffusionPipelineOptions& NewPipelineOptions, UStableDiffusionLORAAsset* LoraAsset = nullptr, const TArray<FLayerData>& Layers = TArray<FLayerData>(), bool AllowNsfw = false, EPaddingMode PaddingMode = EPaddingMode::zeros);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void ReleaseModel();
@@ -90,6 +93,9 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
 	FStableDiffusionPipelineOptions PipelineOptions;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
+    UStableDiffusionLORAAsset* LORAAsset;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
     FStableDiffusionModelInitResult ModelStatus;

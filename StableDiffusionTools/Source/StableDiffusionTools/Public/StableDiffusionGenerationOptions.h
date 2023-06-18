@@ -51,13 +51,13 @@ struct STABLEDIFFUSIONTOOLS_API FStableDiffusionModelOptions
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-		FString Model = "CompVis/stable-diffusion-v1-4";
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Model")
+		FString Model;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Model")
 		FString Revision;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Model")
 		FString Precision = "fp16";
 
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
@@ -76,15 +76,25 @@ public:
 };
 
 
+UCLASS()
+class STABLEDIFFUSIONTOOLS_API UStableDiffusionModelAsset : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
+		FStableDiffusionModelOptions Options;
+};
+
+
 USTRUCT(BlueprintType, meta = (UsesHierarchy = true))
 struct STABLEDIFFUSIONTOOLS_API FStableDiffusionModelInitResult
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Model")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
 		EModelStatus ModelStatus = EModelStatus::Unloaded;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Model")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
 		FString ErrorMsg;
 };
 
@@ -94,29 +104,29 @@ struct STABLEDIFFUSIONTOOLS_API FStableDiffusionPipelineOptions
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Pipeline")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline")
 	FString DiffusionPipeline;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Pipeline")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline")
 	FString CustomPipeline;
 
 	/*
 	* Process and add any additional keyword arguments for the model pipe in Python at model init.
 	* Any local variable in this script prefixed with the substring 'pipearg_' will be added to the pipe's keyword argument list
 	*/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Stable Diffusion|Pipeline"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Pipeline"))
 	FString PythonModelArgumentsScript;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Pipeline")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline")
 	FString Scheduler;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Pipeline", meta = (Bitmask, BitmaskEnum = EPipelineCapabilities))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline", meta = (Bitmask, BitmaskEnum = EPipelineCapabilities))
 	int32 Capabilities = (int32)(EPipelineCapabilities::STRENGTH);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Pipeline", meta = (Bitmask, BitmaskEnum = EPipelineCapabilities))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline", meta = (Bitmask, BitmaskEnum = EPipelineCapabilities))
 	TArray<FLayerData> RequiredLayers;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Pipeline", meta = (Bitmask, BitmaskEnum = EPipelineCapabilities))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline", meta = (Bitmask, BitmaskEnum = EPipelineCapabilities))
 	TArray<FString> RequiredLayerKeys;
 
 	FORCEINLINE bool operator==(const FStableDiffusionPipelineOptions& Other)
@@ -138,22 +148,47 @@ public:
 
 
 UCLASS()
-class STABLEDIFFUSIONTOOLS_API UStableDiffusionModelAsset : public UPrimaryDataAsset
-{
-	GENERATED_BODY()
-public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
-	FStableDiffusionModelOptions Options;
-};
-
-
-UCLASS()
 class STABLEDIFFUSIONTOOLS_API UStableDiffusionPipelineAsset : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Pipeline")
-	FStableDiffusionPipelineOptions Options;
+		FStableDiffusionPipelineOptions Options;
+};
+
+
+USTRUCT(BlueprintType, meta = (UsesHierarchy = true))
+struct STABLEDIFFUSIONTOOLS_API FStableDiffusionLORAOptions
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LORA")
+		FString Model;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LORA")
+		FString Revision;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LORA")
+		FString ExternalURL;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LORA")
+		FFilePath LocalFilePath;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LORA")
+		TArray<FString> TriggerWords;
+
+	bool IsValid() const {
+		return !Model.IsEmpty() || !ExternalURL.IsEmpty();
+	}
+};
+
+UCLASS()
+class STABLEDIFFUSIONTOOLS_API UStableDiffusionLORAAsset : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LORA")
+		FStableDiffusionLORAOptions Options;
 };
 
 
@@ -218,45 +253,30 @@ struct STABLEDIFFUSIONTOOLS_API FStableDiffusionInput
 	GENERATED_BODY()
 public:
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
 	FStableDiffusionGenerationOptions Options;
 
-	/*UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
-	TArray<FActorLayer> InpaintLayers;*/
-
-	/*
-	//
-	//Padding mode to use for image 2D convulution. Valid options are 'zeros', 'reflect', 'replicate' or 'circular'.
-	//See https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
-	//
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-	EPaddingMode PaddingMode;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Model")
-	bool AllowNSFW = false;
-	*/
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
 	USceneCaptureComponent2D* CaptureSource = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
 	UTexture* OverrideTextureInput = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
 	UTexture2D* TextureOutput = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
 	TArray<FLayerData> InputLayers;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
 	TArray<FLayerData> ProcessedLayers;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
 	int32 PreviewIterationRate = 25;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stable Diffusion|Generation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
 	bool DebugPythonImages = false;
 
-	UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Generation")
+	UPROPERTY(BlueprintReadWrite, Category = "Generation")
 	FMinimalViewInfo View;
 };

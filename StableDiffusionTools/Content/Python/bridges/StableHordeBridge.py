@@ -20,7 +20,7 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
         return "https://stablehorde.net/register"
 
     @unreal.ufunction(override=True)
-    def InitModel(self, new_model_options, new_pipeline_options, layers, allow_nsfw, padding_mode):
+    def InitModel(self, new_model_options, new_pipeline_options, lora_asset, layers, allow_nsfw, padding_mode):
         result = unreal.StableDiffusionModelInitResult()
         self.model_loaded = True
         headers = {
@@ -136,7 +136,7 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
         pass
 
     @unreal.ufunction(override=True)
-    def UpsampleImage(self, image_result: unreal.StableDiffusionImageResult):
+    def UpsampleImage(self, image_result: unreal.StableDiffusionImageResult, out_texture):
         unreal.log_warning("Upsampler not yet implemented for Stable Horde bridge")
 
         # Build result

@@ -40,6 +40,13 @@ FString UStableDiffusionBridge::GetToken()
     return "";
 }
 
+FDirectoryPath UStableDiffusionBridge::GetSettingsLORASavePath() const
+{
+    const UStableDiffusionToolsSettings* Settings = GetDefault<UStableDiffusionToolsSettings>();
+    return Settings->GetLORASavePath();
+}
+
+
 void UStableDiffusionBridge::UpdateImageProgress(FString prompt, int32 step, int32 timestep, float progress, int32 width, int32 height, UTexture2D* Texture)
 {
     AsyncTask(ENamedThreads::GameThread, [this, prompt, step, timestep, progress, width, height, Texture] {

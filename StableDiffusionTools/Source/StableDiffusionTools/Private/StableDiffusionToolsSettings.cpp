@@ -13,6 +13,11 @@ TMap<FName, FString> UStableDiffusionToolsSettings::GetGeneratorTokens() const {
 	return GeneratorTokens;
 }
 
+FDirectoryPath UStableDiffusionToolsSettings::GetLORASavePath() const
+{
+	return LORASavePath;
+}
+
 void UStableDiffusionToolsSettings::AddGeneratorToken(const FName& Generator)
 {
 	if (!GeneratorTokens.Contains(Generator)) {

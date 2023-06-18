@@ -1,10 +1,13 @@
 from asyncio.windows_utils import pipe
 import pipes
+from tqdm.auto import tqdm
+import functools
 from turtle import update
 import unreal
-import os, inspect, importlib, random, threading, ctypes, time, traceback, pprint, gc
-
+import os, inspect, importlib, random, threading, ctypes, time, traceback, pprint, gc, shutil, re
+from pathlib import Path
 import numpy as np
+import requests
 
 import safetensors
 import torch
@@ -120,6 +123,26 @@ def preprocess_mask_inpaint(mask):
     return mask
 
 
+def download_file(url: str, destination_dir: Path):
+    response = requests.get(url, stream=True, allow_redirects=True)
+    if response.status_code != 200:
+        response.raise_for_status()  # Will only raise for 4xx codes, so...
+        raise RuntimeError(f"Request to {url} returned status code {r.status_code}")
+    file_size = int(response.headers.get('Content-Length', 0))
+    desc = "(Unknown total file size)" if file_size == 0 else ""
+
+    url_filename = response.headers.get('content-disposition')
+    filenames = re.findall('filename=(.+)', url_filename) 
+    if filenames:
+        filename = filenames[0].replace('\"', '')
+        filepath = destination_dir / filename
+        print(f"Downloading file to {filepath}")
+        response.raw.read = functools.partial(response.raw.read, decode_content=True)  # Decompress if needed
+        with tqdm.wrapattr(response.raw, "read", total=file_size, desc=desc) as r_raw:
+            with filepath.open("wb") as f:
+                shutil.copyfileobj(r_raw, f)
+        return filepath
+
 class AbortableExecutor(threading.Thread):
     def __init__(self, name, func):
         threading.Thread.__init__(self)
@@ -179,7 +202,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.start_timestep = -1
 
     @unreal.ufunction(override=True)
-    def InitModel(self, new_model_options, new_pipeline_options, layers, allow_nsfw, padding_mode):
+    def InitModel(self, new_model_options, new_pipeline_options, lora_asset, layers, allow_nsfw, padding_mode):
         result = unreal.StableDiffusionModelInitResult()
         result.model_status = unreal.ModelStatus.LOADING if self.ModelExists(new_model_options.model) else unreal.ModelStatus.DOWNLOADING
         self.set_editor_property("ModelStatus", result)
@@ -261,6 +284,28 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             result.error_msg = f"Incorrect values passed to the model init function. Full exception: {e}"
             print(result.error_msg)
             return result
+        
+        # LORA validation and downloads
+        lora_id = None
+        if lora_asset:
+            if lora_asset.options.model or lora_asset.options.external_url:
+                # Get ID or local filepath
+                if lora_asset.options.external_url and not lora_asset.options.local_file_path.file_path:
+                    # Download lora
+                    print(f"Downloading LORA from {lora_asset.options.external_url}")
+                    local_file = download_file(lora_asset.options.external_url, Path(self.get_settings_lora_save_path().path))
+                    lora_asset.options.local_file_path.file_path = str(local_file) if str(local_file) else ""
+                    lora_id = lora_asset.options.local_file_path.file_path
+                elif lora_asset.options.local_file_path:
+                    # Use cached LORA
+                    lora_id = lora_asset.options.local_file_path.file_path
+                else:
+                    # Use model ID to load from huggingface cache or hub
+                    lora_id = lora_asset.options.model
+
+                # Load the local weights
+                self.pipe.load_lora_weights(lora_id)
+                self.set_editor_property("LORAAsset", lora_asset)
 
         if scheduler_module:
             self.pipe.scheduler = scheduler_cls.from_config(self.pipe.scheduler.config)
