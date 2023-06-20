@@ -227,6 +227,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
 	TArray<FPrompt> NegativePrompts;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
+	float LoraWeight = 1.0f;
+
 	void AddPrompt(const FPrompt Prompt){
 		if (Prompt.Sentiment == EPromptSentiment::Negative) {
 			NegativePrompts.Add(Prompt);

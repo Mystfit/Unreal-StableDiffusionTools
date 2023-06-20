@@ -6,6 +6,7 @@ from turtle import update
 import unreal
 import os, inspect, importlib, random, threading, ctypes, time, traceback, pprint, gc, shutil, re
 from pathlib import Path
+from contextlib import nullcontext
 import numpy as np
 import requests
 
@@ -285,9 +286,44 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             print(result.error_msg)
             return result
         
+        if scheduler_module:
+            self.pipe.scheduler = scheduler_cls.from_config(self.pipe.scheduler.config)
+
+        # Compel for weighted prompts
+        self.compel = Compel(tokenizer=self.pipe.tokenizer, text_encoder=self.pipe.text_encoder, truncate_long_prompts=False)
+
+        # Performance options for low VRAM gpus
+        #self.pipe.enable_sequential_cpu_offload()
+        self.pipe.enable_attention_slicing(1)
+        try:
+            self.pipe.unet = torch.compile(self.pipe.unet)
+        except RuntimeError as e:
+            print(f"WARNING: Couldn't compile unet for model. Exception given was '{e}'")
+        #self.pipe.enable_xformers_memory_efficient_attention()
+        if hasattr(self.pipe, "enable_model_cpu_offload"):# and not lora_asset:
+            self.pipe.enable_model_cpu_offload()
+
+        # High resolution support by tiling the VAE
+        self.pipe.vae.enable_tiling()
+
+        # NSFW filter
+        if allow_nsfw:
+            # Backup original NSFW filter
+            if not hasattr(self, "orig_NSFW_filter"):
+                self.orig_NSFW_filter = self.pipe.safety_checker
+
+            # Dummy passthrough filter
+            self.pipe.safety_checker = lambda images, **kwargs: (images, False)
+        else:
+            if hasattr(self, "orig_NSFW_filter"):
+                self.pipe.safety_checker = self.orig_NSFW_filter
+
         # LORA validation and downloads
         lora_id = None
         if lora_asset:
+            # Force pipeline to CUDA until support is added for pipe.enable_model_cpu_offload()
+            self.pipe.to("cuda")
+
             if lora_asset.options.model or lora_asset.options.external_url:
                 # Get ID or local filepath
                 if lora_asset.options.external_url and not lora_asset.options.local_file_path.file_path:
@@ -307,37 +343,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 self.pipe.load_lora_weights(lora_id)
                 self.set_editor_property("LORAAsset", lora_asset)
 
-        if scheduler_module:
-            self.pipe.scheduler = scheduler_cls.from_config(self.pipe.scheduler.config)
-
-        # Compel for weighted prompts
-        self.compel = Compel(tokenizer=self.pipe.tokenizer, text_encoder=self.pipe.text_encoder, truncate_long_prompts=False)
-
-        # Performance options for low VRAM gpus
-        #self.pipe.enable_sequential_cpu_offload()
-        self.pipe.enable_attention_slicing(1)
-        try:
-            self.pipe.unet = torch.compile(self.pipe.unet)
-        except RuntimeError as e:
-            print(f"WARNING: Couldn't compile unet for model. Exception given was '{e}'")
-        #self.pipe.enable_xformers_memory_efficient_attention()
-        if hasattr(self.pipe, "enable_model_cpu_offload"):
-            self.pipe.enable_model_cpu_offload()
-
-        # High resolution support by tiling the VAE
-        self.pipe.vae.enable_tiling()
-
-        # NSFW filter
-        if allow_nsfw:
-            # Backup original NSFW filter
-            if not hasattr(self, "orig_NSFW_filter"):
-                self.orig_NSFW_filter = self.pipe.safety_checker
-
-            # Dummy passthrough filter
-            self.pipe.safety_checker = lambda images, **kwargs: (images, False)
-        else:
-            if hasattr(self, "orig_NSFW_filter"):
-                self.pipe.safety_checker = self.orig_NSFW_filter
+            
         
         result.model_status = unreal.ModelStatus.LOADED
         self.set_editor_property("ModelOptions", new_model_options)
@@ -384,6 +390,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         result = unreal.StableDiffusionImageResult()
         model_options = self.get_editor_property("ModelOptions")
         pipeline_options = self.get_editor_property("PipelineOptions")
+        lora_asset = self.get_editor_property("LORAAsset")
+
         if not hasattr(self, "pipe"):
             print("Could not find a pipe attribute. Has it been GC'd?")
             return
@@ -445,71 +453,75 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.preview_texture = preview_texture
 
         with torch.inference_mode():
-            generator = torch.Generator(device="cpu")
-            generator.manual_seed(seed)
-            generation_args = {
-                "prompt_embeds": prompt_tensors,
-                "num_inference_steps": input.options.iterations, 
-                "generator": generator, 
-                "guidance_scale": input.options.guidance_scale, 
-                "callback": self.ImageProgressStep,
-                "callback_steps": 1
-            }
-            self.update_frequency = input.preview_iteration_rate
+            with torch.autocast("cuda", dtype=torch.float32 if model_options.precision == "fp32" else torch.float16) if lora_asset else nullcontext():
+                generator = torch.Generator(device="cpu")
+                generator.manual_seed(seed)
+                generation_args = {
+                    "prompt_embeds": prompt_tensors,
+                    "num_inference_steps": input.options.iterations, 
+                    "generator": generator, 
+                    "guidance_scale": input.options.guidance_scale, 
+                    "callback": self.ImageProgressStep,
+                    "callback_steps": 1
+                }
+                if lora_asset:
+                    generation_args["cross_attention_kwargs"] = {"scale":input.options.lora_weight};
 
-            # Set the timestep in the scheduler early so we can get the start timestep
-            self.pipe.scheduler.set_timesteps(input.options.iterations, device=self.pipe._execution_device)
-            print(self.pipe.scheduler.timesteps)
-            self.start_timestep = int(self.pipe.scheduler.timesteps.cpu().numpy()[0])
-            print(f"Start timestep is {self.start_timestep}")
+                self.update_frequency = input.preview_iteration_rate
 
-            # Different capability flags use different keywords in the pipeline
-            if strength_active:
-                generation_args["strength"] = input.options.strength
+                # Set the timestep in the scheduler early so we can get the start timestep
+                self.pipe.scheduler.set_timesteps(input.options.iterations, device=self.pipe._execution_device)
+                print(self.pipe.scheduler.timesteps)
+                self.start_timestep = int(self.pipe.scheduler.timesteps.cpu().numpy()[0])
+                print(f"Start timestep is {self.start_timestep}")
 
-            # Add processed input layers                 
-            generation_args.update(layer_img_mappings)
-            print(layer_img_mappings)
+                # Different capability flags use different keywords in the pipeline
+                if strength_active:
+                    generation_args["strength"] = input.options.strength
+
+                # Add processed input layers                 
+                generation_args.update(layer_img_mappings)
+                print(layer_img_mappings)
             
-            if input.debug_python_images:
-                print("Generation args:")
-                pprint.pprint(generation_args)
+                if input.debug_python_images:
+                    print("Generation args:")
+                    pprint.pprint(generation_args)
             
-            # Create executor to generate the image in its own thread that we can abort if needed
-            self.executor = AbortableExecutor("ImageThread", lambda generation_args=generation_args: self.pipe(**generation_args))
-            self.executor.start()
+                # Create executor to generate the image in its own thread that we can abort if needed
+                self.executor = AbortableExecutor("ImageThread", lambda generation_args=generation_args: self.pipe(**generation_args))
+                self.executor.start()
 
-            # Block until executor completes
-            self.executor.join()
-            if not self.executor.result or not self.executor.completed:
-                print(f"Image generation was aborted")
-                self.abort = False
+                # Block until executor completes
+                self.executor.join()
+                if not self.executor.result or not self.executor.completed:
+                    print(f"Image generation was aborted")
+                    self.abort = False
 
-            # Gather result images
-            images = self.executor.result.images if self.executor.result else None #self.pipe(**generation_args).images
-            image = images[0] if images else None
+                # Gather result images
+                images = self.executor.result.images if self.executor.result else None #self.pipe(**generation_args).images
+                image = images[0] if images else None
 
-            if input.debug_python_images and image:
-                image.show()
+                if input.debug_python_images and image:
+                    image.show()
 
-            if not image:
-                print("No image was generated")
+                if not image:
+                    print("No image was generated")
             
-            # Gather result data
-            result.input = input
-            result.input.options.seed = seed
-            print(f"Seed was {seed}. Saved as {result.input.options.seed}")
-            result.out_texture = PILImageToTexture(image.convert("RGBA"), out_texture, True) if image else out_texture
-            result.out_width = image.width if image else input.options.out_size_x
-            result.out_height = image.height if image else input.options.out_size_y
-            result.completed = True if image else False
+                # Gather result data
+                result.input = input
+                result.input.options.seed = seed
+                print(f"Seed was {seed}. Saved as {result.input.options.seed}")
+                result.out_texture = PILImageToTexture(image.convert("RGBA"), out_texture, True) if image else out_texture
+                result.out_width = image.width if image else input.options.out_size_x
+                result.out_height = image.height if image else input.options.out_size_y
+                result.completed = True if image else False
 
-            # Cleanup
-            self.start_timestep = -1
-            del self.executor 
-            self.executor = None
-            gc.collect()
-            torch.cuda.empty_cache()
+                # Cleanup
+                self.start_timestep = -1
+                del self.executor 
+                self.executor = None
+                gc.collect()
+                torch.cuda.empty_cache()
 
         return result
 
