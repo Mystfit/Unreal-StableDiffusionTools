@@ -65,7 +65,8 @@ public class StableDiffusionTools : ModuleRules
 				"RHI",
 				"RenderCore",
 				"ImageCore",
-                "MaterialEditor"
+                "MaterialEditor",
+                "HTTP"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

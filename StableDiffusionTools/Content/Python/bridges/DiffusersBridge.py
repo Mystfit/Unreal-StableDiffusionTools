@@ -325,15 +325,15 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             self.pipe.to("cuda")
 
             if lora_asset.options.model or lora_asset.options.external_url:
-                # Get ID or local filepath
-                if lora_asset.options.external_url and not lora_asset.options.local_file_path.file_path:
-                    # Download lora
-                    print(f"Downloading LORA from {lora_asset.options.external_url}")
-                    local_file = download_file(lora_asset.options.external_url, Path(self.get_settings_lora_save_path().path))
-                    lora_asset.options.local_file_path.file_path = str(local_file) if str(local_file) else ""
+                # Get LORA model from local filepath first
+                if os.path.exists(lora_asset.options.local_file_path.file_path):
                     lora_id = lora_asset.options.local_file_path.file_path
                 elif lora_asset.options.local_file_path:
-                    # Use cached LORA
+                    if lora_asset.options.external_url:
+                        # Download lora
+                        print(f"Downloading LORA from {lora_asset.options.external_url}")
+                        local_file = download_file(lora_asset.options.external_url, Path(self.get_settings_lora_save_path().path))
+                        lora_asset.options.local_file_path.file_path = str(local_file) if str(local_file) else ""
                     lora_id = lora_asset.options.local_file_path.file_path
                 else:
                     # Use model ID to load from huggingface cache or hub
@@ -341,9 +341,11 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
                 # Load the local weights
                 self.pipe.load_lora_weights(lora_id)
-                self.set_editor_property("LORAAsset", lora_asset)
 
-            
+                # Move model back to CPU so model offloading works
+                self.pipe.to("cpu")
+
+        self.set_editor_property("LORAAsset", lora_asset)
         
         result.model_status = unreal.ModelStatus.LOADED
         self.set_editor_property("ModelOptions", new_model_options)
