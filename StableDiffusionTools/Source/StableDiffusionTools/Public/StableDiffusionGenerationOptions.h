@@ -58,6 +58,9 @@ public:
 		FString Revision;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Model")
+		FFilePath LocalFilePath;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Model")
 		FString Precision = "fp16";
 
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)

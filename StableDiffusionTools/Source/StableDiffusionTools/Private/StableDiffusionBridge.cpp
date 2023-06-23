@@ -40,10 +40,16 @@ FString UStableDiffusionBridge::GetToken()
     return "";
 }
 
-FDirectoryPath UStableDiffusionBridge::GetSettingsLORASavePath() const
+FDirectoryPath UStableDiffusionBridge::GetSettingsLORASavePath()
 {
-    const UStableDiffusionToolsSettings* Settings = GetDefault<UStableDiffusionToolsSettings>();
+    auto Settings = GetMutableDefault<UStableDiffusionToolsSettings>();
     return Settings->GetLORASavePath();
+}
+
+FDirectoryPath UStableDiffusionBridge::GetSettingsModelSavePath()
+{
+    auto Settings = GetMutableDefault<UStableDiffusionToolsSettings>();
+    return Settings->GetModelSavePath();
 }
 
 

@@ -9,28 +9,36 @@
 
 #include "ModelAssetTools.generated.h"
 
-class UTexture2DDynamic;
-
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDownloadFileDelegate, FString, FilePath, int64, BytesDownloadedSinceLastUpdate);
 
-UCLASS()
-class STABLEDIFFUSIONTOOLS_API UAsyncTaskDownloadModel : public UBlueprintAsyncActionBase
+UCLASS(Blueprintable)
+class STABLEDIFFUSIONTOOLS_API UAsyncTaskDownloadModel : public UObject
 {
 	GENERATED_UCLASS_BODY()
 
 public:
 	UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true"))
-		static UAsyncTaskDownloadModel* DownloadModel(FString URL, FString Path);
+		static UAsyncTaskDownloadModel* DownloadModelCURL(FString URL, FString Path);
+
+	UFUNCTION(BlueprintCallable)
+		void SuccessGameThread(int64 TotalBytes);
+
+	UFUNCTION(BlueprintCallable)
+		void UpdateGameThread(int64 TotalBytes);
+
+	UFUNCTION(BlueprintCallable)
+		void FailGameThread(int64 TotalBytes);
+
 
 public:
 
-	UPROPERTY(BlueprintAssignable)
+	UPROPERTY(BlueprintAssignable, BlueprintReadWrite)
 		FDownloadFileDelegate OnSuccess;
 
-	UPROPERTY(BlueprintAssignable)
+	UPROPERTY(BlueprintAssignable, BlueprintReadWrite)
 		FDownloadFileDelegate OnUpdate;
 
-	UPROPERTY(BlueprintAssignable)
+	UPROPERTY(BlueprintAssignable, BlueprintReadWrite)
 		FDownloadFileDelegate OnFail;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
@@ -43,14 +51,39 @@ public:
 
 	void Start(FString URL);
 
-protected:
+private:
 
 	/** Handles HTTP requests coming from the web */
-	//UFUNCTION(BlueprintNativeImplementable, category = "HTTP")
 	void HandleHTTPRequest(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded);
 
 	/* Handles progress updates for the HTTP request */
-	//UFUNCTION(BlueprintNativeImplementable, category = "HTTP")
 	void HandleHTTPProgress(FHttpRequestPtr Request, int32 TotalBytesWritten, int32 BytesWrittenSinceLastUpdate);
+
+};
+
+
+class UAsyncOperation;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FAsyncOperation, UAsyncOperation*, EventOwner);
+
+UCLASS(Blueprintable)
+class STABLEDIFFUSIONTOOLS_API UAsyncOperation : public UBlueprintAsyncActionBase
+{
+	GENERATED_UCLASS_BODY()
+
+public:
+	UFUNCTION(BlueprintCallable, meta = (Category = "Async", BlueprintInternalUseOnly = "true"))
+		static UAsyncOperation* StartAsyncOperation();
+
+	UFUNCTION(BlueprintCallable, category = Category)
+		void Complete();
+
+public:
+
+	UPROPERTY(BlueprintAssignable, BlueprintReadWrite)
+		FAsyncOperation OnStart;
+
+	UPROPERTY(BlueprintAssignable, BlueprintReadWrite)
+		FAsyncOperation OnComplete;
 
 };

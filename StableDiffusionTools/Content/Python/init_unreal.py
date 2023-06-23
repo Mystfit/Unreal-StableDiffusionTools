@@ -1,6 +1,7 @@
 import unreal
 import importlib, pathlib, os, signal, venv, sys
 import dependency_manager
+#import model_asset_tools
 
 
 # Get all python files in a folder

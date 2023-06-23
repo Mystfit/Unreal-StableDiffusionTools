@@ -45,7 +45,10 @@ public:
     FString GetTokenWebsiteHint();
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
-    FDirectoryPath GetSettingsLORASavePath() const;
+    FDirectoryPath GetSettingsLORASavePath();
+
+    UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")
+    FDirectoryPath GetSettingsModelSavePath();
 
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Bridge")
  //   USDBridgeToken* CachedToken;

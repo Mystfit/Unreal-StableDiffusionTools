@@ -6,6 +6,8 @@
 #include "IImageWrapperModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "HttpModule.h"
+#include "Async/Async.h"
+#include "IPythonScriptPlugin.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ModelAssetTools)
 
@@ -23,13 +25,34 @@ UAsyncTaskDownloadModel::UAsyncTaskDownloadModel(const FObjectInitializer& Objec
 	}
 }
 
-UAsyncTaskDownloadModel* UAsyncTaskDownloadModel::DownloadModel(FString URL, FString Path)
+UAsyncTaskDownloadModel* UAsyncTaskDownloadModel::DownloadModelCURL(FString URL, FString Path)
 {
 	UAsyncTaskDownloadModel* DownloadTask = NewObject<UAsyncTaskDownloadModel>();
 	DownloadTask->SavePath = Path;
 	DownloadTask->Start(URL);
 
 	return DownloadTask;
+}
+
+void UAsyncTaskDownloadModel::SuccessGameThread(int64 TotalBytes)
+{
+	AsyncTask(ENamedThreads::GameThread, [this, TotalBytes]() {
+		OnSuccess.Broadcast(SavePath, TotalBytes);
+	});
+}
+
+void UAsyncTaskDownloadModel::UpdateGameThread(int64 TotalBytes)
+{
+	AsyncTask(ENamedThreads::GameThread, [this, TotalBytes]() {
+		OnUpdate.Broadcast("", TotalBytes);
+	});
+}
+
+void UAsyncTaskDownloadModel::FailGameThread(int64 TotalBytes)
+{
+	AsyncTask(ENamedThreads::GameThread, [this, TotalBytes]() {
+		OnFail.Broadcast("", TotalBytes);
+	});
 }
 
 void UAsyncTaskDownloadModel::Start(FString URL)
@@ -49,7 +72,7 @@ void UAsyncTaskDownloadModel::Start(FString URL)
 #endif
 }
 
-void UAsyncTaskDownloadModel::HandleHTTPProgress_Implementation(FHttpRequestPtr Request, int32 TotalBytesWritten, int32 BytesWrittenSinceLastUpdate)
+void UAsyncTaskDownloadModel::HandleHTTPProgress(FHttpRequestPtr Request, int32 TotalBytesWritten, int32 BytesWrittenSinceLastUpdate)
 {
 	// Don't send download updates too frequently otherwise we'll spam the blueprint thread
 	if (BytesWrittenSinceLastUpdate - TotalBytesDownloaded > 1000000) {
@@ -58,7 +81,7 @@ void UAsyncTaskDownloadModel::HandleHTTPProgress_Implementation(FHttpRequestPtr 
 	}
 }
 
-void UAsyncTaskDownloadModel::HandleHTTPRequest_Implementation(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded)
+void UAsyncTaskDownloadModel::HandleHTTPRequest(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded)
 {
 #if !UE_SERVER
 
@@ -110,3 +133,36 @@ void UAsyncTaskDownloadModel::HandleHTTPRequest_Implementation(FHttpRequestPtr H
 #endif
 }
 
+
+//----------------------------------------------------------------------//
+
+UAsyncOperation::UAsyncOperation(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	if (HasAnyFlags(RF_ClassDefaultObject) == false)
+	{
+		AddToRoot();
+	}
+}
+
+UAsyncOperation* UAsyncOperation::StartAsyncOperation()
+{
+	UAsyncOperation* Operation = NewObject<UAsyncOperation>();
+
+	AsyncTask(ENamedThreads::AnyThread, [Operation]() {
+		Operation->OnStart.Broadcast(Operation);
+	});
+
+	return Operation;
+}
+
+void UAsyncOperation::Complete()
+{
+#if !UE_SERVER
+	RemoveFromRoot();
+	AsyncTask(ENamedThreads::GameThread, [this]() {
+		OnComplete.Broadcast(this);
+	});
+#endif
+
+}

@@ -13,9 +13,21 @@ TMap<FName, FString> UStableDiffusionToolsSettings::GetGeneratorTokens() const {
 	return GeneratorTokens;
 }
 
-FDirectoryPath UStableDiffusionToolsSettings::GetLORASavePath() const
+FDirectoryPath UStableDiffusionToolsSettings::GetLORASavePath()
 {
+	if (LORASavePath.Path.IsEmpty()) {
+		LORASavePath.Path = FPaths::Combine(FPaths::ProjectDir(), "LoRAs");
+	}
+
 	return LORASavePath;
+}
+
+FDirectoryPath UStableDiffusionToolsSettings::GetModelSavePath()
+{
+	if (ModelSavePath.Path.IsEmpty()) {
+		ModelSavePath.Path = FPaths::Combine(FPaths::ProjectDir(), "Models");
+	}
+	return ModelSavePath;
 }
 
 void UStableDiffusionToolsSettings::AddGeneratorToken(const FName& Generator)
