@@ -9,6 +9,8 @@ from pathlib import Path
 from contextlib import nullcontext
 import numpy as np
 import requests
+from diffusers.pipelines.stable_diffusion.convert_from_ckpt import download_from_original_stable_diffusion_ckpt
+
 
 import safetensors
 import torch
@@ -202,6 +204,37 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.update_frequency = 25
         self.start_timestep = -1
 
+
+    @unreal.ufunction(override=True)
+    def convert_raw_model(self, in_model_options, model_destination_path):
+        in_path = Path(in_model_options.local_file_path.file_path)
+        out_path = Path(model_destination_path)
+
+        if not os.path.exists(in_path):
+            print(f"Can't convert model to diffusers format: Source model does not exist at path {in_path.resolve()}")
+            return
+
+        args = {
+           "checkpoint_path": str(in_path.resolve()), 
+           "from_safetensors": True if in_path.suffix == ".safetensors" else False 
+        }
+        if in_model_options.base_resolution.x < 0:
+            args["image_size"] = in_model_options.base_model.options.base_resolution.x if in_model_options.base_model else 512
+        else:
+            args["image_size"] = in_model_options.base_resolution.x
+        
+        print(f"Converting {in_path} model to diffusers format")
+        #try:
+        pipe = download_from_original_stable_diffusion_ckpt(**args)
+        pipe.to(torch_dtype=torch.float32 if in_model_options.precision == "fp32" else torch.float16)
+        pipe.save_pretrained(str(out_path.resolve()), safe_serialization=True)
+        return True
+        #except Exception as e:
+         #   print(f"Could not convert model to diffusers format. Exception was {e}")
+        
+        return False 
+
+
     @unreal.ufunction(override=True)
     def InitModel(self, new_model_options, new_pipeline_options, lora_asset, layers, allow_nsfw, padding_mode):
         result = unreal.StableDiffusionModelInitResult()
@@ -219,7 +252,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             ActivePipeline = getattr(diffusers, new_pipeline_options.diffusion_pipeline)
         print(f"Loaded pipeline: {ActivePipeline}")
 
-        modelname = new_model_options.model if new_model_options.model else "CompVis/stable-diffusion-v1-5"
+        # Use local model path if it is set, otherwise use the model name
+        modelname = new_model_options.local_file_path.file_path if new_model_options.local_file_path.file_path else new_model_options.model
+
         kwargs = {
             "torch_dtype": torch.float32 if new_model_options.precision == "fp32" else torch.float16,
             "use_auth_token": self.get_token(),
@@ -321,9 +356,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # LORA validation and downloads
         lora_id = None
         if lora_asset:
-            # Force pipeline to CUDA until support is added for pipe.enable_model_cpu_offload()
-            self.pipe.to("cuda")
-
             if lora_asset.options.model or lora_asset.options.external_url:
                 # Get LORA model from local filepath first
                 if os.path.exists(lora_asset.options.local_file_path.file_path):
@@ -339,13 +371,16 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     # Use model ID to load from huggingface cache or hub
                     lora_id = lora_asset.options.model
 
-                # Load the local weights
-                self.pipe.load_lora_weights(lora_id)
-
-                # Move model back to CPU so model offloading works
-                self.pipe.to("cpu")
-
-        self.set_editor_property("LORAAsset", lora_asset)
+                if lora_id:
+                    # Force pipeline to CUDA until support is added for pipe.enable_model_cpu_offload()
+                    self.pipe.to("cuda")
+                    
+                    # Load LORA weights and cache the asset for later
+                    self.pipe.load_lora_weights(lora_id)
+                    self.set_editor_property("LORAAsset", lora_asset)
+                    
+                    # Move model back to CPU so model offloading works
+                    self.pipe.to("cpu")
         
         result.model_status = unreal.ModelStatus.LOADED
         self.set_editor_property("ModelOptions", new_model_options)

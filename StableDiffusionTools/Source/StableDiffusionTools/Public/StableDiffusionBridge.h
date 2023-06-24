@@ -62,6 +62,9 @@ public:
     bool ModelExists(const FString& ModelName) const;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    bool ConvertRawModel(const FStableDiffusionModelOptions& InModelOptions, const FString& ModelDestinationPath);
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     FStableDiffusionModelInitResult InitModel(const FStableDiffusionModelOptions& NewModelOptions, const FStableDiffusionPipelineOptions& NewPipelineOptions, UStableDiffusionLORAAsset* LoraAsset = nullptr, const TArray<FLayerData>& Layers = TArray<FLayerData>(), bool AllowNsfw = false, EPaddingMode PaddingMode = EPaddingMode::zeros);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")

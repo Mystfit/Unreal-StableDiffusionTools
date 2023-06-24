@@ -154,6 +154,14 @@ bool UStableDiffusionSubsystem::IsModelDirty() const
 	return bIsModelDirty;
 }
 
+bool UStableDiffusionSubsystem::ConvertRawModel(const FStableDiffusionModelOptions& InModelOptions, const FString& ModelDestinationPath)
+{
+	if (GeneratorBridge) {
+		return GeneratorBridge->ConvertRawModel(InModelOptions, ModelDestinationPath);
+	}
+	return false;
+}
+
 void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, const FStableDiffusionPipelineOptions& Pipeline, UStableDiffusionLORAAsset* LORAAsset, const TArray<FLayerData>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode)
 {
 	if (GeneratorBridge) {

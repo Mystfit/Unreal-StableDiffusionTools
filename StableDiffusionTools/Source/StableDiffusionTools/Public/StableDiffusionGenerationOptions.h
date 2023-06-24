@@ -45,23 +45,47 @@ enum class EModelStatus : uint8 {
 };
 ENUM_CLASS_FLAGS(EModelStatus);
 
+UENUM(BlueprintType)
+enum class EModelType : uint8 {
+	Checkpoint UMETA(DisplayName = "Checkpoint"),
+	Diffusers UMETA(DisplayName = "Diffusers"),
+	Placeholder UMETA(DisplayName = "Placeholder")
+};
+ENUM_CLASS_FLAGS(EModelType);
+
 
 USTRUCT(BlueprintType, meta=(UsesHierarchy=true))
 struct STABLEDIFFUSIONTOOLS_API FStableDiffusionModelOptions
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Model")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
 		FString Model;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Model")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
+		UStableDiffusionModelAsset* BaseModel;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
 		FString Revision;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Model")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
+		FString Precision = "fp16";
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
+		FIntPoint BaseResolution = FIntPoint(512, 512);
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
+		FString ExternalURL;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
 		FFilePath LocalFilePath;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Model")
-		FString Precision = "fp16";
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
+		EModelType ModelType;
+
+	bool IsValid() const {
+		return !Model.IsEmpty() || !ExternalURL.IsEmpty();
+	}
 
 	FORCEINLINE bool operator==(const FStableDiffusionModelOptions& Other)
 	{
@@ -78,6 +102,8 @@ public:
 	}
 };
 
+
+class UStableDiffusionModelAsset;
 
 UCLASS()
 class STABLEDIFFUSIONTOOLS_API UStableDiffusionModelAsset : public UPrimaryDataAsset
@@ -166,32 +192,16 @@ struct STABLEDIFFUSIONTOOLS_API FStableDiffusionLORAOptions
 	GENERATED_BODY()
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LORA")
-		FString Model;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LORA")
-		FString Revision;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LORA")
-		FString ExternalURL;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LORA")
-		FFilePath LocalFilePath;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LORA")
 		TArray<FString> TriggerWords;
-
-	bool IsValid() const {
-		return !Model.IsEmpty() || !ExternalURL.IsEmpty();
-	}
 };
 
 UCLASS()
-class STABLEDIFFUSIONTOOLS_API UStableDiffusionLORAAsset : public UPrimaryDataAsset
+class STABLEDIFFUSIONTOOLS_API UStableDiffusionLORAAsset : public UStableDiffusionModelAsset
 {
 	GENERATED_BODY()
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LORA")
-		FStableDiffusionLORAOptions Options;
+		FStableDiffusionLORAOptions LoraOptions;
 };
 
 

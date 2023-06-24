@@ -186,6 +186,9 @@ public:
 	bool IsModelDirty() const;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
+	bool ConvertRawModel(const FStableDiffusionModelOptions& InModelOptions, const FString& ModelDestinationPath);
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	void InitModel(const FStableDiffusionModelOptions& Model, const FStableDiffusionPipelineOptions& Pipeline, UStableDiffusionLORAAsset* LORAAsset, const TArray<FLayerData>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
