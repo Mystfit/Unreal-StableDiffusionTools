@@ -21,4 +21,5 @@ public:
 public:
 	TSharedPtr< FUICommandInfo > OpenPluginWindow;
 	TSharedPtr< FUICommandInfo > OpenDependenciesWindow;
+	TSharedPtr< FUICommandInfo > OpenModelToolsWindow;
 };

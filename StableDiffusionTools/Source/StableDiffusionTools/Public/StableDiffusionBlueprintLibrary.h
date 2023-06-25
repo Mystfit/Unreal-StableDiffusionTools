@@ -96,8 +96,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static UTexture2D* CreateTextureAsset(const FString& AssetPath, const FString& Name, FIntPoint Size, ETextureSourceFormat Format = ETextureSourceFormat::TSF_BGRA8, FColor Fill = FColor::Black);
 
-	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
+	UFUNCTION(BlueprintCallable, Category = "Asset")
 	static UStableDiffusionImageResultAsset* CreateImageResultAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled = false);
+
+	UFUNCTION(BlueprintCallable, Category = "Asset")
+	static UStableDiffusionStyleModelAsset* CreateModelAsset(const FString& PackagePath, const FString& Name);
+
+	UFUNCTION(BlueprintCallable, meta=(DisplayName = "Create LORA Asset", Category = "Asset"))
+	static UStableDiffusionLORAAsset* CreateLORAAsset(const FString& PackagePath, const FString& Name);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static UProjectionBakeSessionAsset* CreateProjectionBakeSessionAsset(const FProjectionBakeSession& Session, const FString& AssetPath, const FString& Name);

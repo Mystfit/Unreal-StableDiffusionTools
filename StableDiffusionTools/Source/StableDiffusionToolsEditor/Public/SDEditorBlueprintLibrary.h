@@ -15,6 +15,9 @@ class STABLEDIFFUSIONTOOLSEDITOR_API USDEditorBlueprintLibrary : public UBluepri
 	GENERATED_BODY()
 public:
 
-	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
+	UFUNCTION(BlueprintCallable, Category = "Dependencies")
 	static void OpenDependencyInstaller();
+
+	UFUNCTION(BlueprintCallable, Category = "ModelTools")
+	static void OpenModelTools();
 };

@@ -8,3 +8,9 @@ void USDEditorBlueprintLibrary::OpenDependencyInstaller()
 	FStableDiffusionToolsEditorModule& SDEditorModule = FModuleManager::GetModuleChecked<FStableDiffusionToolsEditorModule>("StableDiffusionToolsEditor");
 	SDEditorModule.OpenDependencyInstallerWindow();
 }
+
+void USDEditorBlueprintLibrary::OpenModelTools()
+{
+	FStableDiffusionToolsEditorModule& SDEditorModule = FModuleManager::GetModuleChecked<FStableDiffusionToolsEditorModule>("StableDiffusionToolsEditor");
+	SDEditorModule.OpenModelToolsWindow();
+}

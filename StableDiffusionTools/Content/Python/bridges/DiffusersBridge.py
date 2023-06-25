@@ -1,10 +1,16 @@
 from asyncio.windows_utils import pipe
 import pipes
+from tqdm.auto import tqdm
+import functools
 from turtle import update
 import unreal
-import os, inspect, importlib, random, threading, ctypes, time, traceback, pprint, gc
-
+import os, inspect, importlib, random, threading, ctypes, time, traceback, pprint, gc, shutil, re
+from pathlib import Path
+from contextlib import nullcontext
 import numpy as np
+import requests
+from diffusers.pipelines.stable_diffusion.convert_from_ckpt import download_from_original_stable_diffusion_ckpt
+
 
 import safetensors
 import torch
@@ -120,6 +126,26 @@ def preprocess_mask_inpaint(mask):
     return mask
 
 
+def download_file(url: str, destination_dir: Path):
+    response = requests.get(url, stream=True, allow_redirects=True)
+    if response.status_code != 200:
+        response.raise_for_status()  # Will only raise for 4xx codes, so...
+        raise RuntimeError(f"Request to {url} returned status code {r.status_code}")
+    file_size = int(response.headers.get('Content-Length', 0))
+    desc = "(Unknown total file size)" if file_size == 0 else ""
+
+    url_filename = response.headers.get('content-disposition')
+    filenames = re.findall('filename=(.+)', url_filename) 
+    if filenames:
+        filename = filenames[0].replace('\"', '')
+        filepath = destination_dir / filename
+        print(f"Downloading file to {filepath}")
+        response.raw.read = functools.partial(response.raw.read, decode_content=True)  # Decompress if needed
+        with tqdm.wrapattr(response.raw, "read", total=file_size, desc=desc) as r_raw:
+            with filepath.open("wb") as f:
+                shutil.copyfileobj(r_raw, f)
+        return filepath
+
 class AbortableExecutor(threading.Thread):
     def __init__(self, name, func):
         threading.Thread.__init__(self)
@@ -178,12 +204,70 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.update_frequency = 25
         self.start_timestep = -1
 
-    @unreal.ufunction(override=True)
-    def InitModel(self, new_model_options, new_pipeline_options, layers, allow_nsfw, padding_mode):
-        result = unreal.StableDiffusionModelInitResult()
-        result.model_status = unreal.ModelStatus.LOADING if self.ModelExists(new_model_options.model) else unreal.ModelStatus.DOWNLOADING
-        self.set_editor_property("ModelStatus", result)
 
+    @unreal.ufunction(override=True)
+    def convert_raw_model(self, model_asset: unreal.StableDiffusionModelAsset, delete_original: bool):
+        success = False
+
+        # Get paths and make sure they exist
+        if not model_asset.options.model_type == unreal.ModelType.CHECKPOINT:
+            print("Can't convert model to diffusers format: Model is not a checkpoint")
+            return False
+            
+        in_path = Path(model_asset.options.local_file_path.file_path)
+        out_path = in_path.parent / f"{in_path.stem}"
+
+        if not os.path.exists(in_path):
+            print(f"Can't convert model to diffusers format: Source model does not exist at path {in_path.resolve()}")
+            return False
+
+        if not os.path.exists(out_path):
+            os.makedirs(out_path)
+
+        print(f"Converting {in_path} model to diffusers format")
+
+        # Set up args
+        args = {
+           "checkpoint_path": str(in_path.resolve()), 
+           "from_safetensors": True if in_path.suffix == ".safetensors" else False 
+        }
+        if model_asset.options.base_resolution.x < 0:
+            args["image_size"] = model_asset.options.base_model.options.base_resolution.x if model_asset.options.base_model else 512
+        else:
+            args["image_size"] = model_asset.options.base_resolution.x
+        
+        # Load pipeline weights from the checkpoint and save converted model
+        with unreal.ScopedSlowTask(2, 'Converting model') as slow_task:
+            slow_task.make_dialog(True)
+            try:
+                slow_task.enter_progress_frame(1, "Loading diffusers pipeline")
+                pipe = download_from_original_stable_diffusion_ckpt(**args)
+                pipe.to(torch_dtype=torch.float32 if model_asset.options.precision == "fp32" else torch.float16)
+                slow_task.enter_progress_frame(1, "Saving model")
+                pipe.save_pretrained(str(out_path.resolve()), safe_serialization=True)
+                
+                # Unload pipeline
+                del pipe
+                pipe = None
+
+                success = True
+            except Exception as e:
+                print(f"Could not convert model to diffusers format. Exception was {e}")
+        
+        if success:
+            # Update model asset
+            model_asset.options.model_type = unreal.ModelType.DIFFUSERS
+            model_asset.options.local_folder_path.path = str(out_path.resolve())
+
+            # Cleanup original file
+            if delete_original:
+                os.remove(in_path)
+
+        return success 
+
+
+    @unreal.ufunction(override=True)
+    def InitModel(self, new_model_options, new_pipeline_options, lora_asset, layers, allow_nsfw, padding_mode):
         scheduler_module = None
         if new_pipeline_options.scheduler:
             scheduler_cls = getattr(diffusers, new_pipeline_options.scheduler)
@@ -195,7 +279,13 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             ActivePipeline = getattr(diffusers, new_pipeline_options.diffusion_pipeline)
         print(f"Loaded pipeline: {ActivePipeline}")
 
-        modelname = new_model_options.model if new_model_options.model else "CompVis/stable-diffusion-v1-5"
+        # Use local model path if it is set, otherwise use the model name
+        modelname = new_model_options.local_folder_path.path if new_model_options.local_folder_path.path else new_model_options.model
+
+        result = unreal.StableDiffusionModelInitResult()
+        result.model_status = unreal.ModelStatus.LOADING if self.ModelExists(modelname) else unreal.ModelStatus.DOWNLOADING
+        self.set_editor_property("ModelStatus", result)
+
         kwargs = {
             "torch_dtype": torch.float32 if new_model_options.precision == "fp32" else torch.float16,
             "use_auth_token": self.get_token(),
@@ -261,7 +351,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             result.error_msg = f"Incorrect values passed to the model init function. Full exception: {e}"
             print(result.error_msg)
             return result
-
+        
         if scheduler_module:
             self.pipe.scheduler = scheduler_cls.from_config(self.pipe.scheduler.config)
 
@@ -276,7 +366,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         except RuntimeError as e:
             print(f"WARNING: Couldn't compile unet for model. Exception given was '{e}'")
         #self.pipe.enable_xformers_memory_efficient_attention()
-        if hasattr(self.pipe, "enable_model_cpu_offload"):
+        if hasattr(self.pipe, "enable_model_cpu_offload"):# and not lora_asset:
             self.pipe.enable_model_cpu_offload()
 
         # High resolution support by tiling the VAE
@@ -293,8 +383,37 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         else:
             if hasattr(self, "orig_NSFW_filter"):
                 self.pipe.safety_checker = self.orig_NSFW_filter
+
+        # LORA validation and downloads
+        lora_id = None
+        if lora_asset:
+            if lora_asset.options.model or lora_asset.options.external_url:
+                # Get LORA model from local filepath first
+                if os.path.exists(lora_asset.options.local_file_path.file_path):
+                    lora_id = lora_asset.options.local_file_path.file_path
+                elif lora_asset.options.local_file_path:
+                    if lora_asset.options.external_url:
+                        # Download lora
+                        print(f"Downloading LORA from {lora_asset.options.external_url}")
+                        local_file = download_file(lora_asset.options.external_url, Path(self.get_settings_lora_save_path().path))
+                        lora_asset.options.local_file_path.file_path = str(local_file) if str(local_file) else ""
+                    lora_id = lora_asset.options.local_file_path.file_path
+                else:
+                    # Use model ID to load from huggingface cache or hub
+                    lora_id = lora_asset.options.model
+
+                if lora_id:
+                    # Force pipeline to CUDA until support is added for pipe.enable_model_cpu_offload()
+                    self.pipe.to("cuda")
+                    
+                    # Load LORA weights and cache the asset for later
+                    self.pipe.load_lora_weights(lora_id)
+                    
+                    # Move model back to CPU so model offloading works
+                    self.pipe.to("cpu")
         
         result.model_status = unreal.ModelStatus.LOADED
+        self.set_editor_property("LORAAsset", lora_asset)
         self.set_editor_property("ModelOptions", new_model_options)
         self.set_editor_property("PipelineOptions", new_pipeline_options)
         self.set_editor_property("ModelStatus", result)
@@ -330,6 +449,11 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def ModelExists(self, model_name):
+        # Check for filenames
+        if os.path.exists(model_name):
+            return True
+
+        # Check huggingface cached repos
         cache = scan_cache_dir()
         return bool(next((repo for repo in cache.repos if repo.repo_id == model_name), False))
 
@@ -339,6 +463,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         result = unreal.StableDiffusionImageResult()
         model_options = self.get_editor_property("ModelOptions")
         pipeline_options = self.get_editor_property("PipelineOptions")
+        lora_asset = self.get_editor_property("LORAAsset")
+
         if not hasattr(self, "pipe"):
             print("Could not find a pipe attribute. Has it been GC'd?")
             return
@@ -400,71 +526,76 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.preview_texture = preview_texture
 
         with torch.inference_mode():
-            generator = torch.Generator(device="cpu")
-            generator.manual_seed(seed)
-            generation_args = {
-                "prompt_embeds": prompt_tensors,
-                "num_inference_steps": input.options.iterations, 
-                "generator": generator, 
-                "guidance_scale": input.options.guidance_scale, 
-                "callback": self.ImageProgressStep,
-                "callback_steps": 1
-            }
-            self.update_frequency = input.preview_iteration_rate
+            with torch.autocast("cuda", dtype=torch.float32 if model_options.precision == "fp32" else torch.float16) if lora_asset else nullcontext():
+                generator = torch.Generator(device="cpu")
+                generator.manual_seed(seed)
+                generation_args = {
+                    "prompt_embeds": prompt_tensors,
+                    "num_inference_steps": input.options.iterations, 
+                    "generator": generator, 
+                    "guidance_scale": input.options.guidance_scale, 
+                    "callback": self.ImageProgressStep,
+                    "callback_steps": 1
+                }
+                if lora_asset:
+                    print(f"Using LoRA asset {lora_asset.options.model}")
+                    generation_args["cross_attention_kwargs"] = {"scale":input.options.lora_weight};
 
-            # Set the timestep in the scheduler early so we can get the start timestep
-            self.pipe.scheduler.set_timesteps(input.options.iterations, device=self.pipe._execution_device)
-            print(self.pipe.scheduler.timesteps)
-            self.start_timestep = int(self.pipe.scheduler.timesteps.cpu().numpy()[0])
-            print(f"Start timestep is {self.start_timestep}")
+                self.update_frequency = input.preview_iteration_rate
 
-            # Different capability flags use different keywords in the pipeline
-            if strength_active:
-                generation_args["strength"] = input.options.strength
+                # Set the timestep in the scheduler early so we can get the start timestep
+                self.pipe.scheduler.set_timesteps(input.options.iterations, device=self.pipe._execution_device)
+                print(self.pipe.scheduler.timesteps)
+                self.start_timestep = int(self.pipe.scheduler.timesteps.cpu().numpy()[0])
+                print(f"Start timestep is {self.start_timestep}")
 
-            # Add processed input layers                 
-            generation_args.update(layer_img_mappings)
-            print(layer_img_mappings)
+                # Different capability flags use different keywords in the pipeline
+                if strength_active:
+                    generation_args["strength"] = input.options.strength
+
+                # Add processed input layers                 
+                generation_args.update(layer_img_mappings)
+                print(layer_img_mappings)
             
-            if input.debug_python_images:
-                print("Generation args:")
-                pprint.pprint(generation_args)
+                if input.debug_python_images:
+                    print("Generation args:")
+                    pprint.pprint(generation_args)
             
-            # Create executor to generate the image in its own thread that we can abort if needed
-            self.executor = AbortableExecutor("ImageThread", lambda generation_args=generation_args: self.pipe(**generation_args))
-            self.executor.start()
+                # Create executor to generate the image in its own thread that we can abort if needed
+                self.executor = AbortableExecutor("ImageThread", lambda generation_args=generation_args: self.pipe(**generation_args))
+                self.executor.start()
 
-            # Block until executor completes
-            self.executor.join()
-            if not self.executor.result or not self.executor.completed:
-                print(f"Image generation was aborted")
-                self.abort = False
+                # Block until executor completes
+                self.executor.join()
+                if not self.executor.result or not self.executor.completed:
+                    print(f"Image generation was aborted")
+                    self.abort = False
 
-            # Gather result images
-            images = self.executor.result.images if self.executor.result else None #self.pipe(**generation_args).images
-            image = images[0] if images else None
+                # Gather result images
+                images = self.executor.result.images if self.executor.result else None #self.pipe(**generation_args).images
+                image = images[0] if images else None
 
-            if input.debug_python_images and image:
-                image.show()
+                if input.debug_python_images and image:
+                    image.show()
 
-            if not image:
-                print("No image was generated")
+                if not image:
+                    print("No image was generated")
             
-            # Gather result data
-            result.input = input
-            result.input.options.seed = seed
-            print(f"Seed was {seed}. Saved as {result.input.options.seed}")
-            result.out_texture = PILImageToTexture(image.convert("RGBA"), out_texture, True) if image else out_texture
-            result.out_width = image.width if image else input.options.out_size_x
-            result.out_height = image.height if image else input.options.out_size_y
-            result.completed = True if image else False
+                # Gather result data
+                result.input = input
+                result.input.options.seed = seed
+                print(f"Seed was {seed}. Saved as {result.input.options.seed}")
+                result.out_texture = PILImageToTexture(image.convert("RGBA"), out_texture, True) if image else out_texture
+                result.out_width = image.width if image else input.options.out_size_x
+                result.out_height = image.height if image else input.options.out_size_y
+                result.completed = True if image else False
 
-            # Cleanup
-            self.start_timestep = -1
-            del self.executor 
-            self.executor = None
-            gc.collect()
-            torch.cuda.empty_cache()
+                # Cleanup
+                self.start_timestep = -1
+                del self.executor 
+                self.executor = None
+                gc.collect()
+                torch.cuda.empty_cache()
 
         return result
 

@@ -341,6 +341,46 @@ FSceneView* UStableDiffusionBlueprintLibrary::CalculateEditorView(FSceneViewport
 	return nullptr;
 }
 
+UStableDiffusionStyleModelAsset* UStableDiffusionBlueprintLibrary::CreateModelAsset(const FString& PackagePath, const FString& Name)
+{
+	if (Name.IsEmpty() || PackagePath.IsEmpty())
+		return false;
+
+	// Create package
+	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
+	UPackage* Package = CreatePackage(*FullPackagePath);
+	Package->FullyLoad();
+
+	// Create data asset
+	UStableDiffusionStyleModelAsset* NewModelAsset = NewObject<UStableDiffusionStyleModelAsset>(Package, *Name, RF_Public | RF_Standalone);
+
+	// Update package
+	Package->MarkPackageDirty();
+	FAssetRegistryModule::AssetCreated(NewModelAsset);
+
+	return NewModelAsset;
+}
+
+UStableDiffusionLORAAsset* UStableDiffusionBlueprintLibrary::CreateLORAAsset(const FString& PackagePath, const FString& Name)
+{
+	if (Name.IsEmpty() || PackagePath.IsEmpty())
+		return false;
+
+	// Create package
+	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
+	UPackage* Package = CreatePackage(*FullPackagePath);
+	Package->FullyLoad();
+
+	// Create data asset
+	UStableDiffusionLORAAsset* NewLORAAsset = NewObject<UStableDiffusionLORAAsset>(Package, *Name, RF_Public | RF_Standalone);
+
+	// Update package
+	Package->MarkPackageDirty();
+	FAssetRegistryModule::AssetCreated(NewLORAAsset);
+
+	return NewLORAAsset;
+}
+
 UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::CreateImageResultAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty() || !Texture)
@@ -360,11 +400,11 @@ UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::CreateImageR
 
 	// Create data asset
 	FString AssetName = "DA_" + Name;
-	UStableDiffusionImageResultAsset* NewImageResultAsset = NewObject<UStableDiffusionImageResultAsset>(Package, *AssetName, RF_Public | RF_Standalone);
-	NewImageResultAsset->ImageInputs = ImageInputs;
-	NewImageResultAsset->ImageOutput.Upsampled = Upsampled;
-	NewImageResultAsset->ImageOutput.OutTexture = NewTexture;
-	NewImageResultAsset->ImageOutput.View = View;
+	UStableDiffusionImageResultAsset* NewModelAsset = NewObject<UStableDiffusionImageResultAsset>(Package, *AssetName, RF_Public | RF_Standalone);
+	NewModelAsset->ImageInputs = ImageInputs;
+	NewModelAsset->ImageOutput.Upsampled = Upsampled;
+	NewModelAsset->ImageOutput.OutTexture = NewTexture;
+	NewModelAsset->ImageOutput.View = View;
 
 	// Update package
 	Package->MarkPackageDirty();
@@ -377,7 +417,7 @@ UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::CreateImageR
 	//PackageArgs.bForceByteSwapping = true;
 	//bool bSaved = UPackage::SavePackage(Package, NewTexture, *PackageFileName, PackageArgs);
 
-	return NewImageResultAsset;
+	return NewModelAsset;
 }
 
 void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* SourceTexture, UTexture2D* TargetTexture, const FIntPoint& ScreenSize, const FMatrix& ViewProjectionMatrix, UDynamicMesh* SourceMesh, const TArray<int> TriangleIDs, bool ClearCoverageMask)

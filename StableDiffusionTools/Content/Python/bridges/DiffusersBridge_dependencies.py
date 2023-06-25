@@ -18,5 +18,7 @@ def GetDependencies():
         MakeDependency({"name":"diffusers", "version": "0.17.0"}),
         MakeDependency({"name":"compel", "version": "1.2.1"}),
         MakeDependency({"name":"opencv-python", "version":"4.7.0.72"}),
-        MakeDependency({"name":"realesrgan", "version": "0.3.0"})
+        MakeDependency({"name":"realesrgan", "version": "0.3.0"}),
+        MakeDependency({"name":"tqdm", "version": "4.65.0"}),
+        MakeDependency({"name":"omegaconf", "version": "2.3.0"})
     ]

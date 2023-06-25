@@ -154,7 +154,14 @@ bool UStableDiffusionSubsystem::IsModelDirty() const
 	return bIsModelDirty;
 }
 
-void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, const FStableDiffusionPipelineOptions& Pipeline, const TArray<FLayerData>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode)
+void UStableDiffusionSubsystem::ConvertRawModel(UStableDiffusionModelAsset* InModelAsset, bool DeleteOriginal)
+{
+	if (GeneratorBridge) {
+		this->GeneratorBridge->ConvertRawModel(InModelAsset, DeleteOriginal);
+	}
+}
+
+void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, const FStableDiffusionPipelineOptions& Pipeline, UStableDiffusionLORAAsset* LORAAsset, const TArray<FLayerData>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode)
 {
 	if (GeneratorBridge) {
 		// Unload any loaded models first
@@ -164,12 +171,13 @@ void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Mo
 		this->GeneratorBridge->OnImageProgressEx.AddUniqueDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
 
 		if (Async) {
-			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model, Pipeline, Layers, AllowNSFW, PaddingMode]() mutable {
-				auto Result = this->GeneratorBridge->InitModel(Model, Pipeline, Layers, AllowNSFW, PaddingMode);
+			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model, Pipeline, Layers, LORAAsset, AllowNSFW, PaddingMode]() mutable {
+				auto Result = this->GeneratorBridge->InitModel(Model, Pipeline, LORAAsset, Layers, AllowNSFW, PaddingMode);
 				if (Result.ModelStatus == EModelStatus::Loaded) {
 					bIsModelDirty = false;
 					ModelOptions = Model;
 					PipelineOptions = Pipeline;
+					//this->LORAAsset = LORAAsset;
 				}
 
 				AsyncTask(ENamedThreads::GameThread, [this, Result]() {
@@ -178,7 +186,7 @@ void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Mo
 				});
 		}
 		else {
-			auto Result = this->GeneratorBridge->InitModel(Model, Pipeline, Layers, AllowNSFW, PaddingMode);
+			auto Result = this->GeneratorBridge->InitModel(Model, Pipeline, LORAAsset, Layers, AllowNSFW, PaddingMode);
 			if (Result.ModelStatus == EModelStatus::Loaded) {
 				ModelOptions = Model;
 				PipelineOptions = Pipeline;

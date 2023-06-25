@@ -21,6 +21,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Pipeline", meta = (Multiline = true))
 	UStableDiffusionPipelineAsset* PipelineAsset;
 
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|LORA", meta = (Multiline = true))
+	UStableDiffusionLORAAsset* LORAAsset;
+
 	//UPROPERTY(EditAnywhere, Category = "Model options")
 	//bool AllowNSFW = false;
 

@@ -186,7 +186,10 @@ public:
 	bool IsModelDirty() const;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
-	void InitModel(const FStableDiffusionModelOptions& Model, const FStableDiffusionPipelineOptions& Pipeline, const TArray<FLayerData>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode);
+	void ConvertRawModel(UStableDiffusionModelAsset* InModelAsset, bool DeleteOriginal = true);
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
+	void InitModel(const FStableDiffusionModelOptions& Model, const FStableDiffusionPipelineOptions& Pipeline, UStableDiffusionLORAAsset* LORAAsset, const TArray<FLayerData>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	void ReleaseModel();
@@ -220,6 +223,9 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Model")
 	FStableDiffusionPipelineOptions PipelineOptions;
+
+	//UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Model")
+	//UStableDiffusionLORAAsset* LORAAsset;
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Generation")
 	FImageGenerationCompleteEx OnImageGenerationCompleteEx;

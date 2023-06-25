@@ -276,7 +276,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 							//Reload model if it doesn't match the current options track
 							if (OptionSection->ModelAsset) {
 								if (SDSubsystem->ModelOptions != OptionSection->ModelAsset->Options || SDSubsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {
-									SDSubsystem->InitModel(OptionSection->ModelAsset->Options, OptionSection->PipelineAsset->Options, Input.ProcessedLayers, false, AllowNSFW, EPaddingMode::zeros);
+									SDSubsystem->InitModel(OptionSection->ModelAsset->Options, OptionSection->PipelineAsset->Options, OptionSection->LORAAsset, Input.ProcessedLayers, false, AllowNSFW, EPaddingMode::zeros);
 								}
 							}
 							if (SDSubsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {

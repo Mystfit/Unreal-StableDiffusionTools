@@ -23,6 +23,12 @@ public:
 	/** Gets the class of the Stable Diffusion generator bridge that will be constructed.*/
 	TMap<FName, FString> GetGeneratorTokens() const;
 
+	/** Gets the location where LORA models will be saved by default.*/
+	FDirectoryPath GetLORASavePath();
+
+	/** Gets the location where base models will be saved by default.*/
+	FDirectoryPath GetModelSavePath();
+
 	void AddGeneratorToken(const FName& Generator);
 
 private:
@@ -33,6 +39,12 @@ private:
 
 	UPROPERTY(config, EditAnywhere, Category = "Options")
 	TMap<FName, FString> GeneratorTokens;
+
+	UPROPERTY(config, EditAnywhere, meta=(DisplayName="LORA Save Path", Category = "Options"))
+	FDirectoryPath LORASavePath;
+
+	UPROPERTY(config, EditAnywhere, meta = (DisplayName = "Model Save Path", Category = "Options"))
+	FDirectoryPath ModelSavePath;
 };
 
 

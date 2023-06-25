@@ -52,7 +52,15 @@
 		},
 		{
 			"Name": "Mutable",
-			"Enabled":  true
+			"Enabled": true
+		},
+		{
+			"Name": "JsonBlueprintUtilities",
+			"Enabled": true
+		},
+		{
+			"Name": "WebBrowserWidget",
+			"Enabled": true
 		}
 	],
 	"Modules": [

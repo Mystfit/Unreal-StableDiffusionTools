@@ -31,6 +31,10 @@ void FStableDiffusionToolsModule::CreateSettingsSection() {
 
 		if (SettingsSection.IsValid())
 		{
+			// Run gets to populate defaults
+			GetMutableDefault<UStableDiffusionToolsSettings>()->GetLORASavePath();
+			GetMutableDefault<UStableDiffusionToolsSettings>()->GetModelSavePath();
+
 			SettingsSection->OnModified().BindRaw(this, &FStableDiffusionToolsModule::HandleSettingsSaved);
 		}
 
