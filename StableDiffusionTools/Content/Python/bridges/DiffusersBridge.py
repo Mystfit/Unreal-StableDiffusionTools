@@ -206,41 +206,68 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
 
     @unreal.ufunction(override=True)
-    def convert_raw_model(self, in_model_options, model_destination_path):
-        in_path = Path(in_model_options.local_file_path.file_path)
-        out_path = Path(model_destination_path)
+    def convert_raw_model(self, model_asset: unreal.StableDiffusionModelAsset, delete_original: bool):
+        success = False
+
+        # Get paths and make sure they exist
+        if not model_asset.options.model_type == unreal.ModelType.CHECKPOINT:
+            print("Can't convert model to diffusers format: Model is not a checkpoint")
+            return False
+            
+        in_path = Path(model_asset.options.local_file_path.file_path)
+        out_path = in_path.parent / f"{in_path.stem}"
 
         if not os.path.exists(in_path):
             print(f"Can't convert model to diffusers format: Source model does not exist at path {in_path.resolve()}")
-            return
+            return False
 
+        if not os.path.exists(out_path):
+            os.makedirs(out_path)
+
+        print(f"Converting {in_path} model to diffusers format")
+
+        # Set up args
         args = {
            "checkpoint_path": str(in_path.resolve()), 
            "from_safetensors": True if in_path.suffix == ".safetensors" else False 
         }
-        if in_model_options.base_resolution.x < 0:
-            args["image_size"] = in_model_options.base_model.options.base_resolution.x if in_model_options.base_model else 512
+        if model_asset.options.base_resolution.x < 0:
+            args["image_size"] = model_asset.options.base_model.options.base_resolution.x if model_asset.options.base_model else 512
         else:
-            args["image_size"] = in_model_options.base_resolution.x
+            args["image_size"] = model_asset.options.base_resolution.x
         
-        print(f"Converting {in_path} model to diffusers format")
-        #try:
-        pipe = download_from_original_stable_diffusion_ckpt(**args)
-        pipe.to(torch_dtype=torch.float32 if in_model_options.precision == "fp32" else torch.float16)
-        pipe.save_pretrained(str(out_path.resolve()), safe_serialization=True)
-        return True
-        #except Exception as e:
-         #   print(f"Could not convert model to diffusers format. Exception was {e}")
+        # Load pipeline weights from the checkpoint and save converted model
+        with unreal.ScopedSlowTask(2, 'Converting model') as slow_task:
+            slow_task.make_dialog(True)
+            try:
+                slow_task.enter_progress_frame(1, "Loading diffusers pipeline")
+                pipe = download_from_original_stable_diffusion_ckpt(**args)
+                pipe.to(torch_dtype=torch.float32 if model_asset.options.precision == "fp32" else torch.float16)
+                slow_task.enter_progress_frame(1, "Saving model")
+                pipe.save_pretrained(str(out_path.resolve()), safe_serialization=True)
+                
+                # Unload pipeline
+                del pipe
+                pipe = None
+
+                success = True
+            except Exception as e:
+                print(f"Could not convert model to diffusers format. Exception was {e}")
         
-        return False 
+        if success:
+            # Update model asset
+            model_asset.options.model_type = unreal.ModelType.DIFFUSERS
+            model_asset.options.local_folder_path.path = str(out_path.resolve())
+
+            # Cleanup original file
+            if delete_original:
+                os.remove(in_path)
+
+        return success 
 
 
     @unreal.ufunction(override=True)
     def InitModel(self, new_model_options, new_pipeline_options, lora_asset, layers, allow_nsfw, padding_mode):
-        result = unreal.StableDiffusionModelInitResult()
-        result.model_status = unreal.ModelStatus.LOADING if self.ModelExists(new_model_options.model) else unreal.ModelStatus.DOWNLOADING
-        self.set_editor_property("ModelStatus", result)
-
         scheduler_module = None
         if new_pipeline_options.scheduler:
             scheduler_cls = getattr(diffusers, new_pipeline_options.scheduler)
@@ -253,7 +280,11 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         print(f"Loaded pipeline: {ActivePipeline}")
 
         # Use local model path if it is set, otherwise use the model name
-        modelname = new_model_options.local_file_path.file_path if new_model_options.local_file_path.file_path else new_model_options.model
+        modelname = new_model_options.local_folder_path.path if new_model_options.local_folder_path.path else new_model_options.model
+
+        result = unreal.StableDiffusionModelInitResult()
+        result.model_status = unreal.ModelStatus.LOADING if self.ModelExists(modelname) else unreal.ModelStatus.DOWNLOADING
+        self.set_editor_property("ModelStatus", result)
 
         kwargs = {
             "torch_dtype": torch.float32 if new_model_options.precision == "fp32" else torch.float16,
@@ -377,12 +408,12 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     
                     # Load LORA weights and cache the asset for later
                     self.pipe.load_lora_weights(lora_id)
-                    self.set_editor_property("LORAAsset", lora_asset)
                     
                     # Move model back to CPU so model offloading works
                     self.pipe.to("cpu")
         
         result.model_status = unreal.ModelStatus.LOADED
+        self.set_editor_property("LORAAsset", lora_asset)
         self.set_editor_property("ModelOptions", new_model_options)
         self.set_editor_property("PipelineOptions", new_pipeline_options)
         self.set_editor_property("ModelStatus", result)
@@ -418,6 +449,11 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def ModelExists(self, model_name):
+        # Check for filenames
+        if os.path.exists(model_name):
+            return True
+
+        # Check huggingface cached repos
         cache = scan_cache_dir()
         return bool(next((repo for repo in cache.repos if repo.repo_id == model_name), False))
 
@@ -502,6 +538,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     "callback_steps": 1
                 }
                 if lora_asset:
+                    print(f"Using LoRA asset {lora_asset.options.model}")
                     generation_args["cross_attention_kwargs"] = {"scale":input.options.lora_weight};
 
                 self.update_frequency = input.preview_iteration_rate

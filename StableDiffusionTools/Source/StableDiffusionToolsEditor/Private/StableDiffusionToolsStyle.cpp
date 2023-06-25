@@ -42,6 +42,7 @@ TSharedRef< FSlateStyleSet > FStableDiffusionToolsStyle::Create()
 	Style->SetContentRoot(IPluginManager::Get().FindPlugin("StableDiffusionTools")->GetBaseDir() / TEXT("Resources"));
 	Style->Set("StableDiffusionTools.OpenPluginWindow", new IMAGE_BRUSH_SVG(TEXT("ai-brain"), Icon20x20));
 	Style->Set("StableDiffusionTools.OpenDependenciesWindow", new IMAGE_BRUSH_SVG(TEXT("download"), Icon20x20));
+	Style->Set("StableDiffusionTools.OpenModelToolsWindow", new IMAGE_BRUSH_SVG(TEXT("globe"), Icon20x20));
 
 	return Style;
 }

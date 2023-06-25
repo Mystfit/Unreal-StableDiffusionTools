@@ -40,6 +40,10 @@ void FStableDiffusionToolsEditorModule::StartupModule()
 		FStableDiffusionToolsCommands::Get().OpenDependenciesWindow,
 		FExecuteAction::CreateRaw(this, &FStableDiffusionToolsEditorModule::OpenDependencyInstallerWindow),
 		FCanExecuteAction());
+	PluginCommands->MapAction(
+		FStableDiffusionToolsCommands::Get().OpenModelToolsWindow,
+		FExecuteAction::CreateRaw(this, &FStableDiffusionToolsEditorModule::OpenModelToolsWindow),
+		FCanExecuteAction());
 
 	// Create menus
 	{
@@ -81,6 +85,12 @@ void FStableDiffusionToolsEditorModule::OpenDependencyInstallerWindow()
 	CreatePanel(DependencyBPPath, "SD Dependencies");
 }
 
+void FStableDiffusionToolsEditorModule::OpenModelToolsWindow()
+{
+	FString DependencyBPPath = "/StableDiffusionTools/UI/Widgets/BP_StableDiffusionModelUtilities.BP_StableDiffusionModelUtilities";
+	CreatePanel(DependencyBPPath, "SD Model Tools");
+}
+
 void FStableDiffusionToolsEditorModule::CreatePanel(const FString& BlueprintAssetPath, const FString& PanelLabel)
 {
 	UEditorUtilitySubsystem* EUSubsystem = GEditor->GetEditorSubsystem<UEditorUtilitySubsystem>();
@@ -102,6 +112,7 @@ void FStableDiffusionToolsEditorModule::AddMenuEntry(FMenuBuilder& MenuBuilder)
 	MenuBuilder.BeginSection("StableDiffusionToolsMenu", TAttribute<FText>(FText::FromString("Stable Diffusion Tools")));
 	MenuBuilder.AddMenuEntry(FStableDiffusionToolsCommands::Get().OpenPluginWindow);
 	MenuBuilder.AddMenuEntry(FStableDiffusionToolsCommands::Get().OpenDependenciesWindow);
+	MenuBuilder.AddMenuEntry(FStableDiffusionToolsCommands::Get().OpenModelToolsWindow);
 	MenuBuilder.EndSection();
 }
 

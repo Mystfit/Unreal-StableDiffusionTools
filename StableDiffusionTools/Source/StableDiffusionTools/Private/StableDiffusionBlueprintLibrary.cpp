@@ -341,7 +341,7 @@ FSceneView* UStableDiffusionBlueprintLibrary::CalculateEditorView(FSceneViewport
 	return nullptr;
 }
 
-UStableDiffusionModelAsset* UStableDiffusionBlueprintLibrary::CreateModelAsset(const FString& PackagePath, const FString& Name)
+UStableDiffusionStyleModelAsset* UStableDiffusionBlueprintLibrary::CreateModelAsset(const FString& PackagePath, const FString& Name)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty())
 		return false;
@@ -352,7 +352,7 @@ UStableDiffusionModelAsset* UStableDiffusionBlueprintLibrary::CreateModelAsset(c
 	Package->FullyLoad();
 
 	// Create data asset
-	UStableDiffusionModelAsset* NewModelAsset = NewObject<UStableDiffusionModelAsset>(Package, *Name, RF_Public | RF_Standalone);
+	UStableDiffusionStyleModelAsset* NewModelAsset = NewObject<UStableDiffusionStyleModelAsset>(Package, *Name, RF_Public | RF_Standalone);
 
 	// Update package
 	Package->MarkPackageDirty();

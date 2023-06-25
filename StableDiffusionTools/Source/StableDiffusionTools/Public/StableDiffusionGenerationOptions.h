@@ -78,10 +78,13 @@ public:
 		FString ExternalURL;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
+		EModelType ModelType;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Category = "Model", EditCondition = "ModelType == EModelType::Checkpoint", EditConditionHides))
 		FFilePath LocalFilePath;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
-		EModelType ModelType;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Category = "Model", EditCondition = "ModelType == EModelType::Diffusers", EditConditionHides))
+		FDirectoryPath LocalFolderPath;
 
 	bool IsValid() const {
 		return !Model.IsEmpty() || !ExternalURL.IsEmpty();
@@ -103,7 +106,9 @@ public:
 };
 
 
+// Forward declarations
 class UStableDiffusionModelAsset;
+
 
 UCLASS()
 class STABLEDIFFUSIONTOOLS_API UStableDiffusionModelAsset : public UPrimaryDataAsset
@@ -195,6 +200,7 @@ public:
 		TArray<FString> TriggerWords;
 };
 
+
 UCLASS()
 class STABLEDIFFUSIONTOOLS_API UStableDiffusionLORAAsset : public UStableDiffusionModelAsset
 {
@@ -203,6 +209,14 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LORA")
 		FStableDiffusionLORAOptions LoraOptions;
 };
+
+
+UCLASS()
+class STABLEDIFFUSIONTOOLS_API UStableDiffusionStyleModelAsset : public UStableDiffusionModelAsset
+{
+	GENERATED_BODY()
+};
+
 
 
 USTRUCT(BlueprintType)

@@ -23,6 +23,7 @@ public:
 	/** This function will be bound to Command (by default it will bring up plugin window) */
 	void PluginButtonClicked();
 	void OpenDependencyInstallerWindow();
+	void OpenModelToolsWindow();
 
 	void CreatePanel(const FString& BlueprintAssetPath, const FString& PanelLabel);
 

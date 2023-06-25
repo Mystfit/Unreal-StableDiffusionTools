@@ -154,12 +154,11 @@ bool UStableDiffusionSubsystem::IsModelDirty() const
 	return bIsModelDirty;
 }
 
-bool UStableDiffusionSubsystem::ConvertRawModel(const FStableDiffusionModelOptions& InModelOptions, const FString& ModelDestinationPath)
+void UStableDiffusionSubsystem::ConvertRawModel(UStableDiffusionModelAsset* InModelAsset, bool DeleteOriginal)
 {
 	if (GeneratorBridge) {
-		return GeneratorBridge->ConvertRawModel(InModelOptions, ModelDestinationPath);
+		this->GeneratorBridge->ConvertRawModel(InModelAsset, DeleteOriginal);
 	}
-	return false;
 }
 
 void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, const FStableDiffusionPipelineOptions& Pipeline, UStableDiffusionLORAAsset* LORAAsset, const TArray<FLayerData>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode)

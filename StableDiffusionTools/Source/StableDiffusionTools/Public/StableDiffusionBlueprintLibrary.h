@@ -100,7 +100,7 @@ public:
 	static UStableDiffusionImageResultAsset* CreateImageResultAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled = false);
 
 	UFUNCTION(BlueprintCallable, Category = "Asset")
-	static UStableDiffusionModelAsset* CreateModelAsset(const FString& PackagePath, const FString& Name);
+	static UStableDiffusionStyleModelAsset* CreateModelAsset(const FString& PackagePath, const FString& Name);
 
 	UFUNCTION(BlueprintCallable, meta=(DisplayName = "Create LORA Asset", Category = "Asset"))
 	static UStableDiffusionLORAAsset* CreateLORAAsset(const FString& PackagePath, const FString& Name);
