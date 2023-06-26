@@ -188,6 +188,15 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionPipelineAsset : public UPrimaryDa
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Pipeline")
 		FStableDiffusionPipelineOptions Options;
+
+	UFUNCTION(BlueprintCallable, Category = "Pipeline")
+	TArray<FString> GetCompatibleSchedulers();
+
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+
+private:
+	TArray<FString> CompatibleSchedulers;
+	bool CachedSchedulers = false;
 };
 
 

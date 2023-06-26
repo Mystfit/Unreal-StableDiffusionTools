@@ -194,6 +194,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	void ReleaseModel();
 
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
+	TArray<FString> GetCompatibleSchedulers() const;
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
+	FString GetCurrentScheduler() const;
+
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
 	void GenerateImage(FStableDiffusionInput Input, EInputImageSource ImageSourceType);
 

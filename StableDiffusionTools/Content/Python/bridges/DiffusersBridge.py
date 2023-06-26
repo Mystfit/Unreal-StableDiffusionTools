@@ -268,10 +268,10 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def InitModel(self, new_model_options, new_pipeline_options, lora_asset, layers, allow_nsfw, padding_mode):
-        scheduler_module = None
+        scheduler_cls = None
         if new_pipeline_options.scheduler:
             scheduler_cls = getattr(diffusers, new_pipeline_options.scheduler)
-            print("Using scheduler class: {scheduler_cls}")
+            print(f"Using scheduler class: {scheduler_cls}")
 
         # Set pipeline
         print(f"Requested pipeline: {new_pipeline_options.diffusion_pipeline}")
@@ -352,7 +352,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             print(result.error_msg)
             return result
         
-        if scheduler_module:
+        if scheduler_cls:
             self.pipe.scheduler = scheduler_cls.from_config(self.pipe.scheduler.config)
 
         # Compel for weighted prompts
@@ -423,7 +423,15 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def AvailableSchedulers(self):
-        pass
+        if not self.pipe:
+            raise("No pipeline loaded to get compatible schedulers from")
+        return [cls.__name__ for cls in self.pipe.scheduler.compatibles]
+
+    @unreal.ufunction(override=True)
+    def GetScheduler(self):
+        if not self.pipe:
+            raise("No pipeline loaded to get the current scheduler from")
+        return self.pipe.scheduler.__class__.__name__
 
     @unreal.ufunction(override=True)
     def GetTokenWebsiteHint(self):
@@ -582,6 +590,12 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     print("No image was generated")
             
                 # Gather result data
+                print(f"Result model options: {model_options}")
+                print(f"Result pipeline options: {pipeline_options}")
+                result.model = model_options
+                result.pipeline = pipeline_options
+                result.lora = lora_asset.options if lora_asset else unreal.StableDiffusionModelOptions()
+
                 result.input = input
                 result.input.options.seed = seed
                 print(f"Seed was {seed}. Saved as {result.input.options.seed}")
@@ -678,6 +692,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
         # Build result
         result = unreal.StableDiffusionImageResult()
+        result.model = image_result.model
+        result.pipeline = image_result.pipeline
+        result.lora = image_result.lora
         result.input = image_result.input
         result.out_texture =  PILImageToTexture(upsampled_image.convert("RGBA"), out_texture, True) if upsampled_image else None
         result.out_width = upsampled_image.width

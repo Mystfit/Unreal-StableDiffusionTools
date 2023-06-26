@@ -208,6 +208,23 @@ void UStableDiffusionSubsystem::ReleaseModel()
 	}
 }
 
+TArray<FString> UStableDiffusionSubsystem::GetCompatibleSchedulers() const
+{
+	TArray<FString> Result;
+	if (GeneratorBridge) {
+		Result = GeneratorBridge->AvailableSchedulers();
+	}
+	return Result;
+}
+
+FString UStableDiffusionSubsystem::GetCurrentScheduler() const
+{
+	if (GeneratorBridge) {
+		return GeneratorBridge->GetScheduler();
+	}
+	return "";
+}
+
 TSharedPtr<FSceneViewport> UStableDiffusionSubsystem::GetCapturingViewport()
 {
 	// Find active viewport

@@ -381,7 +381,7 @@ UStableDiffusionLORAAsset* UStableDiffusionBlueprintLibrary::CreateLORAAsset(con
 	return NewLORAAsset;
 }
 
-UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::CreateImageResultAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionGenerationOptions& ImageInputs, FMinimalViewInfo View, bool Upsampled)
+UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::CreateImageResultAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionImageResult& ImageResult, FMinimalViewInfo View, bool Upsampled)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty() || !Texture)
 		return false;
@@ -401,7 +401,8 @@ UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::CreateImageR
 	// Create data asset
 	FString AssetName = "DA_" + Name;
 	UStableDiffusionImageResultAsset* NewModelAsset = NewObject<UStableDiffusionImageResultAsset>(Package, *AssetName, RF_Public | RF_Standalone);
-	NewModelAsset->ImageInputs = ImageInputs;
+	NewModelAsset->ImageOutput = ImageResult;
+	NewModelAsset->ImageInputs = ImageResult.Input.Options;
 	NewModelAsset->ImageOutput.Upsampled = Upsampled;
 	NewModelAsset->ImageOutput.OutTexture = NewTexture;
 	NewModelAsset->ImageOutput.View = View;

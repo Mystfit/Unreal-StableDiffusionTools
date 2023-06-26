@@ -73,6 +73,9 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
 	TArray<FString> AvailableSchedulers();
 
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    FString GetScheduler() const;
+
     UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Model")
     bool ModelInitialising = false;
 
