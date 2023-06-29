@@ -21,14 +21,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Pipeline", meta = (Multiline = true))
 	UStableDiffusionPipelineAsset* PipelineAsset;
 
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Pipeline", meta = (Multiline = true))
+	FString SchedulerOverride;
+
 	UPROPERTY(EditAnywhere, Category = "StableDiffusion|LORA", meta = (Multiline = true))
 	UStableDiffusionLORAAsset* LORAAsset;
-
-	//UPROPERTY(EditAnywhere, Category = "Model options")
-	//bool AllowNSFW = false;
-
-	//UPROPERTY(EditAnywhere, Category = "Model options")
-	//TEnumAsByte<EPaddingMode> PaddingMode = EPaddingMode::zeros;
 
 	/**
 	 * Public access to this section's internal data function

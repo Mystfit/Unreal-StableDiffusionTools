@@ -18,5 +18,7 @@ public:
 	void CreateSettingsSection();
 	bool HandleSettingsSaved();
 
+	void CreateDetailCustomizations();
+
 private:
 };

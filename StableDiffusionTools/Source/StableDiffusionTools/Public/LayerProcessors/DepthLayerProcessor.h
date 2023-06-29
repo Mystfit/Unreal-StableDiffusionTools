@@ -4,7 +4,7 @@
 #include "LayerProcessorBase.h"
 #include "DepthLayerProcessor.generated.h"
 
-UCLASS(meta = (DisplayName = "Layer options"))
+UCLASS(EditInlineNew, Blueprintable)
 class STABLEDIFFUSIONTOOLS_API UDepthLayerOptions : public ULayerProcessorOptions
 {
 	GENERATED_BODY()
@@ -17,7 +17,7 @@ public:
 };
 
 
-UCLASS(meta=(DisplayName="Depth layer"))
+UCLASS()
 class STABLEDIFFUSIONTOOLS_API UDepthLayerProcessor : public ULayerProcessorBase
 {
 	GENERATED_BODY()

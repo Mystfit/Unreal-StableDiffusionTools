@@ -6,6 +6,7 @@
 #include "Evaluation/MovieSceneEvaluationField.h"
 #include "EntitySystem/MovieSceneEntityBuilder.h"
 #include "EntitySystem/BuiltInComponentTypes.h"
+#include "StableDiffusionLayerProcessorSection.h"
 #include "MovieSceneTracksComponentTypes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StableDiffusionLayerProcessorOptionsTrack)
@@ -23,12 +24,12 @@ UStableDiffusionLayerProcessorOptionsTrack::UStableDiffusionLayerProcessorOption
 
 bool UStableDiffusionLayerProcessorOptionsTrack::SupportsType(TSubclassOf<UMovieSceneSection> SectionClass) const
 {
-	return SectionClass == UMovieSceneParameterSection::StaticClass();
+	return SectionClass == UStableDiffusionLayerProcessorSection::StaticClass();
 }
 
 UMovieSceneSection* UStableDiffusionLayerProcessorOptionsTrack::CreateNewSection()
 {
-	return NewObject<UMovieSceneParameterSection>(this, NAME_None, RF_Transactional);
+	return NewObject<UStableDiffusionLayerProcessorSection>(this, NAME_None, RF_Transactional);
 }
 
 

@@ -151,7 +151,7 @@ void UStableDiffusionSubsystem::SetModelDirty()
 
 bool UStableDiffusionSubsystem::IsModelDirty() const
 {
-	return bIsModelDirty;
+	return bIsModelDirty || GetModelStatus().ModelStatus != EModelStatus::Loaded;
 }
 
 void UStableDiffusionSubsystem::ConvertRawModel(UStableDiffusionModelAsset* InModelAsset, bool DeleteOriginal)
@@ -161,7 +161,7 @@ void UStableDiffusionSubsystem::ConvertRawModel(UStableDiffusionModelAsset* InMo
 	}
 }
 
-void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, const FStableDiffusionPipelineOptions& Pipeline, UStableDiffusionLORAAsset* LORAAsset, const TArray<FLayerData>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode)
+void UStableDiffusionSubsystem::InitModel(const FStableDiffusionModelOptions& Model, const FStableDiffusionPipelineOptions& Pipeline, UStableDiffusionLORAAsset* LORAAsset, const TArray<FLayerProcessorContext>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode)
 {
 	if (GeneratorBridge) {
 		// Unload any loaded models first
@@ -303,7 +303,7 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, EInpu
 #endif
 			// We need a minimum of one layer processor
 			if (!Input.InputLayers.Num()) {
-				FLayerData Layer;
+				FLayerProcessorContext Layer;
 				Layer.LayerType = ELayerImageType::image;
 				Layer.Processor = NewObject<UFinalColorLayerProcessor>();
 				Input.InputLayers.Add(Layer);
@@ -609,7 +609,7 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 
 		for (auto& Layer : Input.InputLayers) {
 			// Copy layer
-			FLayerData TargetLayer = Layer;
+			FLayerProcessorContext TargetLayer = Layer;
 			TargetLayer.Processor->BeginCaptureLayer(FrameBounds.Size(), SceneCapture.SceneCapture->GetCaptureComponent2D(), Layer.ProcessorOptions);
 			TargetLayer.Processor->CaptureLayer(SceneCapture.SceneCapture->GetCaptureComponent2D(), true, Layer.ProcessorOptions);
 			TargetLayer.Processor->EndCaptureLayer(SceneCapture.SceneCapture->GetCaptureComponent2D());
@@ -626,7 +626,7 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 	GetViewportScreenShot(UStableDiffusionSubsystem::GetCapturingViewport().Get(), Pixels, FrameBounds);
 
 	// Find a final colour layer as a destination for our captured frame
-	auto FinalColorProcessor = Input.ProcessedLayers.FindByPredicate([](const FLayerData& Layer) { return Layer.Processor->IsA<UFinalColorLayerProcessor>(); });
+	auto FinalColorProcessor = Input.ProcessedLayers.FindByPredicate([](const FLayerProcessorContext& Layer) { return Layer.Processor->IsA<UFinalColorLayerProcessor>(); });
 	if (FinalColorProcessor) {
 		FinalColorProcessor->LayerPixels = MoveTemp(Pixels);
 	}
@@ -709,7 +709,7 @@ void UStableDiffusionSubsystem::CaptureFromTextureSource(FStableDiffusionInput I
 	}
 
 	// Find a final colour layer as a destination for our texture
-	auto FinalColorProcessor = Input.ProcessedLayers.FindByPredicate([](const FLayerData& Layer) { return Layer.Processor->IsA<UFinalColorLayerProcessor>(); });
+	auto FinalColorProcessor = Input.ProcessedLayers.FindByPredicate([](const FLayerProcessorContext& Layer) { return Layer.Processor->IsA<UFinalColorLayerProcessor>(); });
 	if (FinalColorProcessor) {
 		if (auto Tex = Input.OverrideTextureInput) {
 			FinalColorProcessor->LayerPixels = UStableDiffusionBlueprintLibrary::ReadPixels(Input.OverrideTextureInput);

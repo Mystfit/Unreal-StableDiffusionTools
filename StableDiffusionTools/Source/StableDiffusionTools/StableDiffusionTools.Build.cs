@@ -31,9 +31,10 @@ public class StableDiffusionTools : ModuleRules
                 "GeometryFramework",
                 "GeometryScriptingCore",
                 "DynamicMesh"
+
 				// ... add other public dependencies that you statically link with here ...
 			}
-			);
+            );
 			
 		
 		PrivateDependencyModuleNames.AddRange(

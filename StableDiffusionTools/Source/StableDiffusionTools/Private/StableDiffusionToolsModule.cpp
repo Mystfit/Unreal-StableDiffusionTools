@@ -38,13 +38,21 @@ void FStableDiffusionToolsModule::CreateSettingsSection() {
 			SettingsSection->OnModified().BindRaw(this, &FStableDiffusionToolsModule::HandleSettingsSaved);
 		}
 
+		// Delayed property registration so that we can see all of our python bridges
 		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		PropertyModule.RegisterCustomClassLayout(UStableDiffusionToolsSettings::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FStableDiffusionToolsSettingsDetails::MakeInstance));
+		PropertyModule.NotifyCustomizationModuleChanged();
 	}
 }
 
+void FStableDiffusionToolsModule::CreateDetailCustomizations()
+{
 
-bool FStableDiffusionToolsModule::HandleSettingsSaved() {
+}
+
+
+bool FStableDiffusionToolsModule::HandleSettingsSaved() 
+{
 	UStableDiffusionToolsSettings* Settings = GetMutableDefault<UStableDiffusionToolsSettings>();
 	if (Settings->GetGeneratorType()) {
 

@@ -4,7 +4,7 @@
 #include "LayerProcessorBase.h"
 #include "FinalColorLayerProcessor.generated.h"
 
-UCLASS(meta=(DisplayName = "Final colour layer"))
+UCLASS()
 class STABLEDIFFUSIONTOOLS_API UFinalColorLayerProcessor : public ULayerProcessorBase
 {
 	GENERATED_BODY()

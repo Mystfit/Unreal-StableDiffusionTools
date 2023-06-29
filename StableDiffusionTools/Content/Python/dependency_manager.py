@@ -112,19 +112,21 @@ class PyDependencyManager(unreal.DependencyManager):
         status.version = package_version
         module_status = importlib.util.find_spec(module_name)
         status.status = unreal.DependencyState.INSTALLED if module_status else unreal.DependencyState.NOT_INSTALLED
-        print(f"Module {dependency.module} state for dependency {dependency.name}: {status.status}")
         return status
 
     @unreal.ufunction(override=True)
     def all_dependencies_installed(self):
         dependencies = self.get_dependency_names()
-        dependencies_installed = True
+        missing_deps = []
         for dependency in dependencies:
             status = self.get_dependency_status(dependency)
             if status.status != unreal.DependencyState.INSTALLED:
-                dependencies_installed = False
-        #print(f"All dependencies installed? {dependencies_installed}")
-        return dependencies_installed
+                missing_deps.append(dependency)
+        if len(missing_deps):
+            print(f"Missing dependencies: {missing_deps.join(', ')}")
+            return False
+
+        return True
 
     def clear_all_dependencies(self, env_dir, reset_system_deps):
         # Remove external site-packages dir

@@ -158,7 +158,7 @@ public:
 	int32 Capabilities = (int32)(EPipelineCapabilities::STRENGTH);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline", meta = (Bitmask, BitmaskEnum = EPipelineCapabilities))
-	TArray<FLayerData> RequiredLayers;
+	TArray<FLayerProcessorContext> RequiredLayers;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline", meta = (Bitmask, BitmaskEnum = EPipelineCapabilities))
 	TArray<FString> RequiredLayerKeys;
@@ -305,10 +305,10 @@ public:
 	UTexture2D* TextureOutput = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
-	TArray<FLayerData> InputLayers;
+	TArray<FLayerProcessorContext> InputLayers;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
-	TArray<FLayerData> ProcessedLayers;
+	TArray<FLayerProcessorContext> ProcessedLayers;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
 	int32 PreviewIterationRate = 25;

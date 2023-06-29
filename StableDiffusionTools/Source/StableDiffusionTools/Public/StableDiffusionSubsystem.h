@@ -189,7 +189,7 @@ public:
 	void ConvertRawModel(UStableDiffusionModelAsset* InModelAsset, bool DeleteOriginal = true);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
-	void InitModel(const FStableDiffusionModelOptions& Model, const FStableDiffusionPipelineOptions& Pipeline, UStableDiffusionLORAAsset* LORAAsset, const TArray<FLayerData>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode);
+	void InitModel(const FStableDiffusionModelOptions& Model, const FStableDiffusionPipelineOptions& Pipeline, UStableDiffusionLORAAsset* LORAAsset, const TArray<FLayerProcessorContext>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	void ReleaseModel();

@@ -55,7 +55,7 @@ UStableDiffusionLayerProcessorTrack::UStableDiffusionLayerProcessorTrack(const F
 
 UMovieSceneSection* UStableDiffusionLayerProcessorTrack::CreateNewSection()
 {
-	UMovieSceneSection* NewSection = NewObject<UMovieSceneParameterSection>(this, NAME_None, RF_Transactional);
+	UMovieSceneSection* NewSection = NewObject<UStableDiffusionLayerProcessorSection>(this, NAME_None, RF_Transactional);
 	NewSection->SetRange(TRange<FFrameNumber>::All());
 	NewSection->SetBlendType(EMovieSceneBlendType::Absolute);
 	return NewSection;
@@ -75,7 +75,7 @@ void UStableDiffusionLayerProcessorTrack::ExtendEntityImpl(UMovieSceneEntitySyst
 	//FMovieSceneTracksComponentTypes* TracksComponents = FMovieSceneTracksComponentTypes::Get();
 
 	// Parameters are always absolute blends for the time being
-	//TComponentTypeID<FLayerData> LayerDataTypeID;
+	//TComponentTypeID<FLayerProcessorContext> LayerDataTypeID;
 	FLayerProcessorComponentTypes* LayerProcessorComponents = FLayerProcessorComponentTypes::Get();
 
 	/*
@@ -115,7 +115,7 @@ bool UStableDiffusionLayerProcessorTrack::PopulateEvaluationFieldImpl(const TRan
 
 bool UStableDiffusionLayerProcessorTrack::SupportsType(TSubclassOf<UMovieSceneSection> SectionClass) const
 {
-	return SectionClass == UMovieSceneParameterSection::StaticClass();
+	return SectionClass == UStableDiffusionLayerProcessorSection::StaticClass();
 }
 
 #if WITH_EDITORONLY_DATA

@@ -4,7 +4,7 @@
 #include "LayerProcessorBase.h"
 #include "NormalLayerProcessor.generated.h"
 
-UCLASS(meta = (DisplayName = "Normals layer"))
+UCLASS()
 class STABLEDIFFUSIONTOOLS_API UNormalLayerProcessor: public ULayerProcessorBase
 {
 	GENERATED_BODY()

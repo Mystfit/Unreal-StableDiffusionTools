@@ -31,18 +31,23 @@ private:
 };
 
 
-UCLASS(Blueprintable, meta = (DisplayName = "Layer options"))
+UCLASS(EditInlineNew, BlueprintType)
 class STABLEDIFFUSIONTOOLS_API UStencilLayerOptions : public ULayerProcessorOptions
 {
 	GENERATED_BODY()
 public:
-
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Layer options")
+		bool bOverrideActorLayerName = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Category = "Layer options", EditCondition = "bOverrideActorLayerName == false", EditConditionHides))
 		FActorLayer ActorLayer;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Category = "Layer options", EditCondition = "bOverrideActorLayerName == true", EditConditionHides))
+		FName ActorLayerNameOverride;
 };
 
 
-UCLASS(meta = (DisplayName = "Actor stencil layer"))
+UCLASS()
 class STABLEDIFFUSIONTOOLS_API UStencilLayerProcessor: public ULayerProcessorBase
 {
 	GENERATED_BODY()

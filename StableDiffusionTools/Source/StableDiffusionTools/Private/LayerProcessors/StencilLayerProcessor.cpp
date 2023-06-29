@@ -28,23 +28,23 @@ ULayerProcessorOptions* UStencilLayerProcessor::AllocateLayerOptions_Implementat
 
 void UStencilLayerProcessor::BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource, UObject* LayerOptions)
 {
-	if (!CaptureSource)
-		return;
-
-	LastBloomState = CaptureSource->ShowFlags.Bloom;
-	CaptureSource->ShowFlags.SetBloom(false);
-
+	// Set stencil mask properties on layer actors
 	FActorLayer ActorLayer;
 	if (auto ActorOptions = Cast<UStencilLayerOptions>(LayerOptions)) {
-		ActorLayer = ActorOptions->ActorLayer;
+		ActorLayer = (ActorOptions->ActorLayerNameOverride.IsNone()) ? ActorOptions->ActorLayer : FActorLayer{ ActorOptions->ActorLayerNameOverride };
+		ActorLayerState.CaptureActorLayer(ActorLayer);
 	}
 
-	ActorLayerState.CaptureActorLayer(ActorLayer);
-
-	if (!StencilMatInst) {
+	// Allocate materials
+	if (!IsValid(StencilMatInst) && PostMaterial) {
 		StencilMatInst = UMaterialInstanceDynamic::Create(PostMaterial, this);
 	}
 	ActivePostMaterialInstance = StencilMatInst;
+
+	if (CaptureSource) {
+		LastBloomState = CaptureSource->ShowFlags.Bloom;
+		CaptureSource->ShowFlags.SetBloom(false);
+	}
 
 	Super::BeginCaptureLayer_Implementation(Size, CaptureSource, LayerOptions);
 }
@@ -56,14 +56,12 @@ UTextureRenderTarget2D* UStencilLayerProcessor::CaptureLayer(USceneCaptureCompon
 
 void UStencilLayerProcessor::EndCaptureLayer_Implementation(USceneCaptureComponent2D* CaptureSource)
 {
-	if (!CaptureSource)
-		return;
+	if (CaptureSource)
+		CaptureSource->ShowFlags.SetBloom(LastBloomState);
+
+	ActorLayerState.RestoreActorLayer();
 
 	Super::EndCaptureLayer_Implementation(CaptureSource);
-
-	CaptureSource->ShowFlags.SetBloom(LastBloomState);
-	
-	ActorLayerState.RestoreActorLayer();
 }
 
 void FActorLayerStencilState::CaptureActorLayer(const FActorLayer& Layer)
@@ -122,12 +120,16 @@ void FActorLayerStencilState::CaptureActorLayer(const FActorLayer& Layer)
 					UPrimitiveComponent* PrimitiveComponent = CastChecked<UPrimitiveComponent>(Component);
 					// We want to render all objects not on the layer to stencil too so that foreground objects mask.
 					if (IsValid(PrimitiveComponent)) {
+						PrimitiveComponent->SetVisibility(true);
 						PrimitiveComponent->SetCustomDepthStencilValue(bInLayer ? 1 : 0);
 						PrimitiveComponent->SetCustomDepthStencilWriteMask(ERendererStencilMask::ERSM_Default);
 						PrimitiveComponent->SetRenderCustomDepth(true);
 					}
 				}
 			}
+
+			// Immediately commit the stencil changes to the render thread.
+			FlushRenderingCommands();
 		}
 	}
 }
@@ -155,4 +157,7 @@ void FActorLayerStencilState::RestoreActorLayer()
 			KVP.Key->SetRenderCustomDepth(KVP.Value.bRenderCustomDepth);
 		}
 	}
+
+	// Immediately commit the stencil changes to the render thread.
+	FlushRenderingCommands();
 }

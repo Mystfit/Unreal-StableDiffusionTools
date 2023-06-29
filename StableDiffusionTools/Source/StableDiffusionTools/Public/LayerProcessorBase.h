@@ -6,6 +6,7 @@
 #include "Engine/DataAsset.h"
 #include "Engine/SceneCapture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "IDetailCustomization.h"
 #include "LayerProcessorBase.generated.h"
 
 
@@ -102,29 +103,34 @@ protected:
 }; 
 
 
-UCLASS(Blueprintable, BlueprintType, meta = (DisplayName = "Layer options"))
+UCLASS(Blueprintable, Abstract, EditInlineNew, CollapseCategories) //CollapseCategories , hidecategories = UObject
 class STABLEDIFFUSIONTOOLS_API ULayerProcessorOptions : public UObject
 {
 	GENERATED_BODY()
+public:
 };
 
-
 USTRUCT(BlueprintType)
-struct STABLEDIFFUSIONTOOLS_API FLayerData
+struct STABLEDIFFUSIONTOOLS_API FLayerProcessorContext
 {
-	GENERATED_BODY()
+	GENERATED_USTRUCT_BODY()
 public:
+	//FLayerProcessorContext() {}
+	//FLayerProcessorContext(const FLayerProcessorContext& Source);
+	//FLayerProcessorContext(FLayerProcessorContext&& Source);
+
+
 	UPROPERTY(BlueprintReadWrite, Transient)
 		TArray<FColor> LayerPixels;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta=(UsesHierarchy=true, Category = "Layers"))
-		ULayerProcessorBase* Processor;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta=(Category = "Layers"))
+		TObjectPtr<ULayerProcessorBase> Processor = nullptr;
+
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Instanced, meta = (Category = "Layers", EditCondition = "Processor != nullptr", EditConditionHides))
+		TObjectPtr<ULayerProcessorOptions> ProcessorOptions = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (UsesHierarchy = true, Category = "Layers"))
-		ULayerProcessorOptions* ProcessorOptions;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (UsesHierarchy = true, Category = "Layers"))
-		TEnumAsByte<ELayerImageType> LayerType;
+		TEnumAsByte<ELayerImageType> LayerType = unknown;
 
 	/*
 	* Identifying role key for this layer that will be used to assign it to the correct pipe keyword argument
@@ -132,3 +138,26 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Category = "Layers", EditCondition = "LayerType == ELayerImageType::custom", EditConditionHides))
 		FString Role = "image";
 };
+
+
+//class ULayerProcessorOptionsDetails : public IPropertyTypeCustomization
+//{
+//public:
+//	/** Makes a new instance of this detail layout class for a specific detail view requesting it */
+//	static TSharedRef<IPropertyTypeCustomization> MakeInstance();
+//
+//	/** IDetailCustomization interface */
+//	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
+//
+//	/**
+//	 * Called when the children of the property should be customized or extra rows added
+//	 *
+//	 * @param PropertyHandle			Handle to the property being customized
+//	 * @param StructBuilder				A builder for adding children
+//	 * @param StructCustomizationUtils	Utilities for customization
+//	 */
+//	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
+//
+//private:
+//	TSharedPtr<IPropertyHandle> StructPropertyHandle;
+//};

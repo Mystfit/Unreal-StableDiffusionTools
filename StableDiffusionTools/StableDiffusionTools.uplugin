@@ -28,7 +28,7 @@
 		},
 		{
 			"Name": "VirtualProductionUtilities",
-			"Enabled":  true
+			"Enabled": true
 		},
 		{
 			"Name": "PythonScriptPlugin",

@@ -160,10 +160,10 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			auto FullFrameTime = EffectiveFrame * OriginalSeqFramerateRatio * 1000.0f;
 
 			// Build layer processor options
-			TArray<FLayerData> Layers;
+			TArray<FLayerProcessorContext> Layers;
 			for (auto Track : LayerProcessorTracks) {
 				for (auto Section : Track->Sections) {
-					if (auto LayerProcessorSection = Cast<UMovieSceneParameterSection>(Section)) {
+					if (auto LayerProcessorSection = Cast<UStableDiffusionLayerProcessorSection>(Section)) {
 						if (LayerProcessorSection->IsActive()) {
 							
 							// Get frame range of the section
@@ -176,8 +176,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 								
 								// Evaluate options for the layer processor
 								if (auto LayerProcessor = Track->LayerProcessor) {
-									auto LayerOptions = Track->LayerProcessor->AllocateLayerOptions();
-
+									ULayerProcessorOptions* LayerOptions = (LayerProcessorSection->LayerProcessorOptionOverride) ? LayerProcessorSection->LayerProcessorOptionOverride : Track->LayerProcessor->AllocateLayerOptions();
 									if (IsValid(LayerOptions)) {
 										// Iterate over all properties in the processor options class
 										for (TFieldIterator<FProperty> PropertyIt(LayerOptions->GetClass()); PropertyIt; ++PropertyIt)
@@ -201,7 +200,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 									}
 
 									// Assign the layer processor and options to the input
-									FLayerData Layer;
+									FLayerProcessorContext Layer;
 									Layer.LayerType = Track->LayerType;
 									Layer.Role = Track->Role;
 									Layer.Processor = LayerProcessor;
@@ -239,16 +238,16 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			for (auto& Layer : Input.InputLayers) {
 				if (Layer.Processor) {			
 					//Copy the layer to avoid modifying the original layer array
-					FLayerData TargetLayer = Layer;
+					//FLayerProcessorContext TargetLayer = Layer;
+					Layer.Processor->BeginCaptureLayer(FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY), nullptr, Layer.ProcessorOptions);
 					
 					// Prepare rendering the layer
 					TSharedPtr<FSceneViewFamilyContext> ViewFamily;
 					FSceneView* View = BeginSDLayerPass(InOutSampleState, ViewFamily);
-					TargetLayer.Processor->BeginCaptureLayer(FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY), nullptr, TargetLayer.ProcessorOptions);
 
 					// Set up post processing material from layer processor
-					View->FinalPostProcessSettings.AddBlendable(TargetLayer.Processor->GetActivePostMaterial(), 1.0f);
-					IBlendableInterface* BlendableInterface = Cast<IBlendableInterface>(TargetLayer.Processor->GetActivePostMaterial());
+					View->FinalPostProcessSettings.AddBlendable(Layer.Processor->GetActivePostMaterial(), 1.0f);
+					IBlendableInterface* BlendableInterface = Cast<IBlendableInterface>(Layer.Processor->GetActivePostMaterial());
 					if (BlendableInterface) {
 						ViewFamily->EngineShowFlags.SetPostProcessMaterial(true);
 						BlendableInterface->OverrideBlendableSettings(*View, 1.f);
@@ -258,13 +257,14 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 
 					// Render the layer
 					GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.Get());
-					RenderTarget->ReadPixels(TargetLayer.LayerPixels, FReadSurfaceDataFlags());
+					RenderTarget->ReadPixels(Layer.LayerPixels, FReadSurfaceDataFlags());
+					FlushRenderingCommands();
 
 					// Cleanup before move
-					View->FinalPostProcessSettings.RemoveBlendable(TargetLayer.Processor->PostMaterial);
-					TargetLayer.Processor->EndCaptureLayer();
+					View->FinalPostProcessSettings.RemoveBlendable(Layer.Processor->PostMaterial);
+					Layer.Processor->EndCaptureLayer();
 
-					Input.ProcessedLayers.Add(MoveTemp(TargetLayer));
+					Input.ProcessedLayers.Add(MoveTemp(Layer));
 				}
 			}
 
@@ -274,9 +274,13 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 						auto OptionSection = Cast<UStableDiffusionOptionsSection>(Section);
 						if (OptionSection) {
 							//Reload model if it doesn't match the current options track
-							if (OptionSection->ModelAsset) {
-								if (SDSubsystem->ModelOptions != OptionSection->ModelAsset->Options || SDSubsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {
-									SDSubsystem->InitModel(OptionSection->ModelAsset->Options, OptionSection->PipelineAsset->Options, OptionSection->LORAAsset, Input.ProcessedLayers, false, AllowNSFW, EPaddingMode::zeros);
+							if (OptionSection->ModelAsset && OptionSection->PipelineAsset) {
+								auto PipelineOptions = OptionSection->PipelineAsset->Options;
+								if (!OptionSection->SchedulerOverride.IsEmpty()) {
+									PipelineOptions.Scheduler = OptionSection->SchedulerOverride;
+								}
+								if (SDSubsystem->ModelOptions != OptionSection->ModelAsset->Options || SDSubsystem->IsModelDirty()) {
+									SDSubsystem->InitModel(OptionSection->ModelAsset->Options, PipelineOptions, OptionSection->LORAAsset, Input.ProcessedLayers, false, AllowNSFW, EPaddingMode::zeros);
 								}
 							}
 							if (SDSubsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {
@@ -291,21 +295,20 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 				}
 			}
 			
-			// Generate new SD frame immediately
-			UTexture2D* OutTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
-			auto SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(Input, OutTexture, nullptr);
-			
+			// Generate new stable diffusion frame
+			FStableDiffusionImageResult SDResult;
 			TUniquePtr<FImagePixelData> SDImageDataBuffer16bit;
-			if (!IsValid(SDResult.OutTexture)) {
-				UE_LOG(LogTemp, Error, TEXT("Stable diffusion generator failed to return any pixel data on frame %d. Please add a model asset to the Options track or initialize the StableDiffusionSubsystem model."), EffectiveFrame.Value);
-						
-				// Insert blank frame
-				TArray<FColor> EmptyPixels;
-				EmptyPixels.InsertUninitialized(0, Input.Options.OutSizeX * Input.Options.OutSizeY);
-				TUniquePtr<TImagePixelData<FColor>> SDImageDataBuffer8bit = MakeUnique<TImagePixelData<FColor>>(FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY), TArray64<FColor>(MoveTemp(EmptyPixels)));
-				SDImageDataBuffer16bit = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(SDImageDataBuffer8bit.Get(), 16);
+			UTexture2D* OutTexture = nullptr;
+
+			// Make sure model is loaded before generating
+			if (SDSubsystem->GetModelStatus().ModelStatus == EModelStatus::Loaded) {
+				OutTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
+				SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(Input, OutTexture, nullptr);
 			}
-			else {
+
+			// Convert generated image to 16 bit for the exr pipeline
+			// TODO: Check bit depth of movie pipeline and convert to that instead
+			if(IsValid(SDResult.OutTexture)){
 				UStableDiffusionBlueprintLibrary::UpdateTextureSync(OutTexture);
 				TArray<FColor> Pixels = UStableDiffusionBlueprintLibrary::ReadPixels(OutTexture);
 
@@ -314,7 +317,17 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 				SDImageDataBuffer8bit = MakeUnique<TImagePixelData<FColor>>(FIntPoint(SDResult.OutWidth, SDResult.OutHeight), TArray64<FColor>(MoveTemp(Pixels)));
 				SDImageDataBuffer16bit = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(SDImageDataBuffer8bit.Get(), 16);
 			}
+			else {
+				UE_LOG(LogTemp, Error, TEXT("Stable diffusion generator failed to return any pixel data on frame %d. Please add a model asset to the Options track or initialize the StableDiffusionSubsystem model."), EffectiveFrame.Value);
 
+				// Insert blank frame
+				TArray<FColor> EmptyPixels;
+				EmptyPixels.InsertUninitialized(0, Input.Options.OutSizeX * Input.Options.OutSizeY);
+				TUniquePtr<TImagePixelData<FColor>> SDImageDataBuffer8bit = MakeUnique<TImagePixelData<FColor>>(FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY), TArray64<FColor>(MoveTemp(EmptyPixels)));
+				SDImageDataBuffer16bit = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(SDImageDataBuffer8bit.Get(), 16);
+			}
+
+			// Render the result to the render target
 			ENQUEUE_RENDER_COMMAND(UpdateMoviePipelineRenderTarget)([this, Buffer=MoveTemp(SDImageDataBuffer16bit), RenderTarget](FRHICommandListImmediate& RHICmdList) {
 				int64 OutSize;
 				const void* OutRawData = nullptr;

@@ -7,6 +7,7 @@
 #include "StableDiffusionLayerProcessorOptionsTrack.h"
 #include "EntitySystem/IMovieSceneEntityProvider.h"
 #include "LayerProcessorBase.h"
+#include "StableDiffusionLayerProcessorSection.h"
 #include "StableDiffusionLayerProcessorTrack.generated.h"
 
 
@@ -29,7 +30,7 @@ namespace UE
 		public:
 			static FLayerProcessorComponentTypes* Get();
 
-			TComponentTypeID<FLayerData> LayerData;
+			TComponentTypeID<FLayerProcessorContext> LayerData;
 
 		private:
 			FLayerProcessorComponentTypes();
