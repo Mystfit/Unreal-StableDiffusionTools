@@ -120,7 +120,6 @@ void FActorLayerStencilState::CaptureActorLayer(const FActorLayer& Layer)
 					UPrimitiveComponent* PrimitiveComponent = CastChecked<UPrimitiveComponent>(Component);
 					// We want to render all objects not on the layer to stencil too so that foreground objects mask.
 					if (IsValid(PrimitiveComponent)) {
-						PrimitiveComponent->SetVisibility(true);
 						PrimitiveComponent->SetCustomDepthStencilValue(bInLayer ? 1 : 0);
 						PrimitiveComponent->SetCustomDepthStencilWriteMask(ERendererStencilMask::ERSM_Default);
 						PrimitiveComponent->SetRenderCustomDepth(true);
