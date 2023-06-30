@@ -176,7 +176,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 								
 								// Evaluate options for the layer processor
 								if (auto LayerProcessor = Track->LayerProcessor) {
-									ULayerProcessorOptions* LayerOptions = (LayerProcessorSection->LayerProcessorOptionOverride) ? LayerProcessorSection->LayerProcessorOptionOverride : Track->LayerProcessor->AllocateLayerOptions();
+									ULayerProcessorOptions* LayerOptions =  (LayerProcessorSection->LayerProcessorOptionOverride) ? LayerProcessorSection->LayerProcessorOptionOverride : Track->LayerProcessor->AllocateLayerOptions();
 									if (IsValid(LayerOptions)) {
 										// Iterate over all properties in the processor options class
 										for (TFieldIterator<FProperty> PropertyIt(LayerOptions->GetClass()); PropertyIt; ++PropertyIt)
@@ -238,16 +238,20 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			for (auto& Layer : Input.InputLayers) {
 				if (Layer.Processor) {			
 					//Copy the layer to avoid modifying the original layer array
-					//FLayerProcessorContext TargetLayer = Layer;
-					Layer.Processor->BeginCaptureLayer(FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY), nullptr, Layer.ProcessorOptions);
-					
+					FLayerProcessorContext TargetLayer;
+					TargetLayer.LayerType = Layer.LayerType;
+					TargetLayer.Role = Layer.Role;
+					TargetLayer.Processor = Layer.Processor;
+					TargetLayer.ProcessorOptions = DuplicateObject(Layer.ProcessorOptions, GetPipeline());
+
 					// Prepare rendering the layer
 					TSharedPtr<FSceneViewFamilyContext> ViewFamily;
 					FSceneView* View = BeginSDLayerPass(InOutSampleState, ViewFamily);
+					TargetLayer.Processor->BeginCaptureLayer(FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY), nullptr, TargetLayer.ProcessorOptions);
 
 					// Set up post processing material from layer processor
-					View->FinalPostProcessSettings.AddBlendable(Layer.Processor->GetActivePostMaterial(), 1.0f);
-					IBlendableInterface* BlendableInterface = Cast<IBlendableInterface>(Layer.Processor->GetActivePostMaterial());
+					View->FinalPostProcessSettings.AddBlendable(TargetLayer.Processor->GetActivePostMaterial(), 1.0f);
+					IBlendableInterface* BlendableInterface = Cast<IBlendableInterface>(TargetLayer.Processor->GetActivePostMaterial());
 					if (BlendableInterface) {
 						ViewFamily->EngineShowFlags.SetPostProcessMaterial(true);
 						BlendableInterface->OverrideBlendableSettings(*View, 1.f);
@@ -257,14 +261,17 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 
 					// Render the layer
 					GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.Get());
-					RenderTarget->ReadPixels(Layer.LayerPixels, FReadSurfaceDataFlags());
 					FlushRenderingCommands();
 
-					// Cleanup before move
-					View->FinalPostProcessSettings.RemoveBlendable(Layer.Processor->PostMaterial);
-					Layer.Processor->EndCaptureLayer();
+					if(!RenderTarget->ReadPixels(TargetLayer.LayerPixels, FReadSurfaceDataFlags())){
+						UE_LOG(LogTemp, Error, TEXT("Failed to read pixels from render target"));
+					}
 
-					Input.ProcessedLayers.Add(MoveTemp(Layer));
+					// Cleanup before move
+					View->FinalPostProcessSettings.RemoveBlendable(TargetLayer.Processor->PostMaterial);
+					TargetLayer.Processor->EndCaptureLayer();
+
+					Input.ProcessedLayers.Add(MoveTemp(TargetLayer));
 				}
 			}
 
