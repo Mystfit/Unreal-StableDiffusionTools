@@ -128,6 +128,9 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 		LayerPassIdentifier.Name = PassIdentifier.Name;
 		LayerPassIdentifier.CameraName = GetCameraName(0);
 
+		// Rebuild world
+		//GetPipeline()->GetWorld()->UpdateWorldComponents(true, false);
+
 		// Setup render targets and drawing surfaces
 		FStableDiffusionDeferredPassRenderStatePayload Payload;
 		Payload.CameraIndex = 0;
@@ -234,6 +237,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 				}
 			}
 
+			bool FirstView = true;
 			// Start a new capture pass for each layer
 			for (auto& Layer : Input.InputLayers) {
 				if (Layer.Processor) {			
@@ -246,8 +250,10 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 
 					// Prepare rendering the layer
 					TSharedPtr<FSceneViewFamilyContext> ViewFamily;
+					TargetLayer.Processor->BeginCaptureLayer(GetPipeline()->GetWorld(), FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY), nullptr, TargetLayer.ProcessorOptions);
+					GetPipeline()->GetWorld()->SendAllEndOfFrameUpdates();
 					FSceneView* View = BeginSDLayerPass(InOutSampleState, ViewFamily);
-					TargetLayer.Processor->BeginCaptureLayer(FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY), nullptr, TargetLayer.ProcessorOptions);
+					FirstView = false;
 
 					// Set up post processing material from layer processor
 					View->FinalPostProcessSettings.AddBlendable(TargetLayer.Processor->GetActivePostMaterial(), 1.0f);
@@ -269,7 +275,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 
 					// Cleanup before move
 					View->FinalPostProcessSettings.RemoveBlendable(TargetLayer.Processor->PostMaterial);
-					TargetLayer.Processor->EndCaptureLayer();
+					TargetLayer.Processor->EndCaptureLayer(GetPipeline()->GetWorld());
 
 					Input.ProcessedLayers.Add(MoveTemp(TargetLayer));
 				}
@@ -365,7 +371,8 @@ FSceneView* UStableDiffusionMoviePipeline::BeginSDLayerPass(FMoviePipelineRender
 	RenderState.SceneViewIndex = 0;
 	ViewFamily = CalculateViewFamily(InOutSampleState, &RenderState);
 
-	ViewFamily->bIsMultipleViewFamily = true;
+	//ViewFamily->bResolveScene = true;
+	//ViewFamily->bIsMultipleViewFamily = true;
 	ViewFamily->EngineShowFlags.PostProcessing = 1;
 	ViewFamily->EngineShowFlags.SetPostProcessMaterial(true);
 	ViewFamily->EngineShowFlags.SetPostProcessing(true);

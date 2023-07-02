@@ -330,6 +330,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             kwargs["revision"] = new_model_options.revision
         if new_pipeline_options.custom_pipeline:
             kwargs["custom_pipeline"] = new_pipeline_options.new_pipeline_options
+        if allow_nsfw:
+            kwargs["safety_checker"] = None
         
         # Padding mode injection
         patch_conv(padding_mode=padding_mode)
@@ -373,16 +375,16 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.pipe.vae.enable_tiling()
 
         # NSFW filter
-        if allow_nsfw:
-            # Backup original NSFW filter
-            if not hasattr(self, "orig_NSFW_filter"):
-                self.orig_NSFW_filter = self.pipe.safety_checker
+        #if allow_nsfw:
+        #    # Backup original NSFW filter
+        #    if not hasattr(self, "orig_NSFW_filter"):
+        #        self.orig_NSFW_filter = self.pipe.safety_checker
 
-            # Dummy passthrough filter
-            self.pipe.safety_checker = lambda images, **kwargs: (images, False)
-        else:
-            if hasattr(self, "orig_NSFW_filter"):
-                self.pipe.safety_checker = self.orig_NSFW_filter
+        #    # Dummy passthrough filter
+        #    self.pipe.safety_checker = lambda images, **kwargs: (images, False)
+        #else:
+        #    if hasattr(self, "orig_NSFW_filter"):
+        #        self.pipe.safety_checker = self.orig_NSFW_filter
 
         # LORA validation and downloads
         lora_id = None

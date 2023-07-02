@@ -13,7 +13,7 @@ ULayerProcessorOptions* UDepthLayerProcessor::AllocateLayerOptions_Implementatio
 	return NewObject<UDepthLayerOptions>();
 }
 
-void UDepthLayerProcessor::BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource, UObject* LayerOptions) {
+void UDepthLayerProcessor::BeginCaptureLayer_Implementation(UWorld* World, FIntPoint Size, USceneCaptureComponent2D* CaptureSource, UObject* LayerOptions) {
 	if (!DepthMatInst) {
 		DepthMatInst = UMaterialInstanceDynamic::Create(PostMaterial, this);
 	}
@@ -24,7 +24,7 @@ void UDepthLayerProcessor::BeginCaptureLayer_Implementation(FIntPoint Size, USce
 	}
 
 	ActivePostMaterialInstance = DepthMatInst;
-	Super::BeginCaptureLayer_Implementation(Size, CaptureSource, LayerOptions);
+	Super::BeginCaptureLayer_Implementation(World, Size, CaptureSource, LayerOptions);
 }
 
 
@@ -41,8 +41,8 @@ UTextureRenderTarget2D* UDepthLayerProcessor::CaptureLayer(USceneCaptureComponen
 	return RenderTarget;
 }
 
-void UDepthLayerProcessor::EndCaptureLayer_Implementation(USceneCaptureComponent2D* CaptureSource) {
-	Super::EndCaptureLayer_Implementation(CaptureSource);
+void UDepthLayerProcessor::EndCaptureLayer_Implementation(UWorld* World, USceneCaptureComponent2D* CaptureSource) {
+	Super::EndCaptureLayer_Implementation(World, CaptureSource);
 }
 
 

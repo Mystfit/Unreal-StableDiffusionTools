@@ -74,7 +74,7 @@ public:
 	EPaddingMode PaddingMode;
 
 	/**
-	* Padding mode for generated images (tileable textures etc).
+	* Disable NSFW filter
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Outputs")
 	bool AllowNSFW;

@@ -2,13 +2,14 @@
 #include "Components/SceneCaptureComponent2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "EngineUtils.h"
+#include "ComponentRecreateRenderStateContext.h"
 #include "Materials/MaterialInstanceDynamic.h"
 
 FString UStencilLayerProcessor::StencilLayerMaterialAsset = TEXT("/StableDiffusionTools/Materials/SD_StencilMask.SD_StencilMask");
 
-FScopedActorLayerStencil::FScopedActorLayerStencil(const FActorLayer& Layer, bool RestoreOnDelete)
+FScopedActorLayerStencil::FScopedActorLayerStencil(UWorld* World, const FActorLayer& Layer, bool RestoreOnDelete)
 {
-	State.CaptureActorLayer(Layer);
+	State.CaptureActorLayer(World, Layer);
 }
 
 FScopedActorLayerStencil::FScopedActorLayerStencil(const FScopedActorLayerStencil& ref) {
@@ -26,13 +27,15 @@ ULayerProcessorOptions* UStencilLayerProcessor::AllocateLayerOptions_Implementat
 	return NewObject<UStencilLayerOptions>();
 }
 
-void UStencilLayerProcessor::BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource, UObject* LayerOptions)
+void UStencilLayerProcessor::BeginCaptureLayer_Implementation(UWorld* World, FIntPoint Size, USceneCaptureComponent2D* CaptureSource, UObject* LayerOptions)
 {
+	check(World);
+
 	// Set stencil mask properties on layer actors
 	FActorLayer ActorLayer;
 	if (auto ActorOptions = Cast<UStencilLayerOptions>(LayerOptions)) {
 		ActorLayer = (ActorOptions->ActorLayerNameOverride.IsNone()) ? ActorOptions->ActorLayer : FActorLayer{ ActorOptions->ActorLayerNameOverride };
-		ActorLayerState.CaptureActorLayer(ActorLayer);
+		ActorLayerState.CaptureActorLayer(World, ActorLayer);
 	}
 
 	// Allocate materials
@@ -46,7 +49,7 @@ void UStencilLayerProcessor::BeginCaptureLayer_Implementation(FIntPoint Size, US
 		CaptureSource->ShowFlags.SetBloom(false);
 	}
 
-	Super::BeginCaptureLayer_Implementation(Size, CaptureSource, LayerOptions);
+	Super::BeginCaptureLayer_Implementation(World, Size, CaptureSource, LayerOptions);
 }
 
 UTextureRenderTarget2D* UStencilLayerProcessor::CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame, UObject* LayerOptions){
@@ -54,18 +57,22 @@ UTextureRenderTarget2D* UStencilLayerProcessor::CaptureLayer(USceneCaptureCompon
 	return RenderTarget;
 }
 
-void UStencilLayerProcessor::EndCaptureLayer_Implementation(USceneCaptureComponent2D* CaptureSource)
+void UStencilLayerProcessor::EndCaptureLayer_Implementation(UWorld* World, USceneCaptureComponent2D* CaptureSource)
 {
 	if (CaptureSource)
 		CaptureSource->ShowFlags.SetBloom(LastBloomState);
 
 	ActorLayerState.RestoreActorLayer();
 
-	Super::EndCaptureLayer_Implementation(CaptureSource);
+	Super::EndCaptureLayer_Implementation(World, CaptureSource);
 }
 
-void FActorLayerStencilState::CaptureActorLayer(const FActorLayer& Layer)
+void FActorLayerStencilState::CaptureActorLayer(UWorld* World, const FActorLayer& Layer)
 {
+	check(World);
+	if (!IsValid(World)) 
+		return;
+	
 	// Set custom depth variable to allow for stencil masks
 	IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth"));
 	if (CVar)
@@ -84,7 +91,7 @@ void FActorLayerStencilState::CaptureActorLayer(const FActorLayer& Layer)
 
 	// If we're going to be using stencil layers, we need to cache all of the users
 	// custom stencil/depth settings since we're changing them to do the mask.
-	for (TActorIterator<AActor> ActorItr(GEditor->GetEditorWorldContext().World()); ActorItr; ++ActorItr)
+	for (TActorIterator<AActor> ActorItr(World); ActorItr; ++ActorItr)
 	{
 		AActor* Actor = *ActorItr;
 		if (Actor)
@@ -121,11 +128,13 @@ void FActorLayerStencilState::CaptureActorLayer(const FActorLayer& Layer)
 					// We want to render all objects not on the layer to stencil too so that foreground objects mask.
 					if (IsValid(PrimitiveComponent)) {
 						if (bInLayer) {
-							UE_LOG(LogTemp, Log, TEXT("Setting component %s stencil value to %d"), *PrimitiveComponent->GetName(), bInLayer ? 1 : 0);
-						
-						if(!PrimitiveComponent->SceneProxy)
-							PrimitiveComponent->SceneProxy = PrimitiveComponent->CreateSceneProxy();
-
+							//check(PrimitiveComponent->SceneProxy);
+							if (PrimitiveComponent->IsRegistered())
+							{
+								//FComponentRecreateRenderStateContext Context(Component);
+								//Component->CreateRenderState_Concurrent(nullptr);
+							}
+						}
 						PrimitiveComponent->SetCustomDepthStencilValue(bInLayer ? 1 : 0);
 						PrimitiveComponent->SetCustomDepthStencilWriteMask(ERendererStencilMask::ERSM_Default);
 						PrimitiveComponent->SetRenderCustomDepth(true);
@@ -136,7 +145,7 @@ void FActorLayerStencilState::CaptureActorLayer(const FActorLayer& Layer)
 	}
 
 	// Immediately commit the stencil changes to the render thread.
-	FlushRenderingCommands();
+	//FlushRenderingCommands();
 }
 
 void FActorLayerStencilState::RestoreActorLayer()
@@ -163,6 +172,9 @@ void FActorLayerStencilState::RestoreActorLayer()
 		}
 	}
 
+	ActorLayerSavedStencilValues.Reset();
+	PreviousCustomDepthValue.Reset();
+
 	// Immediately commit the stencil changes to the render thread.
-	FlushRenderingCommands();
+	//FlushRenderingCommands();
 }

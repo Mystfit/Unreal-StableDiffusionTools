@@ -8,7 +8,7 @@
 
 class STABLEDIFFUSIONTOOLS_API FActorLayerStencilState {
 public:
-	void CaptureActorLayer(const FActorLayer& Layer);
+	void CaptureActorLayer(UWorld* World, const FActorLayer& Layer);
 	void RestoreActorLayer();
 private:
 	// Stencil values
@@ -22,7 +22,7 @@ struct STABLEDIFFUSIONTOOLS_API FScopedActorLayerStencil {
 public:
 	FScopedActorLayerStencil() = delete;
 	FScopedActorLayerStencil(const FScopedActorLayerStencil& ref);
-	FScopedActorLayerStencil(const FActorLayer& Layer, bool RestoreOnDelete = true);
+	FScopedActorLayerStencil(UWorld* World, const FActorLayer& Layer, bool RestoreOnDelete = true);
 	~FScopedActorLayerStencil();
 
 private:
@@ -56,9 +56,9 @@ public:
 	static FString StencilLayerMaterialAsset;
 
 	virtual ULayerProcessorOptions* AllocateLayerOptions_Implementation() override;
-	virtual void BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr, UObject* LayerOptions = nullptr) override;
+	virtual void BeginCaptureLayer_Implementation(UWorld* World, FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr, UObject* LayerOptions = nullptr) override;
 	virtual UTextureRenderTarget2D* CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame = true, UObject* LayerOptions = nullptr) override;
-	virtual void EndCaptureLayer_Implementation(USceneCaptureComponent2D* CaptureSource = nullptr) override;
+	virtual void EndCaptureLayer_Implementation(UWorld* World, USceneCaptureComponent2D* CaptureSource = nullptr) override;
 
 	FActorLayerStencilState ActorLayerState;
 

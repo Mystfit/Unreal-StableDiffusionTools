@@ -60,12 +60,12 @@ public:
 	TEnumAsByte<ELayerBitDepth> CaptureBitDepth = EightBit;
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Layer processor")
-	void BeginCaptureLayer(FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr, UObject* LayerOptions = nullptr);
+	void BeginCaptureLayer(UWorld* World, FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr, UObject* LayerOptions = nullptr);
 
 	virtual UTextureRenderTarget2D* CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame = true, UObject* LayerOptions = nullptr);
 	
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Layer processor")
-	void EndCaptureLayer(USceneCaptureComponent2D* CaptureSource = nullptr);
+	void EndCaptureLayer(UWorld* World, USceneCaptureComponent2D* CaptureSource = nullptr);
 
 	/// <summary>
 	/// Process a captured layer and convert to a pixel array
@@ -95,10 +95,9 @@ public:
 	static const TMap<ELayerImageType, FString> ReverseLayerImageTypeLookup;
 	static const TMap<FString, ELayerImageType> LayerImageTypeLookup;
 
-
+	FPrimaryAssetId GetPrimaryAssetId() const override;
 protected:
 	UTextureRenderTarget2D* GetOrAllocateRenderTarget(FIntPoint Size);
-
 	UMaterialInterface* ActivePostMaterialInstance;
 }; 
 

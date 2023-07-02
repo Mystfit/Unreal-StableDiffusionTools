@@ -26,9 +26,9 @@ public:
 	UDepthLayerProcessor();
 
 	virtual ULayerProcessorOptions* AllocateLayerOptions_Implementation() override;
-	virtual void BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr, UObject* LayerOptions = nullptr) override;
+	virtual void BeginCaptureLayer_Implementation(UWorld* World, FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr, UObject* LayerOptions = nullptr) override;
 	virtual UTextureRenderTarget2D* CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame = true, UObject* LayerOptions = nullptr) override;
-	virtual void EndCaptureLayer_Implementation(USceneCaptureComponent2D* CaptureSource = nullptr) override;
+	virtual void EndCaptureLayer_Implementation(UWorld* World, USceneCaptureComponent2D* CaptureSource = nullptr) override;
 	virtual TArray<FColor> ProcessLayer(UTextureRenderTarget2D* Layer) override;
 
 private:

@@ -19,7 +19,7 @@ const TMap<FString, ELayerImageType> ULayerProcessorBase::LayerImageTypeLookup =
 };
 
 
-void ULayerProcessorBase::BeginCaptureLayer_Implementation(FIntPoint Size, USceneCaptureComponent2D* CaptureSource, UObject* LayerOptions)
+void ULayerProcessorBase::BeginCaptureLayer_Implementation(UWorld* World, FIntPoint Size, USceneCaptureComponent2D* CaptureSource, UObject* LayerOptions)
 {
 	if (!ActivePostMaterialInstance)
 		ActivePostMaterialInstance = PostMaterial;
@@ -69,7 +69,7 @@ UTextureRenderTarget2D* ULayerProcessorBase::CaptureLayer(USceneCaptureComponent
 	return result;
 }
 
-void ULayerProcessorBase::EndCaptureLayer_Implementation(USceneCaptureComponent2D* CaptureSource)
+void ULayerProcessorBase::EndCaptureLayer_Implementation(UWorld* World, USceneCaptureComponent2D* CaptureSource)
 {
 	ActivePostMaterialInstance = nullptr;
 
@@ -129,4 +129,26 @@ UTextureRenderTarget2D* ULayerProcessorBase::GetOrAllocateRenderTarget(FIntPoint
 	}	
 	check(RenderTarget);
 	return RenderTarget;
+}
+
+FPrimaryAssetId ULayerProcessorBase::GetPrimaryAssetId() const
+{
+	//// Check if the asset is a blueprint class
+	//if (GetClass()->ClassGeneratedBy != nullptr)
+	//{
+	//	// Get the blueprint class
+	//	UClass* BlueprintClass = Cast<UClass>(GetClass()->ClassGeneratedBy);
+	//	check(BlueprintClass != nullptr);
+
+	//	// Get the primary asset id of the blueprint class
+	//	const FString BlueprintClassName = BlueprintClass->GetName();
+	//	const FString AssetRegistryName = GetPathName();
+	//	const FPrimaryAssetType AssetType = ULayerProcessorBase::StaticClass()->GetFName();
+	//	const FName PrimaryAssetName(*BlueprintClassName);
+
+	//	return FPrimaryAssetId(AssetType, PrimaryAssetName);
+	//}
+
+	// This asset is not a blueprint, return its own primary asset id
+	return FPrimaryAssetId(ULayerProcessorBase::StaticClass()->GetFName(), FName(GetPathName()));
 }
