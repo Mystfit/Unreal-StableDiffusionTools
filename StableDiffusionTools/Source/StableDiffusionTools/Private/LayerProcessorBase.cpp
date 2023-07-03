@@ -133,6 +133,8 @@ UTextureRenderTarget2D* ULayerProcessorBase::GetOrAllocateRenderTarget(FIntPoint
 
 FPrimaryAssetId ULayerProcessorBase::GetPrimaryAssetId() const
 {
+	auto PrimaryId = Super::GetPrimaryAssetId();
+	return PrimaryId;
 	//// Check if the asset is a blueprint class
 	//if (GetClass()->ClassGeneratedBy != nullptr)
 	//{
@@ -150,5 +152,5 @@ FPrimaryAssetId ULayerProcessorBase::GetPrimaryAssetId() const
 	//}
 
 	// This asset is not a blueprint, return its own primary asset id
-	return FPrimaryAssetId(ULayerProcessorBase::StaticClass()->GetFName(), FName(GetPathName()));
+	//return FPrimaryAssetId(ULayerProcessorBase::StaticClass()->GetFName(), FName(GetPathName()));
 }

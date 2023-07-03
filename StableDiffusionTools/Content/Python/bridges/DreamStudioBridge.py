@@ -12,7 +12,7 @@ class DreamStudioBridge(unreal.StableDiffusionBridge):
         unreal.StableDiffusionBridge.__init__(self)
 
     @unreal.ufunction(override=True)
-    def InitModel(self, new_model_options, new_pipeline_options, lora_asset, layers, allow_nsfw, padding_mode):
+    def InitModel(self, new_model_options, new_pipeline_options, lora_asset, textual_inversion_asset, layers, allow_nsfw, padding_mode):
         result = unreal.StableDiffusionModelInitResult()
         self.set_editor_property("ModelOptions", new_model_options)
         self.set_editor_property("PipelineOptions", new_pipeline_options)

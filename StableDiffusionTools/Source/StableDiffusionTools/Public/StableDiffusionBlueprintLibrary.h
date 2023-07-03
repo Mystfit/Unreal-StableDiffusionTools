@@ -105,6 +105,9 @@ public:
 	UFUNCTION(BlueprintCallable, meta=(DisplayName = "Create LORA Asset", Category = "Asset"))
 	static UStableDiffusionLORAAsset* CreateLORAAsset(const FString& PackagePath, const FString& Name);
 
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Create Textual Inversion Asset", Category = "Asset"))
+	static UStableDiffusionTextualInversionAsset* CreateTextualInversionAsset(const FString& PackagePath, const FString& Name);
+
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static UProjectionBakeSessionAsset* CreateProjectionBakeSessionAsset(const FProjectionBakeSession& Session, const FString& AssetPath, const FString& Name);
 

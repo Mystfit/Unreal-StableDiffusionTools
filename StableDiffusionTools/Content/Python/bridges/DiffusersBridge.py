@@ -19,7 +19,7 @@ from torchvision.transforms.functional import rgb_to_grayscale
 import PIL
 from PIL import Image
 from transformers import CLIPFeatureExtractor
-from compel import Compel
+from compel import Compel, DiffusersTextualInversionManager
 import diffusers
 from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionDepth2ImgPipeline, StableDiffusionUpscalePipeline
 from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
@@ -267,7 +267,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
 
     @unreal.ufunction(override=True)
-    def InitModel(self, new_model_options, new_pipeline_options, lora_asset, layers, allow_nsfw, padding_mode):
+    def InitModel(self, new_model_options, new_pipeline_options, lora_asset, textual_inversion_asset, layers, allow_nsfw, padding_mode):
         scheduler_cls = None
         if new_pipeline_options.scheduler:
             scheduler_cls = getattr(diffusers, new_pipeline_options.scheduler)
@@ -288,9 +288,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
         kwargs = {
             "torch_dtype": torch.float32 if new_model_options.precision == "fp32" else torch.float16,
-            "use_auth_token": self.get_token(),
-            #"safety_checker": None,     # TODO: Init safety checker - this is included to stop models complaining about the missing module
-            #"feature_extractor": None,  # TODO: Init feature extractor - this is included to stop models complaining about the missing module
+            "use_auth_token": self.get_token()
         }
 
         # Run model init script to generate extra args
@@ -358,7 +356,14 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             self.pipe.scheduler = scheduler_cls.from_config(self.pipe.scheduler.config)
 
         # Compel for weighted prompts
-        self.compel = Compel(tokenizer=self.pipe.tokenizer, text_encoder=self.pipe.text_encoder, truncate_long_prompts=False)
+        compel_args = {
+            "tokenizer": self.pipe.tokenizer,
+            "text_encoder": self.pipe.text_encoder,
+            "truncate_long_prompts": False,
+        }
+        if textual_inversion_asset:
+            compel_args["textual_inversion_manager"] = DiffusersTextualInversionManager(self.pipe)
+        self.compel = Compel(**compel_args)
 
         # Performance options for low VRAM gpus
         #self.pipe.enable_sequential_cpu_offload()
@@ -373,18 +378,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
         # High resolution support by tiling the VAE
         self.pipe.vae.enable_tiling()
-
-        # NSFW filter
-        #if allow_nsfw:
-        #    # Backup original NSFW filter
-        #    if not hasattr(self, "orig_NSFW_filter"):
-        #        self.orig_NSFW_filter = self.pipe.safety_checker
-
-        #    # Dummy passthrough filter
-        #    self.pipe.safety_checker = lambda images, **kwargs: (images, False)
-        #else:
-        #    if hasattr(self, "orig_NSFW_filter"):
-        #        self.pipe.safety_checker = self.orig_NSFW_filter
 
         # LORA validation and downloads
         lora_id = None
@@ -413,9 +406,37 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     
                     # Move model back to CPU so model offloading works
                     self.pipe.to("cpu")
+
+        # Textual  inversion
+        textual_inversion_id = None
+        if textual_inversion_asset:
+            if textual_inversion_asset.options.model or textual_inversion_asset.options.external_url:
+                # Get textual model from local filepath first
+                if os.path.exists(textual_inversion_asset.options.local_file_path.file_path):
+                    textual_inversion_id = textual_inversion_asset.options.local_file_path.file_path
+                elif textual_inversion_asset.options.local_file_path:
+                    if textual_inversion_asset.options.external_url:
+                        # Download lora
+                        print(f"Downloading textual inversion from {textual_inversion_asset.options.external_url}")
+                        local_file = download_file(textual_inversion_asset.options.external_url, Path(self.get_settings_lora_save_path().path))
+                        textual_inversion_asset.options.local_file_path.file_path = str(local_file) if str(local_file) else ""
+                    textual_inversion_id = textual_inversion_asset.options.local_file_path.file_path
+                else:
+                    # Use model ID to load from huggingface cache or hub
+                    textual_inversion_id = textual_inversion_asset.options.model
+
+                if textual_inversion_id:
+                    self.pipe.to("cuda")
+                    
+                    # Load textual inversion cache the asset for later
+                    self.pipe.load_textual_inversion(textual_inversion_id)
+                    
+                    # Move model back to CPU so model offloading works
+                    self.pipe.to("cpu")
         
         result.model_status = unreal.ModelStatus.LOADED
         self.set_editor_property("LORAAsset", lora_asset)
+        self.set_editor_property("CachedTextualInversionAsset", textual_inversion_asset)
         self.set_editor_property("ModelOptions", new_model_options)
         self.set_editor_property("PipelineOptions", new_pipeline_options)
         self.set_editor_property("ModelStatus", result)

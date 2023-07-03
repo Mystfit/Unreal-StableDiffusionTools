@@ -293,7 +293,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 									PipelineOptions.Scheduler = OptionSection->SchedulerOverride;
 								}
 								if (SDSubsystem->ModelOptions != OptionSection->ModelAsset->Options || SDSubsystem->IsModelDirty()) {
-									SDSubsystem->InitModel(OptionSection->ModelAsset->Options, PipelineOptions, OptionSection->LORAAsset, Input.ProcessedLayers, false, AllowNSFW, EPaddingMode::zeros);
+									SDSubsystem->InitModel(OptionSection->ModelAsset->Options, PipelineOptions, OptionSection->LORAAsset, OptionSection->TextualInversionAsset, Input.ProcessedLayers, false, AllowNSFW, EPaddingMode::zeros);
 								}
 							}
 							if (SDSubsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {

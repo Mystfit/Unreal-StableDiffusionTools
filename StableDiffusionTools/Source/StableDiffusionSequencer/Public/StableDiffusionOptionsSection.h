@@ -16,7 +16,7 @@ class STABLEDIFFUSIONSEQUENCER_API UStableDiffusionOptionsSection : public UMovi
 	UStableDiffusionOptionsSection(const FObjectInitializer& ObjectInitializer);
 public:
 	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Model", meta = (Multiline = true))
-	UStableDiffusionModelAsset* ModelAsset;
+	UStableDiffusionStyleModelAsset* ModelAsset;
 
 	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Pipeline", meta = (Multiline = true))
 	UStableDiffusionPipelineAsset* PipelineAsset;
@@ -26,6 +26,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "StableDiffusion|LORA", meta = (Multiline = true))
 	UStableDiffusionLORAAsset* LORAAsset;
+
+	UPROPERTY(EditAnywhere, Category = "StableDiffusion|Textual Inversion", meta = (Multiline = true))
+	UStableDiffusionTextualInversionAsset* TextualInversionAsset;
 
 	/**
 	 * Public access to this section's internal data function

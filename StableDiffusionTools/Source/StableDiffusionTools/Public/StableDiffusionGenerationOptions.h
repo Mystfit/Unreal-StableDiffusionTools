@@ -201,7 +201,7 @@ private:
 
 
 USTRUCT(BlueprintType, meta = (UsesHierarchy = true))
-struct STABLEDIFFUSIONTOOLS_API FStableDiffusionLORAOptions
+struct STABLEDIFFUSIONTOOLS_API FStableDiffusionTriggerOptions
 {
 	GENERATED_BODY()
 public:
@@ -211,13 +211,24 @@ public:
 
 
 UCLASS()
+class STABLEDIFFUSIONTOOLS_API UStableDiffusionTextualInversionAsset : public UStableDiffusionModelAsset
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LORA")
+	FStableDiffusionTriggerOptions TriggerOptions;
+};
+
+
+UCLASS()
 class STABLEDIFFUSIONTOOLS_API UStableDiffusionLORAAsset : public UStableDiffusionModelAsset
 {
 	GENERATED_BODY()
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LORA")
-		FStableDiffusionLORAOptions LoraOptions;
+	FStableDiffusionTriggerOptions TriggerOptions;
 };
+
 
 
 UCLASS()

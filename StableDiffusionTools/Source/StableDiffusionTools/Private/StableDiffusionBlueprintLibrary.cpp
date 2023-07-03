@@ -381,6 +381,26 @@ UStableDiffusionLORAAsset* UStableDiffusionBlueprintLibrary::CreateLORAAsset(con
 	return NewLORAAsset;
 }
 
+UStableDiffusionTextualInversionAsset* UStableDiffusionBlueprintLibrary::CreateTextualInversionAsset(const FString& PackagePath, const FString& Name)
+{
+	if (Name.IsEmpty() || PackagePath.IsEmpty())
+		return false;
+
+	// Create package
+	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
+	UPackage* Package = CreatePackage(*FullPackagePath);
+	Package->FullyLoad();
+
+	// Create data asset
+	UStableDiffusionTextualInversionAsset* NewTextualInversionAsset = NewObject<UStableDiffusionTextualInversionAsset>(Package, *Name, RF_Public | RF_Standalone);
+
+	// Update package
+	Package->MarkPackageDirty();
+	FAssetRegistryModule::AssetCreated(NewTextualInversionAsset);
+
+	return NewTextualInversionAsset;
+}
+
 UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::CreateImageResultAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionImageResult& ImageResult, FMinimalViewInfo View, bool Upsampled)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty() || !Texture)
