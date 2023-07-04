@@ -29,7 +29,14 @@ bool UStableDiffusionToolsSettings::GetUseOverridePythonSitePackagesPath() const
 FDirectoryPath UStableDiffusionToolsSettings::GetPythonSitePackagesOverridePath()
 {
 	if (PythonSitePackagesPath.Path.IsEmpty()) {
-		PythonSitePackagesPath.Path = FPaths::Combine(FPaths::ProjectSavedDir(), "StableDiffusionToolsPyEnv");
+		FString LegacyPath = FPaths::Combine(FPaths::EngineSavedDir(), "StableDiffusionToolsPyEnv");
+		if (FPaths::DirectoryExists(LegacyPath)) {
+			PythonSitePackagesPath.Path = LegacyPath;
+		}
+		else {
+			//IPluginManager::Get().FindPlugin(TEXT("MyPlugin"))->GetContentDir()
+			PythonSitePackagesPath.Path = FPaths::Combine(FPaths::ProjectSavedDir(), "StableDiffusionToolsPyEnv");
+		}
 	}
 
 	return PythonSitePackagesPath;

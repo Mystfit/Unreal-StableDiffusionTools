@@ -64,9 +64,11 @@ dependency_options = unreal.StableDiffusionBlueprintLibrary.get_dependency_optio
 plugin_options = unreal.StableDiffusionBlueprintLibrary.get_plugin_options()
 
 # Set up virtual environment
-default_site_packages = pathlib.Path(__file__).parent.parent.parent / "BundledDependencies" 
+default_site_packages = pathlib.Path(__file__).parent.parent.parent / "BundledDependencies"
+legacy_site_packages = pathlib.Path(unreal.Paths().engine_saved_dir()) / "StableDiffusionToolsPyEnv"
+
 env_dir = plugin_options.get_python_site_packages_override_path().path if plugin_options.get_use_override_python_site_packages_path() else default_site_packages
-env_site_packages = env_dir / "Lib" / "site-packages"
+env_site_packages = pathlib.Path(env_dir) / "Lib" / "site-packages"
 print(f"Dependency installation dir: {env_site_packages}")
 
 # Setup a new virtual environment to contain our downloaded python dependencies
@@ -88,6 +90,11 @@ if reset_deps or reset_system_deps:
     print(f"Clearing python dependendencies")
     dep_manager.clear_all_dependencies(env_dir, reset_system_deps)
 
+    # Clear out the old engine-level site-packages directory in case it doesn't match the new-style
+    if os.path.exists(legacy_site_packages):
+        print(f"Removing old legacy site-packages from {legacy_site_packages}")
+        dep_manager.clear_all_dependencies(legacy_site_packages, False)
+    
     # Flag dependencies as cleared so we don't keep clearing them every restart
     dep_manager.finished_clearing_dependencies()
 

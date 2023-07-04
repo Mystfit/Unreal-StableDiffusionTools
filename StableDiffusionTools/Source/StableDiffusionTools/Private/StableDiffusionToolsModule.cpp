@@ -32,7 +32,7 @@ void FStableDiffusionToolsModule::CreateSettingsSection() {
 		if (SettingsSection.IsValid())
 		{
 			// Run gets to populate defaults
-			GetMutableDefault<UStableDiffusionToolsSettings>()->GetModelDownloadPath();
+			GetMutableDefault<UStableDiffusionToolsSettings>()->GetPythonSitePackagesOverridePath();
 			GetMutableDefault<UStableDiffusionToolsSettings>()->GetModelDownloadPath();
 
 			SettingsSection->OnModified().BindRaw(this, &FStableDiffusionToolsModule::HandleSettingsSaved);
