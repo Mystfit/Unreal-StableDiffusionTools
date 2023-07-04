@@ -61,9 +61,11 @@ signal.SIGKILL = signal.SIGTERM
 
 # Get plugin startup options
 dependency_options = unreal.StableDiffusionBlueprintLibrary.get_dependency_options()
+plugin_options = unreal.StableDiffusionBlueprintLibrary.get_plugin_options()
 
 # Set up virtual environment
-env_dir = pathlib.Path(unreal.Paths().engine_saved_dir()) / "StableDiffusionToolsPyEnv"
+default_site_packages = pathlib.Path(__file__).parent.parent.parent / "BundledDependencies" 
+env_dir = plugin_options.get_python_site_packages_override_path().path if plugin_options.get_use_override_python_site_packages_path() else default_site_packages
 env_site_packages = env_dir / "Lib" / "site-packages"
 print(f"Dependency installation dir: {env_site_packages}")
 

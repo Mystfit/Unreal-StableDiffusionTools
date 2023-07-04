@@ -13,21 +13,26 @@ TMap<FName, FString> UStableDiffusionToolsSettings::GetGeneratorTokens() const {
 	return GeneratorTokens;
 }
 
-FDirectoryPath UStableDiffusionToolsSettings::GetLORASavePath()
+FDirectoryPath UStableDiffusionToolsSettings::GetModelDownloadPath()
 {
-	if (LORASavePath.Path.IsEmpty()) {
-		LORASavePath.Path = FPaths::Combine(FPaths::ProjectDir(), "LoRAs");
+	if (ModelDownloadPath.Path.IsEmpty()) {
+		ModelDownloadPath.Path = FPaths::Combine(FPaths::ProjectSavedDir(), "ModelDownloads");
 	}
 
-	return LORASavePath;
+	return ModelDownloadPath;
 }
 
-FDirectoryPath UStableDiffusionToolsSettings::GetModelSavePath()
+bool UStableDiffusionToolsSettings::GetUseOverridePythonSitePackagesPath() const {
+	return bOverridePythonSitePackagesPath;
+}
+
+FDirectoryPath UStableDiffusionToolsSettings::GetPythonSitePackagesOverridePath()
 {
-	if (ModelSavePath.Path.IsEmpty()) {
-		ModelSavePath.Path = FPaths::Combine(FPaths::ProjectDir(), "Models");
+	if (PythonSitePackagesPath.Path.IsEmpty()) {
+		PythonSitePackagesPath.Path = FPaths::Combine(FPaths::ProjectSavedDir(), "StableDiffusionToolsPyEnv");
 	}
-	return ModelSavePath;
+
+	return PythonSitePackagesPath;
 }
 
 void UStableDiffusionToolsSettings::AddGeneratorToken(const FName& Generator)

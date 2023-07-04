@@ -146,6 +146,25 @@ def download_file(url: str, destination_dir: Path):
                 shutil.copyfileobj(r_raw, f)
         return filepath
 
+def refresh_supplementary_model(model_asset: unreal.StableDiffusionModelAsset, download_path: str):
+    model_id = None
+
+    # Get supplementary model from local filepath first
+    if os.path.exists(model_asset.options.local_file_path.file_path):
+        model_id = model_asset.options.local_file_path.file_path
+    elif model_asset.options.local_file_path:
+        if model_asset.options.external_url:
+            # Download file
+            print(f"Downloading supplementary model from {model_asset.options.external_url}")
+            local_file = download_file(model_asset.options.external_url, Path(download_path))
+            model_asset.options.local_file_path.file_path = str(local_file) if str(local_file) else ""
+        model_id = model_asset.options.local_file_path.file_path
+    else:
+        # Use model ID to load from huggingface cache or hub
+        model_id = model_asset.options.model
+
+    return model_id
+
 class AbortableExecutor(threading.Thread):
     def __init__(self, name, func):
         threading.Thread.__init__(self)
@@ -274,14 +293,14 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             print(f"Using scheduler class: {scheduler_cls}")
 
         # Set pipeline
-        print(f"Requested pipeline: {new_pipeline_options.diffusion_pipeline}")
         if new_pipeline_options.diffusion_pipeline:
             ActivePipeline = getattr(diffusers, new_pipeline_options.diffusion_pipeline)
-        print(f"Loaded pipeline: {ActivePipeline}")
+        print(f"Using pipeline class: {ActivePipeline}")
 
         # Use local model path if it is set, otherwise use the model name
         modelname = new_model_options.local_folder_path.path if new_model_options.local_folder_path.path else new_model_options.model
 
+        # Update model status to let UI know the model is downloading or available
         result = unreal.StableDiffusionModelInitResult()
         result.model_status = unreal.ModelStatus.LOADING if self.ModelExists(modelname) else unreal.ModelStatus.DOWNLOADING
         self.set_editor_property("ModelStatus", result)
@@ -291,7 +310,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             "use_auth_token": self.get_token()
         }
 
-        # Run model init script to generate extra args
+        # Run model init script to generate extra pipeline args
         init_script_locals = {}
         exec(new_pipeline_options.python_model_arguments_script, globals(), init_script_locals)
         for key, val in init_script_locals.items():
@@ -307,7 +326,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 else:
                     kwargs[new_key] = val
 
-        # Run layer processor init script to generate extra args
+        # Run layer processor init scripts to generate extra pipeline args
         for layer in layers:
             layer_init_script_locals = {}
             exec(layer.processor.python_model_init_script, globals(), layer_init_script_locals)
@@ -324,6 +343,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     else:
                         kwargs[new_key] = val
         
+        # Set pipe optional args
         if new_model_options.revision:
             kwargs["revision"] = new_model_options.revision
         if new_pipeline_options.custom_pipeline:
@@ -366,7 +386,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.compel = Compel(**compel_args)
 
         # Performance options for low VRAM gpus
-        #self.pipe.enable_sequential_cpu_offload()
         self.pipe.enable_attention_slicing(1)
         try:
             self.pipe.unet = torch.compile(self.pipe.unet)
@@ -379,66 +398,40 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # High resolution support by tiling the VAE
         self.pipe.vae.enable_tiling()
 
-        # LORA validation and downloads
+        # LoRA setup
         lora_id = None
         if lora_asset:
             if lora_asset.options.model or lora_asset.options.external_url:
-                # Get LORA model from local filepath first
-                if os.path.exists(lora_asset.options.local_file_path.file_path):
-                    lora_id = lora_asset.options.local_file_path.file_path
-                elif lora_asset.options.local_file_path:
-                    if lora_asset.options.external_url:
-                        # Download lora
-                        print(f"Downloading LORA from {lora_asset.options.external_url}")
-                        local_file = download_file(lora_asset.options.external_url, Path(self.get_settings_lora_save_path().path))
-                        lora_asset.options.local_file_path.file_path = str(local_file) if str(local_file) else ""
-                    lora_id = lora_asset.options.local_file_path.file_path
-                else:
-                    # Use model ID to load from huggingface cache or hub
-                    lora_id = lora_asset.options.model
-
+                # Load LoRA weights into pipeline
+                lora_id = refresh_supplementary_model(lora_asset, self.get_settings_model_save_path().path)
                 if lora_id:
                     # Force pipeline to CUDA until support is added for pipe.enable_model_cpu_offload()
                     self.pipe.to("cuda")
-                    
-                    # Load LORA weights and cache the asset for later
                     self.pipe.load_lora_weights(lora_id)
-                    
                     # Move model back to CPU so model offloading works
                     self.pipe.to("cpu")
 
-        # Textual  inversion
+        # Textual inversion setup
         textual_inversion_id = None
         if textual_inversion_asset:
             if textual_inversion_asset.options.model or textual_inversion_asset.options.external_url:
-                # Get textual model from local filepath first
-                if os.path.exists(textual_inversion_asset.options.local_file_path.file_path):
-                    textual_inversion_id = textual_inversion_asset.options.local_file_path.file_path
-                elif textual_inversion_asset.options.local_file_path:
-                    if textual_inversion_asset.options.external_url:
-                        # Download lora
-                        print(f"Downloading textual inversion from {textual_inversion_asset.options.external_url}")
-                        local_file = download_file(textual_inversion_asset.options.external_url, Path(self.get_settings_lora_save_path().path))
-                        textual_inversion_asset.options.local_file_path.file_path = str(local_file) if str(local_file) else ""
-                    textual_inversion_id = textual_inversion_asset.options.local_file_path.file_path
-                else:
-                    # Use model ID to load from huggingface cache or hub
-                    textual_inversion_id = textual_inversion_asset.options.model
-
+                # Load textual inversion weights into pipeline
+                textual_inversion_id = refresh_supplementary_model(textual_inversion_asset, self.get_settings_model_save_path().path)
                 if textual_inversion_id:
+                    # Force pipeline to CUDA until support is added for pipe.enable_model_cpu_offload()
                     self.pipe.to("cuda")
-                    
-                    # Load textual inversion cache the asset for later
                     self.pipe.load_textual_inversion(textual_inversion_id)
-                    
                     # Move model back to CPU so model offloading works
                     self.pipe.to("cpu")
         
-        result.model_status = unreal.ModelStatus.LOADED
+        # Cache assets
         self.set_editor_property("LORAAsset", lora_asset)
         self.set_editor_property("CachedTextualInversionAsset", textual_inversion_asset)
         self.set_editor_property("ModelOptions", new_model_options)
         self.set_editor_property("PipelineOptions", new_pipeline_options)
+        
+        # Cache status
+        result.model_status = unreal.ModelStatus.LOADED
         self.set_editor_property("ModelStatus", result)
 
         print("Loaded Stable Diffusion model " + modelname)

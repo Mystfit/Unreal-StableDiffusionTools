@@ -18,16 +18,23 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionToolsSettings : public UObject
 
 public:
 	/** Gets the class of the Stable Diffusion generator bridge that will be constructed.*/
+	UFUNCTION(BlueprintCallable, meta = (Category = "Options"))
 	TSubclassOf<UStableDiffusionBridge> GetGeneratorType() const;
 
-	/** Gets the class of the Stable Diffusion generator bridge that will be constructed.*/
+	/** Authentication tokens for Stable Diffusion generator bridges.*/
+	UFUNCTION(BlueprintCallable, meta = (Category = "Options"))
 	TMap<FName, FString> GetGeneratorTokens() const;
 
-	/** Gets the location where LORA models will be saved by default.*/
-	FDirectoryPath GetLORASavePath();
-
 	/** Gets the location where base models will be saved by default.*/
-	FDirectoryPath GetModelSavePath();
+	UFUNCTION(BlueprintCallable, meta = (Category = "Options"))
+	FDirectoryPath GetModelDownloadPath();
+	
+	UFUNCTION(BlueprintCallable, meta = (Category = "Options"))
+	bool GetUseOverridePythonSitePackagesPath() const;
+
+	/** Gets the location of an override python site-packages*/
+	UFUNCTION(BlueprintCallable, meta = (Category = "Options"))
+	FDirectoryPath GetPythonSitePackagesOverridePath();
 
 	void AddGeneratorToken(const FName& Generator);
 
@@ -37,14 +44,21 @@ private:
 	UPROPERTY(config, EditAnywhere, Category = "Options")
 	TSubclassOf<UStableDiffusionBridge> GeneratorType;
 
+	/** Stable Diffusion generator tokens to allow generator bridges to access web APIs.*/
 	UPROPERTY(config, EditAnywhere, Category = "Options")
 	TMap<FName, FString> GeneratorTokens;
 
-	UPROPERTY(config, EditAnywhere, meta=(DisplayName="LORA Save Path", Category = "Options"))
-	FDirectoryPath LORASavePath;
+	/** Path to download model files to. */
+	UPROPERTY(config, EditAnywhere, meta = (DisplayName = "Model download path", Category = "Options"))
+	FDirectoryPath ModelDownloadPath;
 
-	UPROPERTY(config, EditAnywhere, meta = (DisplayName = "Model Save Path", Category = "Options"))
-	FDirectoryPath ModelSavePath;
+	/** Use an overriden python site-packages folder. */
+	UPROPERTY(config, EditAnywhere, meta = (DisplayName = "Use custom python packages path", Category = "Options"))
+	bool bOverridePythonSitePackagesPath;
+
+	/** Overriden python site-packages folder. */
+	UPROPERTY(config, EditAnywhere, meta = (DisplayName = "Python package installation directory", Category = "Options", EditCondition = "bOverridePythonSitePackagesPath", EditConditionHides))
+	FDirectoryPath PythonSitePackagesPath;
 };
 
 

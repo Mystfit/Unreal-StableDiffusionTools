@@ -1,6 +1,9 @@
 # Visual Studio 2015 user specific files
 .vs/
 
+# Local project python dependencies
+BundledDependencies/
+
 # Compiled Object files
 *.slo
 *.lo
