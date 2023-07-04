@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "0.10.1",
+	"VersionName": "0.11.0",
 	"FriendlyName": "StableDiffusionTools",
 	"Description": "Create images in-editor using AI image generation models such as Stable Diffusion.",
 	"Category": "Editor",
