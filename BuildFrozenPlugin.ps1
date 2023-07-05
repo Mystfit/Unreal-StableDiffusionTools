@@ -32,10 +32,15 @@ New-Item -ItemType Directory -Path $rootFolder | Out-Null
 # Copy the contents of the input folder to the root folder, excluding the specified paths
 Copy-Item -Path $InputFolder\* -Destination $rootFolder -Recurse -Exclude $ignorePaths
 
-# Compress the contents of the temporary folder to a zip file
-Compress-Archive -Path $tempFolder\* -DestinationPath $zipFileName -CompressionLevel Optimal -Force
+# Create the 7zip command
+$sevenZipExe = "7z.exe"  # Replace with the actual path to 7zip's command line program
+$splitSize = "1990m"  # Split the zip file into parts of approximately 1.99 GB each
+$sevenZipCommand = "$sevenZipExe a -tzip -v$splitSize `"$zipFileName`" `"$tempFolder\*`""
+
+# Execute the 7zip command
+Invoke-Expression -Command $sevenZipCommand
 
 # Clean up the temporary folder
 Remove-Item -Path $tempFolder -Recurse -Force
 
-Write-Host "Folder '$InputFolder' compressed to '$zipFileName'."
+Write-Host "Folder '$InputFolder' compressed to '$zipFileName' and split into parts."
