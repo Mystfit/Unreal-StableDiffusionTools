@@ -26,6 +26,10 @@ bool UStableDiffusionToolsSettings::GetUseOverridePythonSitePackagesPath() const
 	return bOverridePythonSitePackagesPath;
 }
 
+bool UStableDiffusionToolsSettings::GetFreezeDependencies() const {
+	return bFreezeDependencies;
+}
+
 FDirectoryPath UStableDiffusionToolsSettings::GetPythonSitePackagesOverridePath()
 {
 	if (PythonSitePackagesPath.Path.IsEmpty()) {

@@ -32,6 +32,9 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (Category = "Options"))
 	bool GetUseOverridePythonSitePackagesPath() const;
 
+	UFUNCTION(BlueprintCallable, meta = (Category = "Options"))
+	bool GetFreezeDependencies() const;
+
 	/** Gets the location of an override python site-packages*/
 	UFUNCTION(BlueprintCallable, meta = (Category = "Options"))
 	FDirectoryPath GetPythonSitePackagesOverridePath();
@@ -49,15 +52,19 @@ private:
 	TMap<FName, FString> GeneratorTokens;
 
 	/** Path to download model files to. */
-	UPROPERTY(config, EditAnywhere, meta = (DisplayName = "Model download path", Category = "Options"))
+	UPROPERTY(config, EditAnywhere, AdvancedDisplay, meta = (DisplayName = "Model download path", Category = "Options"))
 	FDirectoryPath ModelDownloadPath;
 
 	/** Use an overriden python site-packages folder. */
-	UPROPERTY(config, EditAnywhere, meta = (DisplayName = "Use custom python packages path", Category = "Options"))
+	UPROPERTY(config, EditAnywhere, AdvancedDisplay, meta = (DisplayName = "Use custom python packages path", Category = "Options"))
 	bool bOverridePythonSitePackagesPath;
 
+	/** Downloads python dependencies to "PLUGIN_DIR/FrozenPythonDependencies". You can safely leave this setting alone unless you're packaging the editor plugin for distribution to other editors. */
+	UPROPERTY(config, EditAnywhere, AdvancedDisplay, meta = (DisplayName = "Freeze python dependencies", Category = "Options"))
+	bool bFreezeDependencies;
+
 	/** Overriden python site-packages folder. */
-	UPROPERTY(config, EditAnywhere, meta = (DisplayName = "Python package installation directory", Category = "Options", EditCondition = "bOverridePythonSitePackagesPath", EditConditionHides))
+	UPROPERTY(config, EditAnywhere, AdvancedDisplay, meta = (DisplayName = "Python package installation directory", Category = "Options", EditCondition = "bOverridePythonSitePackagesPath", EditConditionHides))
 	FDirectoryPath PythonSitePackagesPath;
 };
 

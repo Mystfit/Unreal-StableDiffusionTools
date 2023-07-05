@@ -14,8 +14,11 @@
 #include "ToolMenus.h"
 #include "Engine/ObjectLibrary.h"
 #include "AssetRegistryModule.h"
+#include "Engine/AssetManager.h"
 #include "EditorUtilityWidget.h"
 #include "EditorAssetLibrary.h"
+#include "EditorClassUtils.h"
+#include "LayerProcessorBaseTypeActions.h"
 #include "LayerProcessorOptionsCustomization.h"
 #include "EditorUtilitySubsystem.h"
 
@@ -62,6 +65,51 @@ void FStableDiffusionToolsEditorModule::StartupModule()
 
 	// Register thumbnails
 	UThumbnailManager::Get().RegisterCustomRenderer(UStableDiffusionImageResultAsset::StaticClass(), UStableDiffusionGenerationAssetThumbnailRenderer::StaticClass());
+
+	/*
+	// Register assets
+	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+	AssetTools.RegisterAssetTypeActions(MakeShareable(new FAssetTypeActions_LayerProcessorBase));
+
+	// Automatically register existing assets of your primary data asset class
+	FTopLevelAssetPath BaseClassPathName = ULayerProcessorBase::StaticClass()->GetClassPathName();
+	UClass* BlueprintClass = UBlueprint::StaticClass();
+
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+
+	// Use the asset registry to get the set of all class names deriving from Base
+	TSet< FTopLevelAssetPath > DerivedPathNames;
+	{
+		TArray< FTopLevelAssetPath > BasePathNames;
+		BasePathNames.Add(BaseClassPathName);
+
+		TSet< FTopLevelAssetPath > Excluded;
+		AssetRegistryModule.Get().GetDerivedClassNames(BasePathNames, Excluded, DerivedPathNames);
+	}
+
+	TArray<FAssetData> ObjectList;
+	AssetRegistryModule.Get().GetAssetsByClass(BlueprintClass->GetClassPathName(), ObjectList);
+	for (auto ObjIter = ObjectList.CreateConstIterator(); ObjIter; ++ObjIter)
+	{
+		const FAssetData& Asset = *ObjIter;
+		FString Filename = Asset.GetObjectPathString();
+
+		// Get the the class this blueprint generates
+		auto AssetTag = Asset.TagsAndValues.FindTag(TEXT("GeneratedClass"));
+		if (AssetTag.IsSet())
+		{
+			// Convert path to just the name part
+			const FTopLevelAssetPath ClassPathName(FPackageName::ExportTextPathToObjectPath(*AssetTag.AsString()));
+
+			// Check if this class is in the derived set
+			if (!DerivedPathNames.Contains(ClassPathName))
+			{
+				continue;
+			}
+			UAssetManager::Get().LoadPrimaryAsset(Asset.GetPrimaryAssetId());
+		}
+	}
+	*/
 }
 
 void FStableDiffusionToolsEditorModule::ShutdownModule()

@@ -64,8 +64,10 @@ dependency_options = unreal.StableDiffusionBlueprintLibrary.get_dependency_optio
 plugin_options = unreal.StableDiffusionBlueprintLibrary.get_plugin_options()
 
 # Set up virtual environment
-default_site_packages = pathlib.Path(__file__).parent.parent.parent / "BundledDependencies"
 legacy_site_packages = pathlib.Path(unreal.Paths().engine_saved_dir()) / "StableDiffusionToolsPyEnv"
+default_site_packages = pathlib.Path(__file__).parent.parent.parent / "FrozenPythonDependencies"
+if not plugin_options.get_freeze_dependencies() and not os.path.exists(default_site_packages):
+    default_site_packages = plugin_options.get_python_site_packages_override_path().path
 
 env_dir = plugin_options.get_python_site_packages_override_path().path if plugin_options.get_use_override_python_site_packages_path() else default_site_packages
 env_site_packages = pathlib.Path(env_dir) / "Lib" / "site-packages"

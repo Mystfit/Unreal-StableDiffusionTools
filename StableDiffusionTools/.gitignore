@@ -2,7 +2,7 @@
 .vs/
 
 # Local project python dependencies
-BundledDependencies/
+FrozenPythonDependencies/
 
 # Compiled Object files
 *.slo
