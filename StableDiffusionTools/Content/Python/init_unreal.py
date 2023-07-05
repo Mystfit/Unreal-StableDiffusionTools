@@ -66,6 +66,8 @@ plugin_options = unreal.StableDiffusionBlueprintLibrary.get_plugin_options()
 # Set up virtual environment
 legacy_site_packages = pathlib.Path(unreal.Paths().engine_saved_dir()) / "StableDiffusionToolsPyEnv"
 default_site_packages = pathlib.Path(__file__).parent.parent.parent / "FrozenPythonDependencies"
+frozen_python_deps_available = True if os.path.exists(default_site_packages) else False
+
 if not plugin_options.get_freeze_dependencies() and not os.path.exists(default_site_packages):
     default_site_packages = plugin_options.get_python_site_packages_override_path().path
 
@@ -81,6 +83,7 @@ sys.path.append(str(env_site_packages))
 # Load dependency manager
 dep_manager = dependency_manager.PyDependencyManager()
 dep_manager.set_editor_property("PluginSitePackages", str(env_site_packages))
+dep_manager.set_editor_property("FrozenDependenciesAvailable", frozen_python_deps_available)
 subsystem = unreal.get_editor_subsystem(unreal.StableDiffusionSubsystem)
 subsystem.set_editor_property("DependencyManager", dep_manager)
 

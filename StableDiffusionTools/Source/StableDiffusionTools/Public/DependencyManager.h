@@ -139,6 +139,9 @@ public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Dependencies")
     FString PluginSitePackages;
 
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Dependencies")
+    bool FrozenDependenciesAvailable;
+
     //FDependencyInstallProgress OnDependencyProgress;
 protected:
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Dependencies")
