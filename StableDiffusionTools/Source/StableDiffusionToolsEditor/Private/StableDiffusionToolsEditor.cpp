@@ -21,6 +21,7 @@
 #include "LayerProcessorBaseTypeActions.h"
 #include "LayerProcessorOptionsCustomization.h"
 #include "EditorUtilitySubsystem.h"
+#include "Engine/AssetManagerSettings.h"
 
 static const FName StableDiffusionToolsTabName("Stable Diffusion Tools");
 static const FName StableDiffusionDependencyInstallerTabName("Stable Diffusion Dependency Installer");
@@ -66,50 +67,22 @@ void FStableDiffusionToolsEditorModule::StartupModule()
 	// Register thumbnails
 	UThumbnailManager::Get().RegisterCustomRenderer(UStableDiffusionImageResultAsset::StaticClass(), UStableDiffusionGenerationAssetThumbnailRenderer::StaticClass());
 
-	/*
-	// Register assets
-	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	AssetTools.RegisterAssetTypeActions(MakeShareable(new FAssetTypeActions_LayerProcessorBase));
-
-	// Automatically register existing assets of your primary data asset class
-	FTopLevelAssetPath BaseClassPathName = ULayerProcessorBase::StaticClass()->GetClassPathName();
-	UClass* BlueprintClass = UBlueprint::StaticClass();
-
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-
-	// Use the asset registry to get the set of all class names deriving from Base
-	TSet< FTopLevelAssetPath > DerivedPathNames;
-	{
-		TArray< FTopLevelAssetPath > BasePathNames;
-		BasePathNames.Add(BaseClassPathName);
-
-		TSet< FTopLevelAssetPath > Excluded;
-		AssetRegistryModule.Get().GetDerivedClassNames(BasePathNames, Excluded, DerivedPathNames);
+	// Add primary asset settings to discover layer processors
+	auto AssetManagerSettings = GetMutableDefault<UAssetManagerSettings>();
+	if (!AssetManagerSettings->PrimaryAssetTypesToScan.FindByPredicate([](const FPrimaryAssetTypeInfo& Info) {return Info.PrimaryAssetType == FName("LayerProcessorBase"); })) {
+		TArray<FDirectoryPath> Paths;
+		TArray<FSoftObjectPath> Assets;
+		FDirectoryPath LayerProcessorPluginPath;
+		LayerProcessorPluginPath.Path = "/StableDiffusionTools/LayerProcessors";
+		Paths.Add(LayerProcessorPluginPath);
+		
+		FPrimaryAssetTypeInfo LayerProcessorInfo(FName("LayerProcessorBase"), UPrimaryDataAsset::StaticClass(), true, false, MoveTemp(Paths), MoveTemp(Assets));
+		AssetManagerSettings->PrimaryAssetTypesToScan.Add(LayerProcessorInfo);
+		AssetManagerSettings->SaveConfig();
+		
+		// Force a scan for layer processors
+		UAssetManager::Get().ReinitializeFromConfig();
 	}
-
-	TArray<FAssetData> ObjectList;
-	AssetRegistryModule.Get().GetAssetsByClass(BlueprintClass->GetClassPathName(), ObjectList);
-	for (auto ObjIter = ObjectList.CreateConstIterator(); ObjIter; ++ObjIter)
-	{
-		const FAssetData& Asset = *ObjIter;
-		FString Filename = Asset.GetObjectPathString();
-
-		// Get the the class this blueprint generates
-		auto AssetTag = Asset.TagsAndValues.FindTag(TEXT("GeneratedClass"));
-		if (AssetTag.IsSet())
-		{
-			// Convert path to just the name part
-			const FTopLevelAssetPath ClassPathName(FPackageName::ExportTextPathToObjectPath(*AssetTag.AsString()));
-
-			// Check if this class is in the derived set
-			if (!DerivedPathNames.Contains(ClassPathName))
-			{
-				continue;
-			}
-			UAssetManager::Get().LoadPrimaryAsset(Asset.GetPrimaryAssetId());
-		}
-	}
-	*/
 }
 
 void FStableDiffusionToolsEditorModule::ShutdownModule()

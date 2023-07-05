@@ -20,4 +20,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "ModelTools")
 	static void OpenModelTools();
+
+	UFUNCTION(BlueprintCallable, Category = "ModelTools")
+	static void ScanForLayerProcessorAssets();
 };
