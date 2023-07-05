@@ -1,2 +1,4 @@
-./StableDiffusionTools/Intermediate
-./.git
+Intermediate*
+.gitattributes
+.gitignore
+.git

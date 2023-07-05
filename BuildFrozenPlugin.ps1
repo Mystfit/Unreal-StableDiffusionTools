@@ -6,9 +6,6 @@ param(
     [string]$IgnorePathsFile
 )
 
-# Get the name of the top level directory
-$rootName = Get-ChildItem -Path $InputFolder -Directory | select Name
-
 # Read the ignore paths from the file
 $ignorePaths = Get-Content -Path $IgnorePathsFile
 
@@ -27,10 +24,13 @@ $zipFileName = "{0}-{1}.zip" -f $InputFolder, $versionNumber
 
 # Create a temporary folder for the contents to be zipped
 $tempFolder = Join-Path -Path $env:TEMP -ChildPath ([System.Guid]::NewGuid().ToString())
-$tempFolderRoot = Join-Path -Path $tempFolder -ChildPath $rootName
 
-# Copy the contents of the input folder to the temporary folder, excluding the specified paths
-Copy-Item -Path $InputFolder -Destination $tempFolderRoot -Recurse -Exclude $ignorePaths
+# Create a new root folder within the temporary folder
+$rootFolder = Join-Path -Path $tempFolder -ChildPath (Split-Path -Leaf $InputFolder)
+New-Item -ItemType Directory -Path $rootFolder | Out-Null
+
+# Copy the contents of the input folder to the root folder, excluding the specified paths
+Copy-Item -Path $InputFolder\* -Destination $rootFolder -Recurse -Exclude $ignorePaths
 
 # Compress the contents of the temporary folder to a zip file
 Compress-Archive -Path $tempFolder\* -DestinationPath $zipFileName -CompressionLevel Optimal -Force
