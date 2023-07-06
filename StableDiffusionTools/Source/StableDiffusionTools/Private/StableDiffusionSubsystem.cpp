@@ -487,8 +487,7 @@ UTextureRenderTarget2D* UStableDiffusionSubsystem::SetLivePreviewForLayer(FIntPo
 
 	// Start capturing the scene
 	PreviewedLayer->BeginCaptureLayer(GEditor->GetWorld(), Size, ActiveCaptureComponent);
-	PreviewedLayer->CaptureLayer(CaptureSource, false);
-	return PreviewedLayer->RenderTarget;
+	return PreviewedLayer->CaptureLayer(CaptureSource, false);
 }
 
 void UStableDiffusionSubsystem::DisableLivePreviewForLayer()
@@ -611,9 +610,9 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 			// Copy layer
 			FLayerProcessorContext TargetLayer = Layer;
 			TargetLayer.Processor->BeginCaptureLayer(SceneCapture.SceneCapture->GetWorld(), FrameBounds.Size(), SceneCapture.SceneCapture->GetCaptureComponent2D(), Layer.ProcessorOptions);
-			TargetLayer.Processor->CaptureLayer(SceneCapture.SceneCapture->GetCaptureComponent2D(), true, Layer.ProcessorOptions);
+			auto ResultRT = TargetLayer.Processor->CaptureLayer(SceneCapture.SceneCapture->GetCaptureComponent2D(), true, Layer.ProcessorOptions);
 			TargetLayer.Processor->EndCaptureLayer(SceneCapture.SceneCapture->GetWorld(), SceneCapture.SceneCapture->GetCaptureComponent2D());
-			TargetLayer.LayerPixels = TargetLayer.Processor->ProcessLayer(TargetLayer.Processor->RenderTarget);
+			TargetLayer.LayerPixels = TargetLayer.Processor->ProcessLayer(ResultRT);
 			Input.ProcessedLayers.Add(MoveTemp(TargetLayer));
 		}
 
@@ -667,9 +666,9 @@ void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionIn
 	Input.ProcessedLayers.Reserve(Input.InputLayers.Num());
 	for (auto Layer : Input.InputLayers) {
 		Layer.Processor->BeginCaptureLayer(CaptureComponent->GetWorld(), CaptureSize, CaptureComponent, Layer.ProcessorOptions);
-		Layer.Processor->CaptureLayer(CaptureComponent, true, Layer.ProcessorOptions);
+		auto ResultRT = Layer.Processor->CaptureLayer(CaptureComponent, true, Layer.ProcessorOptions);
 		Layer.Processor->EndCaptureLayer(CaptureComponent->GetWorld(), CaptureComponent);
-		Layer.LayerPixels = Layer.Processor->ProcessLayer(Layer.Processor->RenderTarget);
+		Layer.LayerPixels = Layer.Processor->ProcessLayer(ResultRT);
 		Input.ProcessedLayers.Add(MoveTemp(Layer));
 	}
 
@@ -702,9 +701,9 @@ void UStableDiffusionSubsystem::CaptureFromTextureSource(FStableDiffusionInput I
 	Input.ProcessedLayers.Reserve(Input.InputLayers.Num());
 	for (auto Layer : Input.InputLayers) {
 		Layer.Processor->BeginCaptureLayer(GEditor->GetEditorWorldContext().World(), CaptureSize);
-		Layer.Processor->CaptureLayer(nullptr);
+		auto ResultRT = Layer.Processor->CaptureLayer(nullptr);
 		Layer.Processor->EndCaptureLayer(GEditor->GetEditorWorldContext().World());
-		Layer.LayerPixels = Layer.Processor->ProcessLayer(Layer.Processor->RenderTarget);
+		Layer.LayerPixels = Layer.Processor->ProcessLayer(ResultRT);
 		Input.ProcessedLayers.Add(MoveTemp(Layer));
 	}
 

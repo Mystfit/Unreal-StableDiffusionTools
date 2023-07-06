@@ -82,11 +82,9 @@ public:
 	virtual TArray<FLinearColor> ProcessLinearLayer(UTextureRenderTarget2D* Layer);
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Stable Diffusion|Layer source")
-	UTextureRenderTarget2D* RenderTarget;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Stable Diffusion|Layer source")
 	UMaterialInterface* PostMaterial;
 
+	UFUNCTION(BlueprintCallable, Category = "Stable Diffusion|Layer source")
 	UMaterialInterface* GetActivePostMaterial();
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Stable Diffusion|Layer source")
@@ -96,17 +94,26 @@ public:
 	static const TMap<FString, ELayerImageType> LayerImageTypeLookup;
 
 	FPrimaryAssetId GetPrimaryAssetId() const override;
+
 protected:
 	UTextureRenderTarget2D* GetOrAllocateRenderTarget(FIntPoint Size);
+	
+	void SetActivePostMaterial(TObjectPtr<UMaterialInterface> Material);
+
+private:
+	UTextureRenderTarget2D* RenderTarget;
+
 	UMaterialInterface* ActivePostMaterialInstance;
 }; 
 
 
-UCLASS(Blueprintable, Abstract, EditInlineNew, CollapseCategories) //CollapseCategories , hidecategories = UObject
+UCLASS(Blueprintable, EditInlineNew, CollapseCategories) //CollapseCategories , hidecategories = UObject
 class STABLEDIFFUSIONTOOLS_API ULayerProcessorOptions : public UObject
 {
 	GENERATED_BODY()
 public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Layer options")
+	float Strength = 1.0f;
 };
 
 USTRUCT(BlueprintType)

@@ -3,6 +3,7 @@
 #include "LayerProcessorBase.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "Materials/MaterialInstanceDynamic.h"
 
 const TMap<ELayerImageType, FString> ULayerProcessorBase::ReverseLayerImageTypeLookup = {
 	{unknown, "unknown"},
@@ -22,7 +23,7 @@ const TMap<FString, ELayerImageType> ULayerProcessorBase::LayerImageTypeLookup =
 void ULayerProcessorBase::BeginCaptureLayer_Implementation(UWorld* World, FIntPoint Size, USceneCaptureComponent2D* CaptureSource, UObject* LayerOptions)
 {
 	if (!ActivePostMaterialInstance)
-		ActivePostMaterialInstance = PostMaterial;
+		ActivePostMaterialInstance = UMaterialInstanceDynamic::Create(PostMaterial, this);
 
 	if (CaptureSource)
 	{
@@ -53,7 +54,7 @@ void ULayerProcessorBase::BeginCaptureLayer_Implementation(UWorld* World, FIntPo
 
 ULayerProcessorOptions* ULayerProcessorBase::AllocateLayerOptions_Implementation()
 {
-	return nullptr;
+	return NewObject<ULayerProcessorOptions>();
 }
 
 UTextureRenderTarget2D* ULayerProcessorBase::CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame, UObject* LayerOptions)
@@ -65,8 +66,10 @@ UTextureRenderTarget2D* ULayerProcessorBase::CaptureLayer(USceneCaptureComponent
 			CaptureSource->CaptureScene();
 		}
 		result = CaptureSource->TextureTarget;
+		return result;
 	}
-	return result;
+
+	return RenderTarget;
 }
 
 void ULayerProcessorBase::EndCaptureLayer_Implementation(UWorld* World, USceneCaptureComponent2D* CaptureSource)
@@ -129,6 +132,11 @@ UTextureRenderTarget2D* ULayerProcessorBase::GetOrAllocateRenderTarget(FIntPoint
 	}	
 	check(RenderTarget);
 	return RenderTarget;
+}
+
+void ULayerProcessorBase::SetActivePostMaterial(TObjectPtr<UMaterialInterface> Material)
+{
+	ActivePostMaterialInstance = Material;
 }
 
 FPrimaryAssetId ULayerProcessorBase::GetPrimaryAssetId() const

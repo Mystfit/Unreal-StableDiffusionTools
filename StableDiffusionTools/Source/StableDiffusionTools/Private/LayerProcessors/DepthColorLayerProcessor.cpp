@@ -23,7 +23,7 @@ void UDepthLayerProcessor::BeginCaptureLayer_Implementation(UWorld* World, FIntP
 		DepthMatInst->SetScalarParameterValue("StartDepth", DepthOptions->SceneDepthOffset);
 	}
 
-	ActivePostMaterialInstance = DepthMatInst;
+	SetActivePostMaterial(DepthMatInst);
 	Super::BeginCaptureLayer_Implementation(World, Size, CaptureSource, LayerOptions);
 }
 
@@ -36,9 +36,7 @@ UTextureRenderTarget2D* UDepthLayerProcessor::CaptureLayer(USceneCaptureComponen
 	}
 
 	// Capture the layer
-	ULayerProcessorBase::CaptureLayer(CaptureSource, SingleFrame);
-
-	return RenderTarget;
+	return ULayerProcessorBase::CaptureLayer(CaptureSource, SingleFrame);
 }
 
 void UDepthLayerProcessor::EndCaptureLayer_Implementation(UWorld* World, USceneCaptureComponent2D* CaptureSource) {

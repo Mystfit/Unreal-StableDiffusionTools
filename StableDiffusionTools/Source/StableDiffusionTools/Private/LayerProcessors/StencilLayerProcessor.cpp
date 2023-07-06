@@ -42,7 +42,7 @@ void UStencilLayerProcessor::BeginCaptureLayer_Implementation(UWorld* World, FIn
 	if (!IsValid(StencilMatInst) && PostMaterial) {
 		StencilMatInst = UMaterialInstanceDynamic::Create(PostMaterial, this);
 	}
-	ActivePostMaterialInstance = StencilMatInst;
+	SetActivePostMaterial(StencilMatInst);
 
 	if (CaptureSource) {
 		LastBloomState = CaptureSource->ShowFlags.Bloom;
@@ -53,8 +53,7 @@ void UStencilLayerProcessor::BeginCaptureLayer_Implementation(UWorld* World, FIn
 }
 
 UTextureRenderTarget2D* UStencilLayerProcessor::CaptureLayer(USceneCaptureComponent2D* CaptureSource, bool SingleFrame, UObject* LayerOptions){
-	ULayerProcessorBase::CaptureLayer(CaptureSource, SingleFrame);
-	return RenderTarget;
+	return ULayerProcessorBase::CaptureLayer(CaptureSource, SingleFrame);
 }
 
 void UStencilLayerProcessor::EndCaptureLayer_Implementation(UWorld* World, USceneCaptureComponent2D* CaptureSource)

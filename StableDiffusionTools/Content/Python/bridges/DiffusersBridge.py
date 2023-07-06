@@ -494,6 +494,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             return
 
         layer_img_mappings = {}
+        controlnet_scales = []
         for layer in input.processed_layers:
             layer_img = FColorAsPILImage(layer.layer_pixels, input.options.size_x, input.options.size_y).convert("RGB") if layer.layer_pixels else None
             layer_img = layer_img.resize((input.options.out_size_x, input.options.out_size_y))
@@ -505,6 +506,10 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 exec(layer.processor.python_transform_script, transform_script_args, transform_script_locals)
                 layer_img = transform_script_locals["result_image"] if "result_image" in transform_script_locals else layer_img
             
+            # Set controlnet conditioning scales
+            if layer.layer_type == unreal.LayerImageType.CONTROL_IMAGE and layer.processor_options:
+                controlnet_scales.append(layer.processor_options.strength)
+
             role = layer.role if layer.layer_type == unreal.LayerImageType.CUSTOM else layer_type_name(layer.layer_type)
             if role in layer_img_mappings:
                 if not hasattr(layer_img_mappings[role], "__len__"):
@@ -512,7 +517,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 layer_img_mappings[role].append(layer_img)
             else:
                 layer_img_mappings[role] = layer_img
-
 
         # Convert unreal pixels to PIL images
         #guide_img = FColorAsPILImage(input.input_image_pixels, input.options.size_x, input.options.size_y).convert("RGB") if input.input_image_pixels else None
@@ -579,7 +583,10 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
                 # Add processed input layers                 
                 generation_args.update(layer_img_mappings)
-                print(layer_img_mappings)
+
+                # Set controlnet scales if available
+                if len(controlnet_scales):
+                    generation_args["controlnet_conditioning_scale"] = controlnet_scales if len(controlnet_scales) > 1 else controlnet_scales[0]
             
                 if input.debug_python_images:
                     print("Generation args:")
