@@ -61,6 +61,10 @@
 		{
 			"Name": "WebBrowserWidget",
 			"Enabled": true
+		},
+		{
+			"Name": "Flow",
+			"Enabled": true
 		}
 	],
 	"Modules": [

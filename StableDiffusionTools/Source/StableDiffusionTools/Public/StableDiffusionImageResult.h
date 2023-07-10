@@ -24,8 +24,14 @@ public:
     //UPROPERTY(BlueprintReadWrite, Category = "StableDiffusion|Outputs")
     //TArray<FColor> PixelData;
 
+    UPROPERTY(BlueprintReadWrite, Category = "Outputs")
+    TEnumAsByte<EPipelineOutputType> OutputType;
+
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Outputs")
     UTexture2D* OutTexture;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Outputs")
+    TArray<uint8> OutLatent;
     
     UPROPERTY(BlueprintReadWrite, Category = "Outputs")
     int32 OutWidth;

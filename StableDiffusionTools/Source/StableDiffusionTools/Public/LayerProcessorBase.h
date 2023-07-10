@@ -25,6 +25,7 @@ enum ELayerImageType
 	unknown UMETA(DisplayName = "Unknown", Hidden), 
 	image UMETA(DisplayName = "Img2Img"),
 	control_image UMETA(DisplayName = "ControlNet"),
+	latent UMETA(DisplayName = "Latent"),
 	custom UMETA(DisplayName = "Custom"),
 	ELayerImageType_MAX UMETA(Hidden)
 };
@@ -128,6 +129,9 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, Transient)
 		TArray<FColor> LayerPixels;
+
+	UPROPERTY(BlueprintReadWrite, Transient)
+		TArray<uint8> LatentData;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta=(Category = "Layers"))
 		TObjectPtr<ULayerProcessorBase> Processor = nullptr;

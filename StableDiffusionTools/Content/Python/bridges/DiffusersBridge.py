@@ -1,4 +1,5 @@
 from asyncio.windows_utils import pipe
+import io
 import pipes
 from tqdm.auto import tqdm
 import functools
@@ -468,8 +469,11 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             if self.pipe:
                 del self.pipe
                 self.pipe = None
-        self.set_editor_property("ModelStatus", unreal.ModelStatus.UNLOADED)
         torch.cuda.empty_cache()
+
+        result = unreal.StableDiffusionModelInitResult()
+        result.model_status = unreal.ModelStatus.UNLOADED
+        self.set_editor_property("ModelStatus", result)
 
     @unreal.ufunction(override=True)
     def ModelExists(self, model_name):
@@ -496,10 +500,14 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         layer_img_mappings = {}
         controlnet_scales = []
         for layer in input.processed_layers:
-            layer_img = FColorAsPILImage(layer.layer_pixels, input.options.size_x, input.options.size_y).convert("RGB") if layer.layer_pixels else None
-            layer_img = layer_img.resize((input.options.out_size_x, input.options.out_size_y))
+            layer_img = None
+            if layer.layer_type == unreal.LayerImageType.LATENT:
+                layer_img = torch.load(layer.options.latent_data)
+            else:
+                layer_img = FColorAsPILImage(layer.layer_pixels, input.options.size_x, input.options.size_y).convert("RGB") if layer.layer_pixels else None
+                layer_img = layer_img.resize((input.options.out_size_x, input.options.out_size_y))
 
-            if layer.processor.python_transform_script:
+            if layer.processor.python_transform_script and not layer.layer_type == unreal.LayerImageType.LATENT:
                 transform_script_locals = {}
                 transform_script_args = {"input_image": layer_img}
                 print(f"Running image transform script for layer {layer}")
@@ -548,7 +556,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         seed = random.randrange(0, max_seed) if input.options.seed < 0 else input.options.seed
         
         # Create prompt
-        prompt_tensors = self.build_prompt_tensors(positive_prompts=input.options.positive_prompts, negative_prompts=input.options.negative_prompts, compel=self.compel)
+        prompt_tensors, positive_prompt_tensors, negative_prompt_tensors = self.build_prompt_tensors(positive_prompts=input.options.positive_prompts, negative_prompts=input.options.negative_prompts, compel=self.compel)
 
         # Save preview texture
         self.preview_texture = preview_texture
@@ -558,7 +566,11 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 generator = torch.Generator(device="cpu")
                 generator.manual_seed(seed)
                 generation_args = {
-                    "prompt_embeds": prompt_tensors,
+                    "prompt": " ".join([f"{split_p.strip()}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")]),
+                    "negative_prompt" : " ".join([f"{split_p.strip()}" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")]),
+                    #"prompt_embeds": prompt_tensors,
+                    #"pooled_prompt_embeds": positive_prompt_tensors[0],
+                    #"negative_pooled_prompt_embeds": negative_prompt_tensors[0],
                     "num_inference_steps": input.options.iterations, 
                     "generator": generator, 
                     "guidance_scale": input.options.guidance_scale, 
@@ -587,6 +599,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 # Set controlnet scales if available
                 if len(controlnet_scales):
                     generation_args["controlnet_conditioning_scale"] = controlnet_scales if len(controlnet_scales) > 1 else controlnet_scales[0]
+
+                if input.options.output_type == unreal.PipelineOutputType.LATENT:
+                    generation_args["output_type"] = "latent"
             
                 if input.debug_python_images:
                     print("Generation args:")
@@ -604,14 +619,24 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
                 # Gather result images
                 images = self.executor.result.images if self.executor.result else None #self.pipe(**generation_args).images
-                image = images[0] if images else None
+                image = images[0] if not images is None else None
 
                 if input.debug_python_images and image:
                     image.show()
 
-                if not image:
+                if image is None:
                     print("No image was generated")
-            
+                else:
+                    if pipeline_options.python_post_render_script:
+                        self.ReleaseModel()
+                        post_render_script_locals = {}
+                        post_render_script_args = {"input_image": image, "generation_args": generation_args }
+                        print(f"Running post-render script")
+                        exec(pipeline_options.python_post_render_script, post_render_script_args, post_render_script_locals)
+                        image = post_render_script_locals["result_image"]# if "result_image" in post_render_script_locals else image
+                        print("Post render image:")
+                        print(image)
+                
                 # Gather result data
                 print(f"Result model options: {model_options}")
                 print(f"Result pipeline options: {pipeline_options}")
@@ -619,10 +644,18 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 result.pipeline = pipeline_options
                 result.lora = lora_asset.options if lora_asset else unreal.StableDiffusionModelOptions()
 
+                # Save latent if required
+                if input.options.output_type == unreal.PipelineOutputType.LATENT:
+                    buffer = io.BytesIO()
+                    torch.save(image, buffer)
+                    result.out_latent = buffer.read()
+
+                # Save texture
+                result.out_texture = PILImageToTexture(image.convert("RGBA"), out_texture, True) if not image is None else None
+
                 result.input = input
                 result.input.options.seed = seed
                 print(f"Seed was {seed}. Saved as {result.input.options.seed}")
-                result.out_texture = PILImageToTexture(image.convert("RGBA"), out_texture, True) if image else out_texture
                 result.out_width = image.width if image else input.options.out_size_x
                 result.out_height = image.height if image else input.options.out_size_y
                 result.completed = True if image else False
@@ -665,7 +698,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         print(negative_prompts)
         positive_prompt_tensors = compel.build_conditioning_tensor(positive_prompts if positive_prompts else "")
         negative_prompt_tensors = compel.build_conditioning_tensor(negative_prompts if negative_prompts else "")
-        return torch.cat(compel.pad_conditioning_tensors_to_same_length([positive_prompt_tensors, negative_prompt_tensors]))
+        return (torch.cat(compel.pad_conditioning_tensors_to_same_length([positive_prompt_tensors, negative_prompt_tensors])), positive_prompt_tensors, negative_prompt_tensors)
 
     @unreal.ufunction(override=True)
     def StopImageGeneration(self):

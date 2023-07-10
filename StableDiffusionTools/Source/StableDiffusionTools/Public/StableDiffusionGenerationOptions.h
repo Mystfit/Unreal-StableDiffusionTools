@@ -26,6 +26,13 @@ enum class EInputImageSource : uint8 {
 ENUM_CLASS_FLAGS(EInputImageSource);
 
 UENUM(BlueprintType)
+enum class EPipelineOutputType : uint8 {
+	Image UMETA(DisplayName = "Image"),
+	Latent UMETA(DisplayName = "Latent")
+};
+ENUM_CLASS_FLAGS(EPipelineOutputType);
+
+UENUM(BlueprintType)
 enum class EPaddingMode : uint8 {
 	//'zeros', 'reflect', 'replicate' or 'circular'.
 	zeros UMETA(DisplayName = "Zeroes"),
@@ -145,11 +152,18 @@ public:
 	FString CustomPipeline;
 
 	/*
-	* Process and add any additional keyword arguments for the model pipe in Python at model init.
+	* Process and add any additional keyword arguments for the pipeline in Python at model init.
 	* Any local variable in this script prefixed with the substring 'pipearg_' will be added to the pipe's keyword argument list
 	*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Pipeline"))
 	FString PythonModelArgumentsScript;
+
+	/*
+	* Process the image further after it was generated.
+	* 'input_image' variable is the input image. Modify it and set the 'result_image' local variable in the script after processing.
+	*/
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Pipeline"))
+	FString PythonPostRenderScript;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline")
 	FString Scheduler;
@@ -181,13 +195,13 @@ public:
 };
 
 
-UCLASS()
+UCLASS(Blueprintable, EditInlineNew)
 class STABLEDIFFUSIONTOOLS_API UStableDiffusionPipelineAsset : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Pipeline")
-		FStableDiffusionPipelineOptions Options;
+	FStableDiffusionPipelineOptions Options;
 
 	UFUNCTION(BlueprintCallable, Category = "Pipeline")
 	TArray<FString> GetCompatibleSchedulers();
@@ -251,6 +265,9 @@ public:
 	float GuidanceScale = 7.5;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
+	float LoraWeight = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
 	int32 Iterations = 50;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
@@ -269,13 +286,14 @@ public:
 	int32 OutSizeY = 512;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
+	TEnumAsByte<EPipelineOutputType> OutputType;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
 	TArray<FPrompt> PositivePrompts;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
 	TArray<FPrompt> NegativePrompts;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
-	float LoraWeight = 1.0f;
 
 	void AddPrompt(const FPrompt Prompt){
 		if (Prompt.Sentiment == EPromptSentiment::Negative) {
