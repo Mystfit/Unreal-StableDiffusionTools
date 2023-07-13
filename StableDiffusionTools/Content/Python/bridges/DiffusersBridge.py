@@ -307,7 +307,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
         kwargs = {
             "torch_dtype": torch.float32 if new_model_options.precision == "fp32" else torch.float16,
-            "use_auth_token": self.get_token()
+            "use_auth_token": self.get_token(),
+            "cache_dir": self.get_settings_model_save_path().path
         }
 
         # Run model init script to generate extra pipeline args
@@ -456,7 +457,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
     def InitUpsampler(self):
         upsampler = None
         try:
-            upsampler = RealESRGANModel.from_pretrained("nateraw/real-esrgan")
+            upsampler = RealESRGANModel.from_pretrained("nateraw/real-esrgan", cache_dir=self.get_settings_model_save_path().path)
             upsampler = upsampler.to("cuda")
         except Exception as e:
             print("Could not load upsampler. Exception was ".format(e))
