@@ -20,7 +20,7 @@ from torchvision.transforms.functional import rgb_to_grayscale
 import PIL
 from PIL import Image
 from transformers import CLIPFeatureExtractor
-from compel import Compel, DiffusersTextualInversionManager
+from compel import Compel, DiffusersTextualInversionManager, ReturnedEmbeddingsType
 import diffusers
 from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionDepth2ImgPipeline, StableDiffusionUpscalePipeline
 from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
@@ -60,6 +60,7 @@ def layer_type_name(layer_type: unreal.LayerImageType):
     layer_type_map = {
         unreal.LayerImageType.IMAGE: "image",
         unreal.LayerImageType.CONTROL_IMAGE: "control_image",
+        unreal.LayerImageType.LATENT: "image",
         unreal.LayerImageType.CUSTOM: "custom",
     }
     return layer_type_map[layer_type]
@@ -287,19 +288,27 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
 
     @unreal.ufunction(override=True)
-    def InitModel(self, new_model_options, new_pipeline_options, lora_asset, textual_inversion_asset, layers, allow_nsfw, padding_mode):
+    def InitModel(self, new_model_options, new_pipeline_asset, lora_asset, textual_inversion_asset, layers, allow_nsfw, padding_mode):
+        # Free up any previously loaded mnodels
+        self.ReleaseModel()
+
         scheduler_cls = None
-        if new_pipeline_options.scheduler:
-            scheduler_cls = getattr(diffusers, new_pipeline_options.scheduler)
+        if new_pipeline_asset.options.scheduler:
+            scheduler_cls = getattr(diffusers, new_pipeline_asset.options.scheduler)
             print(f"Using scheduler class: {scheduler_cls}")
 
         # Set pipeline
-        if new_pipeline_options.diffusion_pipeline:
-            ActivePipeline = getattr(diffusers, new_pipeline_options.diffusion_pipeline)
+        if new_pipeline_asset.options.diffusion_pipeline:
+            ActivePipeline = getattr(diffusers, new_pipeline_asset.options.diffusion_pipeline)
         print(f"Using pipeline class: {ActivePipeline}")
 
         # Use local model path if it is set, otherwise use the model name
-        modelname = new_model_options.local_folder_path.path if new_model_options.local_folder_path.path else new_model_options.model
+        model_is_file = os.path.exists(new_model_options.local_file_path.file_path) if new_model_options.local_file_path.file_path else False
+        model_is_folder = os.path.exists(new_model_options.local_folder_path.path) if new_model_options.local_folder_path.path else False
+
+        modelname = new_model_options.model
+        modelname = new_model_options.local_file_path.file_path if model_is_file else modelname
+        modelname = new_model_options.local_folder_path.path if model_is_folder else modelname
 
         # Update model status to let UI know the model is downloading or available
         result = unreal.StableDiffusionModelInitResult()
@@ -313,7 +322,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
         # Run model init script to generate extra pipeline args
         init_script_locals = {}
-        exec(new_pipeline_options.python_model_arguments_script, globals(), init_script_locals)
+        exec(new_pipeline_asset.options.python_model_arguments_script, globals(), init_script_locals)
         for key, val in init_script_locals.items():
             if "pipearg_" in key:
                 new_key = key.replace('pipearg_', '')
@@ -347,8 +356,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # Set pipe optional args
         if new_model_options.revision:
             kwargs["revision"] = new_model_options.revision
-        if new_pipeline_options.custom_pipeline:
-            kwargs["custom_pipeline"] = new_pipeline_options.new_pipeline_options
+        if new_pipeline_asset.options.custom_pipeline:
+            kwargs["custom_pipeline"] = new_pipeline_asset.options.custom_pipeline
         if allow_nsfw:
             kwargs["safety_checker"] = None
         
@@ -361,7 +370,12 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
         # Load model
         try:
-            self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
+            if model_is_file:
+                print(f"Requested single-file pipeline is: {ActivePipeline}")
+                self.pipe = ActivePipeline.from_single_file(modelname, **kwargs)
+                print(f"Loaded pipeline is: {self.pipe}")
+            else:
+                self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
         except LocalEntryNotFoundError as e:
             result.model_status = unreal.ModelStatus.ERROR
             result.error_msg = f"Failed to load the model due to a missing local model or a download error. Full exception: {e}"
@@ -375,16 +389,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         
         if scheduler_cls:
             self.pipe.scheduler = scheduler_cls.from_config(self.pipe.scheduler.config)
-
-        # Compel for weighted prompts
-        compel_args = {
-            "tokenizer": self.pipe.tokenizer,
-            "text_encoder": self.pipe.text_encoder,
-            "truncate_long_prompts": False,
-        }
-        if textual_inversion_asset:
-            compel_args["textual_inversion_manager"] = DiffusersTextualInversionManager(self.pipe)
-        self.compel = Compel(**compel_args)
 
         # Performance options for low VRAM gpus
         self.pipe.enable_attention_slicing(1)
@@ -429,7 +433,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.set_editor_property("LORAAsset", lora_asset)
         self.set_editor_property("CachedTextualInversionAsset", textual_inversion_asset)
         self.set_editor_property("ModelOptions", new_model_options)
-        self.set_editor_property("PipelineOptions", new_pipeline_options)
+        self.set_editor_property("PipelineAsset", new_pipeline_asset)
         
         # Cache status
         result.model_status = unreal.ModelStatus.LOADED
@@ -490,8 +494,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.abort = False
         result = unreal.StableDiffusionImageResult()
         model_options = self.get_editor_property("ModelOptions")
-        pipeline_options = self.get_editor_property("PipelineOptions")
+        pipeline_asset = self.get_editor_property("PipelineAsset")
         lora_asset = self.get_editor_property("LORAAsset")
+        textual_inversion_asset = self.get_editor_property("CachedTextualInversionAsset")
 
         if not hasattr(self, "pipe"):
             print("Could not find a pipe attribute. Has it been GC'd?")
@@ -502,7 +507,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         for layer in input.processed_layers:
             layer_img = None
             if layer.layer_type == unreal.LayerImageType.LATENT:
-                layer_img = torch.load(layer.options.latent_data)
+                print("Loading latent data from layer")
+                print(layer.latent_data)
+                layer_img = torch.load(io.BytesIO(bytearray(layer.latent_data)))
             else:
                 layer_img = FColorAsPILImage(layer.layer_pixels, input.options.size_x, input.options.size_y).convert("RGB") if layer.layer_pixels else None
                 layer_img = layer_img.resize((input.options.out_size_x, input.options.out_size_y))
@@ -531,15 +538,16 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         #mask_img = FColorAsPILImage(input.mask_image_pixels, input.options.size_x, input.options.size_y).convert("RGB")  if input.mask_image_pixels else None
         
         # Capability flags
-        inpaint_active = (pipeline_options.capabilities & unreal.PipelineCapabilities.INPAINT.value) == unreal.PipelineCapabilities.INPAINT.value
-        depth_active = (pipeline_options.capabilities & unreal.PipelineCapabilities.DEPTH.value)  == unreal.PipelineCapabilities.DEPTH.value
-        strength_active = (pipeline_options.capabilities & unreal.PipelineCapabilities.STRENGTH.value)  == unreal.PipelineCapabilities.STRENGTH.value
-        controlnet_active = (pipeline_options.capabilities & unreal.PipelineCapabilities.CONTROL.value)  == unreal.PipelineCapabilities.CONTROL.value
+        requires_pooled_active = (pipeline_asset.options.capabilities & unreal.PipelineCapabilities.POOLED_EMBEDDINGS.value) == unreal.PipelineCapabilities.POOLED_EMBEDDINGS.value
+        inpaint_active = (pipeline_asset.options.capabilities & unreal.PipelineCapabilities.INPAINT.value) == unreal.PipelineCapabilities.INPAINT.value
+        depth_active = (pipeline_asset.options.capabilities & unreal.PipelineCapabilities.DEPTH.value)  == unreal.PipelineCapabilities.DEPTH.value
+        strength_active = (pipeline_asset.options.capabilities & unreal.PipelineCapabilities.STRENGTH.value)  == unreal.PipelineCapabilities.STRENGTH.value
+        controlnet_active = (pipeline_asset.options.capabilities & unreal.PipelineCapabilities.CONTROL.value)  == unreal.PipelineCapabilities.CONTROL.value
         mask_active = depth_active or inpaint_active
-        print(f"Capabilities value {pipeline_options.capabilities}, Depth map value: {unreal.PipelineCapabilities.DEPTH.value}, Using depthmap? {depth_active}")
-        print(f"Capabilities value {pipeline_options.capabilities}, Inpaint value: {unreal.PipelineCapabilities.INPAINT.value}, Using inpaint? {inpaint_active}")
-        print(f"Capabilities value {pipeline_options.capabilities}, Strength value: {unreal.PipelineCapabilities.STRENGTH.value}, Using strength? {strength_active}")
-        print(f"Capabilities value {pipeline_options.capabilities}, ControlNet value: {unreal.PipelineCapabilities.CONTROL.value}, Using controlnet? {controlnet_active}")
+        print(f"Capabilities value {pipeline_asset.options.capabilities}, Depth map value: {unreal.PipelineCapabilities.DEPTH.value}, Using depthmap? {depth_active}")
+        print(f"Capabilities value {pipeline_asset.options.capabilities}, Inpaint value: {unreal.PipelineCapabilities.INPAINT.value}, Using inpaint? {inpaint_active}")
+        print(f"Capabilities value {pipeline_asset.options.capabilities}, Strength value: {unreal.PipelineCapabilities.STRENGTH.value}, Using strength? {strength_active}")
+        print(f"Capabilities value {pipeline_asset.options.capabilities}, ControlNet value: {unreal.PipelineCapabilities.CONTROL.value}, Using controlnet? {controlnet_active}")
 
         # DEBUG: Show input images
         if input.debug_python_images:
@@ -555,10 +563,72 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         max_seed = abs(int((2**31) / 2) - 1)
         seed = random.randrange(0, max_seed) if input.options.seed < 0 else input.options.seed
         
-        # Create prompt
-        prompt_tensors, positive_prompt_tensors, negative_prompt_tensors = self.build_prompt_tensors(positive_prompts=input.options.positive_prompts, negative_prompts=input.options.negative_prompts, compel=self.compel)
+        # Create prompt using the compel library
+        text_encoders = None 
+        tokenizers = None
+        if hasattr(self.pipe, "text_encoder") and hasattr(self.pipe, "text_encoder_2"):
+            if self.pipe.text_encoder and self.pipe.text_encoder_2:
+                text_encoders = [self.pipe.text_encoder, self.pipe.text_encoder_2]
+            else:
+                text_encoders = self.pipe.text_encoder if self.pipe.text_encoder else self.pipe.text_encoder_2
+        else:
+            if hasattr(self.pipe, "text_encoder"):
+                text_encoders = self.pipe.text_encoder if self.pipe.text_encoder else None
+            elif hasattr(self.pipe, "text_encoder_2"):
+                text_encoders = self.pipe.text_encoder_2 if self.pipe.text_encoder_2 else None
 
-        # Save preview texture
+        if hasattr(self.pipe, "tokenizer") and hasattr(self.pipe, "tokenizer_2"):
+            if self.pipe.tokenizer and self.pipe.tokenizer_2:
+                tokenizers = [self.pipe.tokenizer, self.pipe.tokenizer_2]
+            else:
+                tokenizers = self.pipe.tokenizer if self.pipe.tokenizer else self.pipe.tokenizer_2
+        else:
+            if hasattr(self.pipe, "tokenizer"):
+                tokenizers = self.pipe.tokenizer if self.pipe.tokenizer else None
+            elif hasattr(self.pipe, "tokenizer_2"):
+                tokenizers = self.pipe.tokenizer2 if self.pipe.tokenizer_2 else None
+        
+        if not tokenizers or not text_encoders:
+            print(f"Missing either the text encoder or tokenizer for compel. Tokenizer: {tokenizers}, Text Encoder: {text_encoders}")
+        #[self.pipe.text_encoder, self.pipe.text_encoder_2] if hasattr(self.pipe, "text_encoder_2") else self.pipe.text_encoder
+        #[self.pipe.tokenizer, self.pipe.tokenizer_2] if hasattr(self.pipe, "tokenizer_2") else self.pipe.tokenizer
+
+        requires_pooled = [False, requires_pooled_active] if isinstance(tokenizers, list) or isinstance(text_encoders, list) else requires_pooled_active
+        compel_args = {
+            "tokenizer": tokenizers,
+            "text_encoder": text_encoders,
+            "truncate_long_prompts": False
+        }
+
+        if requires_pooled:
+            compel_args["requires_pooled"] = requires_pooled
+            compel_args["returned_embeddings_type"] = ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NON_NORMALIZED
+
+        # Textual inversions require a manager to be set in compel
+        if textual_inversion_asset:
+            compel_args["textual_inversion_manager"] = DiffusersTextualInversionManager(self.pipe)
+
+        print(f"Compel args: {compel_args}")
+        compel = Compel(**compel_args)
+
+        # Create prompt tensors
+        prompt_tensors = None
+        negative_prompt_tensors = None
+        pooled_prompt_tensors = None   
+        negative_pooled_prompt_tensors = None
+        prompt_tensors_group = compel(" ".join([f"({split_p.strip()}){prompt.weight}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")]))
+        #negative_prompt_tensors_group = compel(" ".join([f"({split_p.strip()}){prompt.weight}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")]))
+
+        #self.build_prompt_tensors(positive_prompts=input.options.positive_prompts, negative_prompts=input.options.negative_prompts, compel=compel)
+        if requires_pooled_active and isinstance(prompt_tensors_group, tuple):
+           prompt_tensors, pooled_prompt_tensors = (prompt_tensors_group[0], prompt_tensors_group[1]) 
+           #negative_prompt_tensors, negative_pooled_prompt_tensors = compel.pad_conditioning_tensors_to_same_length([negative_prompt_tensors_group[0], negative_prompt_tensors_group[1]]) 
+           #pooled_prompt_tensors, negative_pooled_prompt_tensors = compel.pad_conditioning_tensors_to_same_length([prompt_tensors_group[1], negative_prompt_tensors_group[1]])
+        else:
+            prompt_tensors = prompt_tensors_group
+            #negative_prompt_tensors = negative_prompt_tensors_group
+
+        # Cache preview texture
         self.preview_texture = preview_texture
 
         with torch.inference_mode():
@@ -566,21 +636,23 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 generator = torch.Generator(device="cpu")
                 generator.manual_seed(seed)
                 generation_args = {
-                    "prompt": " ".join([f"{split_p.strip()}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")]),
-                    "negative_prompt" : " ".join([f"{split_p.strip()}" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")]),
-                    #"prompt_embeds": prompt_tensors,
-                    #"pooled_prompt_embeds": positive_prompt_tensors[0],
-                    #"negative_pooled_prompt_embeds": negative_prompt_tensors[0],
+                    #"prompt": " ".join([f"{split_p.strip()}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")]),
+                    #"negative_prompt" : " ".join([f"{split_p.strip()}" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")]),
+                    "prompt_embeds": prompt_tensors,
+                    #"negative_prompt_embeds": negative_prompt_tensors,
                     "num_inference_steps": input.options.iterations, 
                     "generator": generator, 
                     "guidance_scale": input.options.guidance_scale, 
                     "callback": self.ImageProgressStep,
                     "callback_steps": 1
                 }
+
+                # Set LoRA weights
                 if lora_asset:
                     print(f"Using LoRA asset {lora_asset.options.model}")
                     generation_args["cross_attention_kwargs"] = {"scale":input.options.lora_weight};
 
+                # How frequent we want the image preview to be updated during generation
                 self.update_frequency = input.preview_iteration_rate
 
                 # Set the timestep in the scheduler early so we can get the start timestep
@@ -593,6 +665,11 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 if strength_active:
                     generation_args["strength"] = input.options.strength
 
+                # SDXL requires pooled prompt embeddings along with the regular prompt embeddings
+                if requires_pooled_active:
+                    generation_args["pooled_prompt_embeds"] = pooled_prompt_tensors
+                    #generation_args["negative_pooled_prompt_embeds"] = negative_pooled_prompt_tensors
+
                 # Add processed input layers                 
                 generation_args.update(layer_img_mappings)
 
@@ -600,12 +677,24 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 if len(controlnet_scales):
                     generation_args["controlnet_conditioning_scale"] = controlnet_scales if len(controlnet_scales) > 1 else controlnet_scales[0]
 
-                if input.options.output_type == unreal.PipelineOutputType.LATENT:
+                # Set whether we want to return an image or just latent data
+                if input.output_type == unreal.PipelineOutputType.LATENT:
                     generation_args["output_type"] = "latent"
             
                 if input.debug_python_images:
                     print("Generation args:")
                     pprint.pprint(generation_args)
+
+                if pipeline_asset.options.python_pre_render_script:
+                    pre_render_script_locals = {}
+                    pre_render_script_args = {
+                        "input": input, 
+                        "pipeline_asset": pipeline_asset,
+                        "model_options": model_options
+                    }
+                    print(f"Running pre-render script")
+                    exec(pipeline_asset.options.python_pre_render_script, pre_render_script_args, pre_render_script_locals)
+                    generation_args.update(pre_render_script_locals["generation_args"])
             
                 # Create executor to generate the image in its own thread that we can abort if needed
                 self.executor = AbortableExecutor("ImageThread", lambda generation_args=generation_args: self.pipe(**generation_args))
@@ -627,45 +716,47 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 if image is None:
                     print("No image was generated")
                 else:
-                    if pipeline_options.python_post_render_script:
-                        self.ReleaseModel()
+                    if pipeline_asset.options.python_post_render_script:
                         post_render_script_locals = {}
                         post_render_script_args = {"input_image": image, "generation_args": generation_args }
                         print(f"Running post-render script")
-                        exec(pipeline_options.python_post_render_script, post_render_script_args, post_render_script_locals)
+                        exec(pipeline_asset.options.python_post_render_script, post_render_script_args, post_render_script_locals)
                         image = post_render_script_locals["result_image"]# if "result_image" in post_render_script_locals else image
-                        print("Post render image:")
-                        print(image)
                 
                 # Gather result data
                 print(f"Result model options: {model_options}")
-                print(f"Result pipeline options: {pipeline_options}")
+                print(f"Result pipeline options: {pipeline_asset.options}")
                 result.model = model_options
-                result.pipeline = pipeline_options
+                result.pipeline = pipeline_asset.options
                 result.lora = lora_asset.options if lora_asset else unreal.StableDiffusionModelOptions()
 
                 # Save latent if required
-                if input.options.output_type == unreal.PipelineOutputType.LATENT:
+                if input.output_type == unreal.PipelineOutputType.LATENT:
                     buffer = io.BytesIO()
                     torch.save(image, buffer)
-                    result.out_latent = buffer.read()
-
-                # Save texture
-                result.out_texture = PILImageToTexture(image.convert("RGBA"), out_texture, True) if not image is None else None
-
+                    result.out_latent = buffer.getvalue()
+                    result.out_width = input.options.out_size_x
+                    result.out_height = input.options.out_size_y
+                else:
+                    # Save texture
+                    result.out_texture = PILImageToTexture(image.convert("RGBA"), out_texture, True) if not image is None else None
+                    result.out_width = image.width
+                    result.out_height = image.height
+                
                 result.input = input
                 result.input.options.seed = seed
                 print(f"Seed was {seed}. Saved as {result.input.options.seed}")
-                result.out_width = image.width if image else input.options.out_size_x
-                result.out_height = image.height if image else input.options.out_size_y
-                result.completed = True if image else False
+                result.completed = image is not None
 
                 # Cleanup
                 self.start_timestep = -1
                 del self.executor 
                 self.executor = None
+                prompt_tensors = None
+                pooled_prompt_tensors = None
                 gc.collect()
                 torch.cuda.empty_cache()
+                torch.clear_autocast_cache()
 
         return result
 
@@ -696,9 +787,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         negative_prompts = " ".join([f"({split_p.strip()}){prompt.weight}" for prompt in negative_prompts for split_p in prompt.prompt.split(",")])
         print(positive_prompts)
         print(negative_prompts)
-        positive_prompt_tensors = compel.build_conditioning_tensor(positive_prompts if positive_prompts else "")
-        negative_prompt_tensors = compel.build_conditioning_tensor(negative_prompts if negative_prompts else "")
-        return (torch.cat(compel.pad_conditioning_tensors_to_same_length([positive_prompt_tensors, negative_prompt_tensors])), positive_prompt_tensors, negative_prompt_tensors)
+        positive_prompt_tensors, positive_pooled_tensors = compel.build_conditioning_tensor(positive_prompts if positive_prompts else "")
+        negative_prompt_tensors, negative_pooled_tensors = compel.build_conditioning_tensor(negative_prompts if negative_prompts else "")
+        return (torch.cat(compel.pad_conditioning_tensors_to_same_length([positive_prompt_tensors, negative_prompt_tensors])), torch.cat(compel.pad_conditioning_tensors_to_same_length([positive_pooled_tensors, negative_pooled_tensors])))
 
     @unreal.ufunction(override=True)
     def StopImageGeneration(self):

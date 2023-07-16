@@ -59,7 +59,7 @@ public:
     bool ConvertRawModel(UStableDiffusionModelAsset* InModelAsset, bool DeleteOriginal = true);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
-    FStableDiffusionModelInitResult InitModel(const FStableDiffusionModelOptions& NewModelOptions, const FStableDiffusionPipelineOptions& NewPipelineOptions, UStableDiffusionLORAAsset* LoraAsset = nullptr, UStableDiffusionTextualInversionAsset* TextualInversionAsset = nullptr, const TArray<FLayerProcessorContext>& Layers = TArray<FLayerProcessorContext>(), bool AllowNsfw = false, EPaddingMode PaddingMode = EPaddingMode::zeros);
+    FStableDiffusionModelInitResult InitModel(const FStableDiffusionModelOptions& NewModelOptions, UStableDiffusionPipelineAsset* NewPipelineAsset, UStableDiffusionLORAAsset* LoraAsset = nullptr, UStableDiffusionTextualInversionAsset* TextualInversionAsset = nullptr, const TArray<FLayerProcessorContext>& Layers = TArray<FLayerProcessorContext>(), bool AllowNsfw = false, EPaddingMode PaddingMode = EPaddingMode::zeros);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void ReleaseModel();
@@ -95,7 +95,7 @@ public:
     FStableDiffusionModelOptions ModelOptions;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
-	FStableDiffusionPipelineOptions PipelineOptions;
+	UStableDiffusionPipelineAsset* PipelineAsset;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
     UStableDiffusionLORAAsset* LORAAsset;

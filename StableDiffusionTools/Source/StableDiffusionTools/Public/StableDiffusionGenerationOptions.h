@@ -13,7 +13,8 @@ enum class EPipelineCapabilities : uint8 {
 	INPAINT = 0x01,
 	DEPTH = 0x02,
 	STRENGTH = 0x04,
-	CONTROL = 0x08
+	CONTROL = 0x08,
+	POOLED_EMBEDDINGS = 0x10
 };
 ENUM_CLASS_FLAGS(EPipelineCapabilities);
 
@@ -117,7 +118,7 @@ public:
 class UStableDiffusionModelAsset;
 
 
-UCLASS()
+UCLASS(EditInlineNew)
 class STABLEDIFFUSIONTOOLS_API UStableDiffusionModelAsset : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
@@ -157,6 +158,15 @@ public:
 	*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Pipeline"))
 	FString PythonModelArgumentsScript;
+
+	/*
+	* Process the image further after it was generated.
+	* 'input' contains the current input options passed to the generation function
+	* 'generation_args' are the arguments that have been created already
+	* 'input_image' variable is the input image. Modify it and set the 'result_image' local variable in the script after processing.
+	*/
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Pipeline"))
+		FString PythonPreRenderScript;
 
 	/*
 	* Process the image further after it was generated.
@@ -224,7 +234,7 @@ public:
 };
 
 
-UCLASS()
+UCLASS(EditInlineNew)
 class STABLEDIFFUSIONTOOLS_API UStableDiffusionTextualInversionAsset : public UStableDiffusionModelAsset
 {
 	GENERATED_BODY()
@@ -234,7 +244,7 @@ public:
 };
 
 
-UCLASS()
+UCLASS(EditInlineNew)
 class STABLEDIFFUSIONTOOLS_API UStableDiffusionLORAAsset : public UStableDiffusionModelAsset
 {
 	GENERATED_BODY()
@@ -258,41 +268,74 @@ struct STABLEDIFFUSIONTOOLS_API FStableDiffusionGenerationOptions
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
-	float Strength = 0.75;
+	UPROPERTY(BlueprintReadWrite, meta = (Category = "Generation options"))
+		bool IsMasterOptions = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
-	float GuidanceScale = 7.5;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "!IsMasterOptions", EditConditionHides))
+		bool AllowOverrides = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
-	float LoraWeight = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition="AllowOverrides", EditConditionHides))
+		bool OverrideStrength = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
-	int32 Iterations = 50;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideStrength || IsMasterOptions"))
+		float Strength = 0.75;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
-	int32 Seed = -1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+		bool OverrideGuidanceScale = false;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Generation options")
-	int32 InSizeX = -1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideGuidanceScale || IsMasterOptions"))
+		float GuidanceScale = 7.5;
 
-	UPROPERTY(BlueprintReadWrite, Category = "Generation options")
-	int32 InSizeY = -1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+		bool OverrideLoraWeight = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
-	int32 OutSizeX = 512;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideLoraWeight || IsMasterOptions"))
+		float LoraWeight = 1.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
-	int32 OutSizeY = 512;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+		bool OverrideIterations = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
-	TEnumAsByte<EPipelineOutputType> OutputType;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideIterations || IsMasterOptions"))
+		int32 Iterations = 50;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
-	TArray<FPrompt> PositivePrompts;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+		bool OverrideSeed = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation options")
-	TArray<FPrompt> NegativePrompts;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideSeed || IsMasterOptions"))
+		int32 Seed = -1;
+
+	UPROPERTY(BlueprintReadWrite, meta = (Category = "Generation options"))
+		int32 InSizeX = -1;
+	
+	UPROPERTY(BlueprintReadWrite, meta = (Category = "Generation options"))
+		int32 InSizeY = -1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+		bool OverrideOutSizeX = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideOutSizeX || IsMasterOptions"))
+		int32 OutSizeX = 512;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+		bool OverrideOutSizeY = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideOutSizeY || IsMasterOptions"))
+		int32 OutSizeY = 512;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+		bool OverridePositivePrompts = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverridePositivePrompts || IsMasterOptions"))
+		TArray<FPrompt> PositivePrompts;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+		bool OverrideNegativePrompts = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideNegativePrompts || IsMasterOptions"))
+		TArray<FPrompt> NegativePrompts;
+
+	//UPROPERTY(BlueprintReadWrite, Category = "Generation options")
+	//	TEnumAsByte<EPipelineOutputType> OutputType;
 
 
 	void AddPrompt(const FPrompt Prompt){
@@ -347,4 +390,57 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, Category = "Generation")
 	FMinimalViewInfo View;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Generation")
+		TEnumAsByte<EPipelineOutputType> OutputType;
 };
+
+
+UCLASS(Blueprintable, EditInlineNew, AutoCollapseCategories = ("Stages", "Stage Layers", "Stage Overrides"))
+class STABLEDIFFUSIONTOOLS_API UImagePipelineStageAsset : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+public:
+	UImagePipelineStageAsset();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage Models")
+		UStableDiffusionModelAsset* Model;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Stage Models")
+		UStableDiffusionPipelineAsset* Pipeline;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage Models")
+		UStableDiffusionLORAAsset* LORAAsset;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage Models")
+		UStableDiffusionTextualInversionAsset* TextualInversionAsset;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ShowOnlyInnerProperties, Category = "Stage Layers"))
+		TArray<FLayerProcessorContext> Layers;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ShowOnlyInnerProperties, Category = "Stage Output"))
+		TEnumAsByte<EPipelineOutputType> OutputType;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(Category = "Stage Overrides"))
+		FStableDiffusionGenerationOptions OverrideInputOptions;
+private:
+};
+
+
+
+UCLASS(Blueprintable, EditInlineNew, AutoCollapseCategories=("Stages"))
+class STABLEDIFFUSIONTOOLS_API UImagePipelineAsset : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+public:
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Model config")
+	//EPaddingMode PaddingMode;
+
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Model config")
+	//bool AllowNSFW;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Stages")
+	TArray<UImagePipelineStageAsset*> Stages;
+private:
+};
+

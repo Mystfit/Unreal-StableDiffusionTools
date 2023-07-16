@@ -19,8 +19,11 @@
 #include "EditorAssetLibrary.h"
 #include "EditorClassUtils.h"
 #include "LayerProcessorBaseTypeActions.h"
+#include "ImagePipelineStageCustomization.h"
 #include "LayerProcessorOptionsCustomization.h"
 #include "EditorUtilitySubsystem.h"
+#include "WebBrowserModule.h"
+#include "IWebBrowserSingleton.h"
 #include "Engine/AssetManagerSettings.h"
 
 static const FName StableDiffusionToolsTabName("Stable Diffusion Tools");
@@ -83,6 +86,10 @@ void FStableDiffusionToolsEditorModule::StartupModule()
 		// Force a scan for layer processors
 		UAssetManager::Get().ReinitializeFromConfig();
 	}
+
+	// Set browser settings for model browsers
+	IWebBrowserSingleton* WebBrowserSingleton = IWebBrowserModule::Get().GetSingleton();
+	WebBrowserSingleton->SetDevToolsShortcutEnabled(true);
 }
 
 void FStableDiffusionToolsEditorModule::ShutdownModule()
@@ -149,6 +156,8 @@ void FStableDiffusionToolsEditorModule::RegisterDetailCustomization()
 	const FName PropertyEditor("PropertyEditor");
 	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditor);
 	
+	
+	PropertyModule.RegisterCustomClassLayout(UImagePipelineStageAsset::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FImagePipelineStageCustomization::MakeInstance));
 	//PropertyModule.RegisterCustomPropertyTypeLayout(FLayerProcessorContext::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FLayerDataCustomization::MakeInstance));
 	//PropertyModule.RegisterCustomPropertyTypeLayout(ULayerProcessorOptions::StaticClass()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FLayerProcessorOptionsCustomization::MakeInstance));
 }

@@ -163,7 +163,7 @@ void UStableDiffusionSubsystem::ConvertRawModel(UStableDiffusionModelAsset* InMo
 
 void UStableDiffusionSubsystem::InitModel(
 	const FStableDiffusionModelOptions& Model, 
-	const FStableDiffusionPipelineOptions& Pipeline, 
+	UStableDiffusionPipelineAsset* Pipeline, 
 	UStableDiffusionLORAAsset* LORAAsset, 
 	UStableDiffusionTextualInversionAsset* TextualInversionAsset, 
 	const TArray<FLayerProcessorContext>& Layers, 
@@ -184,7 +184,7 @@ void UStableDiffusionSubsystem::InitModel(
 				if (Result.ModelStatus == EModelStatus::Loaded) {
 					bIsModelDirty = false;
 					ModelOptions = Model;
-					PipelineOptions = Pipeline;
+					PipelineAsset = Pipeline;
 					//this->LORAAsset = LORAAsset;
 				}
 
@@ -197,7 +197,7 @@ void UStableDiffusionSubsystem::InitModel(
 			auto Result = this->GeneratorBridge->InitModel(Model, Pipeline, LORAAsset, TextualInversionAsset, Layers, AllowNSFW, PaddingMode);
 			if (Result.ModelStatus == EModelStatus::Loaded) {
 				ModelOptions = Model;
-				PipelineOptions = Pipeline;
+				PipelineAsset = Pipeline;
 				bIsModelDirty = false;
 			}
 
@@ -207,6 +207,19 @@ void UStableDiffusionSubsystem::InitModel(
 		}
 	}
 }
+
+//void UStableDiffusionSubsystem::RunImagePipeline(TArray<UImagePipelineStageAsset*> Stages, FStableDiffusionInput Input, EInputImageSource ImageSourceType, bool Async, bool AllowNSFW, EPaddingMode PaddingMode)
+//{
+//	for (auto Stage : Stages) {
+//		InitModel(Stage->Model->Options, Stage->Pipeline->Options, Stage->LORAAsset, Stage->TextualInversionAsset, Input.InputLayers, false, AllowNSFW, PaddingMode);
+//		if (GetModelStatus().ModelStatus != EModelStatus::Loaded) {
+//			UE_LOG(LogTemp, Error, TEXT("Failed to load model. Check the output log for more information"));
+//			return;
+//		}
+//
+//		GenerateImageSync(Input, ImageSourceType);
+//	}
+//}
 
 void UStableDiffusionSubsystem::ReleaseModel()
 {
@@ -287,43 +300,67 @@ void UStableDiffusionSubsystem::GenerateImage(FStableDiffusionInput Input, EInpu
 	if (!GeneratorBridge)
 		return;
 
+	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Input, ImageSourceType]() mutable
+	{
+		GenerateImageSync(Input, ImageSourceType);
+	});
+}
+
+FStableDiffusionImageResult UStableDiffusionSubsystem::GenerateImageSync(FStableDiffusionInput Input, EInputImageSource ImageSourceType)
+{
+	FStableDiffusionImageResult Result;
+
+	if (!GeneratorBridge)
+		return Result;
+
 	bIsGenerating = true;
 
-	AsyncTask(ENamedThreads::GameThread, [this, Input, ImageSourceType]() mutable
+	TSharedPtr<TPromise<bool>> GameThreadPromise = MakeShared<TPromise<bool>>();
+
+	// Setup has to happen on the game thread
+	AsyncTask(ENamedThreads::GameThread, [&]() 
+	{
+		// Remember prior screen message state and disable it so our viewport is clean
+		bool bPrevGScreenMessagesEnabled = GAreScreenMessagesEnabled;
+		bool bPrevViewportGameViewEnabled = false;
+		GAreScreenMessagesEnabled = false;
+		ULevelEditorSubsystem* LevelEditorSubsystem = nullptr;
+
+	#if WITH_EDITOR
+		//Only set Game view when streaming in editor mode (so not on PIE, SIE or standalone) 
+		if (GEditor && !GEditor->IsPlaySessionInProgress())
 		{
-			// Remember prior screen message state and disable it so our viewport is clean
-			bool bPrevGScreenMessagesEnabled = GAreScreenMessagesEnabled;
-			bool bPrevViewportGameViewEnabled = false;
-			GAreScreenMessagesEnabled = false;
-			ULevelEditorSubsystem* LevelEditorSubsystem = nullptr;
-
-#if WITH_EDITOR
-			//Only set Game view when streaming in editor mode (so not on PIE, SIE or standalone) 
-			if (GEditor && !GEditor->IsPlaySessionInProgress())
-			{
-				LevelEditorSubsystem = GEditor->GetEditorSubsystem<ULevelEditorSubsystem>();
-				if (LevelEditorSubsystem)
-				{
-					bPrevViewportGameViewEnabled = LevelEditorSubsystem->EditorGetGameView();
-					LevelEditorSubsystem->EditorSetGameView(true);
-				}
-			}
-#endif
-			if (ImageSourceType == EInputImageSource::Viewport) {
-				CaptureFromViewportSource(MoveTempIfPossible(Input));
-			}
-			else if (ImageSourceType == EInputImageSource::SceneCapture2D) {
-				CaptureFromSceneCaptureSource(MoveTempIfPossible(Input));
-			}
-			else if (ImageSourceType == EInputImageSource::Texture) {
-				CaptureFromTextureSource(MoveTempIfPossible(Input));
-			}
-
-			// Restore screen messages and UI
-			GAreScreenMessagesEnabled = bPrevGScreenMessagesEnabled;
+			LevelEditorSubsystem = GEditor->GetEditorSubsystem<ULevelEditorSubsystem>();
 			if (LevelEditorSubsystem)
-				LevelEditorSubsystem->EditorSetGameView(bPrevViewportGameViewEnabled);
-		});
+			{
+				bPrevViewportGameViewEnabled = LevelEditorSubsystem->EditorGetGameView();
+				LevelEditorSubsystem->EditorSetGameView(true);
+			}
+		}
+	#endif
+		if (ImageSourceType == EInputImageSource::Viewport) {
+			CaptureFromViewportSource(Input);
+		}
+		else if (ImageSourceType == EInputImageSource::SceneCapture2D) {
+			CaptureFromSceneCaptureSource(Input);
+		}
+		else if (ImageSourceType == EInputImageSource::Texture) {
+			CaptureFromTextureSource(Input);
+		}
+
+		// Restore screen messages and UI
+		GAreScreenMessagesEnabled = bPrevGScreenMessagesEnabled;
+		if (LevelEditorSubsystem)
+			LevelEditorSubsystem->EditorSetGameView(bPrevViewportGameViewEnabled);
+
+		GameThreadPromise->SetValue(true);
+	});
+
+	// Block until game thread has finished setting up
+	GameThreadPromise->GetFuture().Wait();
+
+	Result = StartImageGenerationSync(Input);
+	return Result;
 }
 
 void UStableDiffusionSubsystem::StopGeneratingImage()
@@ -334,21 +371,19 @@ void UStableDiffusionSubsystem::StopGeneratingImage()
 
 void UStableDiffusionSubsystem::StartImageGeneration(FStableDiffusionInput Input)
 {
+	// Generate image
+	UTexture2D* OutTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
+	UTexture2D* PreviewTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
+
 	// Generate the image on a background thread
 	//CurrentRenderTask = TGraphTask<FSDRenderTask>::CreateTask().ConstructAndDispatchWhenReady(ENamedThreads::AnyBackgroundHiPriTask, MoveTemp([this, Input]()
-	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Input]()
-		{
-			// Generate image
-			UTexture2D* OutTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
-			UTexture2D* PreviewTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
-
+	AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Input, OutTexture, PreviewTexture]()
+	{
 			FStableDiffusionImageResult result = this->GeneratorBridge->GenerateImageFromStartImage(Input, OutTexture, PreviewTexture);
-
-			bIsGenerating = false;
 
 			// Create generated texture on game thread
 			AsyncTask(ENamedThreads::GameThread, [this, result, OutTexture]
-			{			
+			{
 				UStableDiffusionBlueprintLibrary::UpdateTextureSync(OutTexture);
 #if WITH_EDITOR
 				OutTexture->PostEditChange();
@@ -357,6 +392,29 @@ void UStableDiffusionSubsystem::StartImageGeneration(FStableDiffusionInput Input
 			});
 	});
 	//);
+}
+
+FStableDiffusionImageResult UStableDiffusionSubsystem::StartImageGenerationSync(FStableDiffusionInput Input)
+{
+	// Generate image
+	UTexture2D* OutTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
+	UTexture2D* PreviewTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
+
+	FStableDiffusionImageResult result = this->GeneratorBridge->GenerateImageFromStartImage(Input, OutTexture, PreviewTexture);
+
+	bIsGenerating = false;
+
+	// Create generated texture on game thread
+	AsyncTask(ENamedThreads::GameThread, [this, result, OutTexture]
+	{
+		UStableDiffusionBlueprintLibrary::UpdateTextureSync(OutTexture);
+#if WITH_EDITOR
+		OutTexture->PostEditChange();
+#endif
+		this->OnImageGenerationCompleteEx.Broadcast(result);
+	});
+
+	return result;
 }
 
 void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult& input)
@@ -379,13 +437,17 @@ void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult&
 		bIsUpsampling = false;
 
 		// Process result on game thread
-		AsyncTask(ENamedThreads::GameThread, [this, result=MoveTemp(result), OutTexture]() {
+		TSharedPtr<TPromise<bool>> GameThreadPromise = MakeShared<TPromise<bool>>();
+		AsyncTask(ENamedThreads::GameThread, [this, result=MoveTemp(result), OutTexture, GameThreadPromise]() {
 			UStableDiffusionBlueprintLibrary::UpdateTextureSync(OutTexture);
 #if WITH_EDITOR
 			OutTexture->PostEditChange();
 #endif
 			OnImageUpsampleCompleteEx.Broadcast(result);
+
+			GameThreadPromise->SetValue(true);
 		});
+		GameThreadPromise->GetFuture().Wait();
 	});
 }
 
@@ -589,8 +651,10 @@ void UStableDiffusionSubsystem::UpdateSceneCaptureCamera(FViewportSceneCapture& 
 	CaptureComponent->FOVAngle = SceneCapture.ViewportClient->FOVAngle;
 }
 
-void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput Input)
+void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput& Input)
 {
+	check(IsInGameThread());
+
 	auto ViewportSize = GetCapturingViewport()->GetSizeXY();
 
 	FIntPoint MinBounds, MaxBounds;
@@ -633,13 +697,12 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput 
 	// Set size from viewport
 	Input.Options.InSizeX = FrameBounds.Size().X;
 	Input.Options.InSizeY = FrameBounds.Size().Y;
-
-	// Only start image generation when we have a frame
-	StartImageGeneration(Input);
 }
 
-void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionInput Input)
+void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionInput& Input)
 {
+	check(IsInGameThread());
+
 	// Use chosen scene capture component or create a default one
 	USceneCaptureComponent2D* CaptureComponent = nullptr;
 	if (!Input.CaptureSource) {
@@ -684,14 +747,11 @@ void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionIn
 	else {
 		
 	}
-
-	StartImageGeneration(Input);
 }
 
-void UStableDiffusionSubsystem::CaptureFromTextureSource(FStableDiffusionInput Input)
+void UStableDiffusionSubsystem::CaptureFromTextureSource(FStableDiffusionInput& Input)
 {
-	if (!Input.OverrideTextureInput)
-		return;
+	check(IsInGameThread());
 
 	// Make sure input capture size is the same as our ouput texture size
 	FIntPoint CaptureSize(Input.Options.OutSizeX, Input.Options.OutSizeY);
@@ -714,8 +774,6 @@ void UStableDiffusionSubsystem::CaptureFromTextureSource(FStableDiffusionInput I
 			FinalColorProcessor->LayerPixels = UStableDiffusionBlueprintLibrary::ReadPixels(Input.OverrideTextureInput);
 		}
 	}
-
-	StartImageGeneration(Input);
 }
 
 

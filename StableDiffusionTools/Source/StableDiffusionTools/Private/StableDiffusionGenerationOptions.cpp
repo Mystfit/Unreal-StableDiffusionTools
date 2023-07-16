@@ -21,3 +21,9 @@ TArray<FString> UStableDiffusionPipelineAsset::GetCompatibleSchedulers()
 	}
 	return CompatibleSchedulers;
 }
+
+UImagePipelineStageAsset::UImagePipelineStageAsset()
+{
+	OverrideInputOptions.IsMasterOptions = false;
+	OverrideInputOptions.AllowOverrides = true;
+}

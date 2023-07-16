@@ -288,12 +288,12 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 						if (OptionSection) {
 							//Reload model if it doesn't match the current options track
 							if (OptionSection->ModelAsset && OptionSection->PipelineAsset) {
-								auto PipelineOptions = OptionSection->PipelineAsset->Options;
+								auto Pipeline = OptionSection->PipelineAsset;
 								if (!OptionSection->SchedulerOverride.IsEmpty()) {
-									PipelineOptions.Scheduler = OptionSection->SchedulerOverride;
+									Pipeline->Options.Scheduler = OptionSection->SchedulerOverride;
 								}
 								if (SDSubsystem->ModelOptions != OptionSection->ModelAsset->Options || SDSubsystem->IsModelDirty()) {
-									SDSubsystem->InitModel(OptionSection->ModelAsset->Options, PipelineOptions, OptionSection->LORAAsset, OptionSection->TextualInversionAsset, Input.ProcessedLayers, false, AllowNSFW, EPaddingMode::zeros);
+									SDSubsystem->InitModel(OptionSection->ModelAsset->Options, Pipeline, OptionSection->LORAAsset, OptionSection->TextualInversionAsset, Input.ProcessedLayers, false, AllowNSFW, EPaddingMode::zeros);
 								}
 							}
 							if (SDSubsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {

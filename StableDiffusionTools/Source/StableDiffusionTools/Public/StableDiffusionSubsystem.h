@@ -189,7 +189,10 @@ public:
 	void ConvertRawModel(UStableDiffusionModelAsset* InModelAsset, bool DeleteOriginal = true);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
-	void InitModel(const FStableDiffusionModelOptions& Model, const FStableDiffusionPipelineOptions& Pipeline, UStableDiffusionLORAAsset* LORAAsset, UStableDiffusionTextualInversionAsset* TextualInversionAsset, const TArray<FLayerProcessorContext>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode);
+	void InitModel(const FStableDiffusionModelOptions& Model, UStableDiffusionPipelineAsset* Pipeline, UStableDiffusionLORAAsset* LORAAsset, UStableDiffusionTextualInversionAsset* TextualInversionAsset, const TArray<FLayerProcessorContext>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode);
+
+	//UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
+	//void RunImagePipeline(TArray<UImagePipelineStageAsset*> Stages, FStableDiffusionInput Input, EInputImageSource ImageSourceType, bool Async, bool AllowNSFW, EPaddingMode PaddingMode);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	void ReleaseModel();
@@ -202,6 +205,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
 	void GenerateImage(FStableDiffusionInput Input, EInputImageSource ImageSourceType);
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
+	FStableDiffusionImageResult GenerateImageSync(FStableDiffusionInput Input, EInputImageSource ImageSourceType);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
 	void StopGeneratingImage();
@@ -228,7 +234,7 @@ public:
 	FStableDiffusionModelOptions ModelOptions;
 
 	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Model")
-	FStableDiffusionPipelineOptions PipelineOptions;
+	UStableDiffusionPipelineAsset* PipelineAsset;
 
 	//UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|Model")
 	//UStableDiffusionLORAAsset* LORAAsset;
@@ -298,16 +304,20 @@ private:
 	FViewportSceneCapture CurrentSceneCapture;
 
 	// Capture from the currently active viewport
-	void CaptureFromViewportSource(FStableDiffusionInput Input);
+	void CaptureFromViewportSource(FStableDiffusionInput& Input);
 
 	// Capture from a provided SceneCapture2D actor
-	void CaptureFromSceneCaptureSource(FStableDiffusionInput Input);
+	void CaptureFromSceneCaptureSource(FStableDiffusionInput& Input);
 	
 	// Capture from a provided texture
-	void CaptureFromTextureSource(FStableDiffusionInput Input);
+	void CaptureFromTextureSource(FStableDiffusionInput& Input);
 
 	// Kick off an async render
 	void StartImageGeneration(FStableDiffusionInput Input);
+
+	// Kick off an synchronous render
+	FStableDiffusionImageResult StartImageGenerationSync(FStableDiffusionInput Input);
+
 
 	FGraphEventRef CurrentRenderTask;
 

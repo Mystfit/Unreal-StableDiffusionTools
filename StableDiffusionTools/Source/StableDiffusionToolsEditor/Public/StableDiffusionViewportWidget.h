@@ -34,5 +34,9 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "StableDiffusion|UI", meta = (BindWidget))
 	UImage* ViewportImage;
+
+	/* Pipeline stages */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Stages")
+	TArray<UImagePipelineStageAsset*> PipelineStages;
 private:
 };

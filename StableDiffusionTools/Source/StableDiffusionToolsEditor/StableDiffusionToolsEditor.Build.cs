@@ -26,10 +26,10 @@ public class StableDiffusionToolsEditor : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Core",
+				"Core"
 				// ... add other public dependencies that you statically link with here ...
 			}
-			);
+            );
 			
 		
 		PrivateDependencyModuleNames.AddRange(
@@ -62,10 +62,11 @@ public class StableDiffusionToolsEditor : ModuleRules
 				"ImageWriteQueue",
 				"RHI",
 				"RenderCore",
-				"StableDiffusionTools"
+				"StableDiffusionTools",
+                "WebBrowser"
 				// ... add private dependencies that you statically link with here ...	
 			}
-			);
+            );
 		
 		
 		DynamicallyLoadedModuleNames.AddRange(
