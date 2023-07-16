@@ -680,10 +680,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 # Set whether we want to return an image or just latent data
                 if input.output_type == unreal.PipelineOutputType.LATENT:
                     generation_args["output_type"] = "latent"
-            
-                if input.debug_python_images:
-                    print("Generation args:")
-                    pprint.pprint(generation_args)
 
                 if pipeline_asset.options.python_pre_render_script:
                     pre_render_script_locals = {}
@@ -694,7 +690,13 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     }
                     print(f"Running pre-render script")
                     exec(pipeline_asset.options.python_pre_render_script, pre_render_script_args, pre_render_script_locals)
-                    generation_args.update(pre_render_script_locals["generation_args"])
+                    if "generation_args" in pre_render_script_locals:
+                        print("Found updated generation_args in pre render script")
+                        generation_args.update(pre_render_script_locals["generation_args"])
+
+                if input.debug_python_images:
+                    print("Generation args:")
+                    pprint.pprint(generation_args)
             
                 # Create executor to generate the image in its own thread that we can abort if needed
                 self.executor = AbortableExecutor("ImageThread", lambda generation_args=generation_args: self.pipe(**generation_args))
@@ -710,7 +712,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 images = self.executor.result.images if self.executor.result else None #self.pipe(**generation_args).images
                 image = images[0] if not images is None else None
 
-                if input.debug_python_images and image:
+                if input.debug_python_images and not image is None:
                     image.show()
 
                 if image is None:
@@ -766,7 +768,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         print(f"Step is {step}. Timestep is {timestep} Frequency is {self.update_frequency}. Modulo is {step % self.update_frequency}")
         texture = None
         image_size = (0,0)
-        if step % self.update_frequency == 0 and self.preview_texture:
+        if (step % self.update_frequency == 0 or step == 1) and self.preview_texture:
             adjusted_latents = 1 / 0.18215 * latents
             image = self.pipe.vae.decode(adjusted_latents).sample
             image = (image / 2 + 0.5).clamp(0, 1)

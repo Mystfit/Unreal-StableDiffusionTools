@@ -406,7 +406,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage Models")
 		UStableDiffusionModelAsset* Model;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Stage Models")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Stage Pipeline")
 		UStableDiffusionPipelineAsset* Pipeline;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage Models")
