@@ -125,6 +125,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Texture")
 	static ELayerImageType StringToLayerType(FString LayerName);
 
+	UFUNCTION(BlueprintCallable, Category = "Utilities")
+	static UObject* DeepCopyObject(UObject* ObjectToCopy);
+
 private:
 	static FEditorViewportClient* GetEditorClient();
 	static FSceneView* CalculateEditorView(FSceneViewport* EditorViewport);

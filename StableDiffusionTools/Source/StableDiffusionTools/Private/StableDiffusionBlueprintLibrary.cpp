@@ -735,3 +735,16 @@ FColor UStableDiffusionBlueprintLibrary::LerpColor(const FColor& ColorA, const F
 		FMath::Lerp(ColorA.A, ColorB.A, Alpha)
 	);
 }
+
+UObject* UStableDiffusionBlueprintLibrary::DeepCopyObject(UObject* ObjectToCopy)
+{
+	if (!ObjectToCopy)
+	{
+		return nullptr;
+	}
+
+	UObject* DuplicateObject = StaticDuplicateObject(ObjectToCopy, ObjectToCopy->GetOuter());
+	//DuplicateObject->SetFlags(ObjectToCopy->GetFlags());
+
+	return DuplicateObject;
+}
