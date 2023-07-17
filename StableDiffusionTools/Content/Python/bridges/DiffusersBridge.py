@@ -538,6 +538,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         #mask_img = FColorAsPILImage(input.mask_image_pixels, input.options.size_x, input.options.size_y).convert("RGB")  if input.mask_image_pixels else None
         
         # Capability flags
+        no_prompt_weights_active = (pipeline_asset.options.capabilities & unreal.PipelineCapabilities.NO_PROMPT_WEIGHTS.value) == unreal.PipelineCapabilities.NO_PROMPT_WEIGHTS.value
         requires_pooled_active = (pipeline_asset.options.capabilities & unreal.PipelineCapabilities.POOLED_EMBEDDINGS.value) == unreal.PipelineCapabilities.POOLED_EMBEDDINGS.value
         inpaint_active = (pipeline_asset.options.capabilities & unreal.PipelineCapabilities.INPAINT.value) == unreal.PipelineCapabilities.INPAINT.value
         depth_active = (pipeline_asset.options.capabilities & unreal.PipelineCapabilities.DEPTH.value)  == unreal.PipelineCapabilities.DEPTH.value
@@ -638,7 +639,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 generation_args = {
                     #"prompt": " ".join([f"{split_p.strip()}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")]),
                     #"negative_prompt" : " ".join([f"{split_p.strip()}" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")]),
-                    "prompt_embeds": prompt_tensors,
+                    #"prompt_embeds": prompt_tensors,
                     #"negative_prompt_embeds": negative_prompt_tensors,
                     "num_inference_steps": input.options.iterations, 
                     "generator": generator, 
@@ -660,6 +661,13 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 print(self.pipe.scheduler.timesteps)
                 self.start_timestep = int(self.pipe.scheduler.timesteps.cpu().numpy()[0])
                 print(f"Start timestep is {self.start_timestep}")
+
+                # Fallback to prompts without compel weights if the pipeline doesn't support prompt_embeds
+                if no_prompt_weights_active:
+                    generation_args["prompt"] = " ".join([f"{split_p.strip()}" for prompt in input.options.positive_prompts for split_p in prompt.prompt.split(",")])
+                    generation_args["negative_prompt"] = " ".join([f"{split_p.strip()}" for prompt in input.options.negative_prompts for split_p in prompt.prompt.split(",")])
+                else:
+                    generation_args["prompt_embeds"] = prompt_tensors
 
                 # Different capability flags use different keywords in the pipeline
                 if strength_active:

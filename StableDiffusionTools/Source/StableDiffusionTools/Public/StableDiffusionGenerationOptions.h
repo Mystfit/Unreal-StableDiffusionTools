@@ -14,7 +14,8 @@ enum class EPipelineCapabilities : uint8 {
 	DEPTH = 0x02,
 	STRENGTH = 0x04,
 	CONTROL = 0x08,
-	POOLED_EMBEDDINGS = 0x10
+	POOLED_EMBEDDINGS = 0x10,
+	NO_PROMPT_WEIGHTS = 0x20
 };
 ENUM_CLASS_FLAGS(EPipelineCapabilities);
 
