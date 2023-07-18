@@ -60,7 +60,6 @@ def layer_type_name(layer_type: unreal.LayerImageType):
     layer_type_map = {
         unreal.LayerImageType.IMAGE: "image",
         unreal.LayerImageType.CONTROL_IMAGE: "control_image",
-        unreal.LayerImageType.LATENT: "image",
         unreal.LayerImageType.CUSTOM: "custom",
     }
     return layer_type_map[layer_type]
@@ -506,15 +505,14 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         controlnet_scales = []
         for layer in input.processed_layers:
             layer_img = None
-            if layer.layer_type == unreal.LayerImageType.LATENT:
+            if layer.output_type == unreal.ImageType.LATENT:
                 print("Loading latent data from layer")
-                print(layer.latent_data)
                 layer_img = torch.load(io.BytesIO(bytearray(layer.latent_data)))
             else:
                 layer_img = FColorAsPILImage(layer.layer_pixels, input.options.size_x, input.options.size_y).convert("RGB") if layer.layer_pixels else None
                 layer_img = layer_img.resize((input.options.out_size_x, input.options.out_size_y))
 
-            if layer.processor.python_transform_script and not layer.layer_type == unreal.LayerImageType.LATENT:
+            if layer.processor.python_transform_script and not layer.output_type == unreal.ImageType.LATENT:
                 transform_script_locals = {}
                 transform_script_args = {"input_image": layer_img}
                 print(f"Running image transform script for layer {layer}")
@@ -686,7 +684,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     generation_args["controlnet_conditioning_scale"] = controlnet_scales if len(controlnet_scales) > 1 else controlnet_scales[0]
 
                 # Set whether we want to return an image or just latent data
-                if input.output_type == unreal.PipelineOutputType.LATENT:
+                if input.output_type == unreal.ImageType.LATENT:
                     generation_args["output_type"] = "latent"
 
                 if pipeline_asset.options.python_pre_render_script:
@@ -741,7 +739,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 result.lora = lora_asset.options if lora_asset else unreal.StableDiffusionModelOptions()
 
                 # Save latent if required
-                if input.output_type == unreal.PipelineOutputType.LATENT:
+                if input.output_type == unreal.ImageType.LATENT:
                     buffer = io.BytesIO()
                     torch.save(image, buffer)
                     result.out_latent = buffer.getvalue()

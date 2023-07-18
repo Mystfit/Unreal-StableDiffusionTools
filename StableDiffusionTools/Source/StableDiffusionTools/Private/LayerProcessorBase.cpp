@@ -6,17 +6,17 @@
 #include "Materials/MaterialInstanceDynamic.h"
 
 const TMap<ELayerImageType, FString> ULayerProcessorBase::ReverseLayerImageTypeLookup = {
-	{unknown, "unknown"},
-	{image, "image"},
-	{control_image, "control_image"},
-	{custom, "custom"}
+	{ELayerImageType::unknown, "unknown"},
+	{ELayerImageType::image, "image"},
+	{ELayerImageType::control_image, "control_image"},
+	{ELayerImageType::custom, "custom"}
 };
 
 const TMap<FString, ELayerImageType> ULayerProcessorBase::LayerImageTypeLookup = {
-	{"unknown", unknown},
-	{"image", image},
-	{"control_image", control_image},
-	{"custom", custom}
+	{"unknown", ELayerImageType::unknown},
+	{"image", ELayerImageType::image},
+	{"control_image", ELayerImageType::control_image},
+	{"custom", ELayerImageType::custom}
 };
 
 

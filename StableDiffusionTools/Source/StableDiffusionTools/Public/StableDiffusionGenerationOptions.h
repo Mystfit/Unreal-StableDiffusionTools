@@ -3,7 +3,8 @@
 #include "CoreMinimal.h"
 #include "PromptAsset.h"
 #include "ActorLayerUtilities.h"
-#include "LayerProcessorBase.h"
+//#include "LayerProcessorBase.h"
+#include "Components/SceneCaptureComponent2D.h"
 
 #include "StableDiffusionGenerationOptions.generated.h"
 
@@ -28,11 +29,11 @@ enum class EInputImageSource : uint8 {
 ENUM_CLASS_FLAGS(EInputImageSource);
 
 UENUM(BlueprintType)
-enum class EPipelineOutputType : uint8 {
+enum class EImageType : uint8 {
 	Image UMETA(DisplayName = "Image"),
 	Latent UMETA(DisplayName = "Latent")
 };
-ENUM_CLASS_FLAGS(EPipelineOutputType);
+ENUM_CLASS_FLAGS(EImageType);
 
 UENUM(BlueprintType)
 enum class EPaddingMode : uint8 {
@@ -61,6 +62,60 @@ enum class EModelType : uint8 {
 	Placeholder UMETA(DisplayName = "Placeholder")
 };
 ENUM_CLASS_FLAGS(EModelType);
+
+UENUM()
+enum ELayerBitDepth
+{
+	EightBit UMETA(DisplayName = "8 bit channel bit depth"),
+	SixteenBit UMETA(DisplayName = "16 bit channel bit depth"),
+	LayerBitDepth_MAX
+};
+
+UENUM(BlueprintType)
+enum class ELayerImageType : uint8
+{
+	unknown UMETA(DisplayName = "Unknown", Hidden),
+	image UMETA(DisplayName = "Img2Img"),
+	control_image UMETA(DisplayName = "ControlNet"),
+	custom UMETA(DisplayName = "Custom")
+};
+ENUM_CLASS_FLAGS(ELayerImageType);
+
+
+// Forwards
+class ULayerProcessorBase;
+class ULayerProcessorOptions;
+
+USTRUCT(BlueprintType)
+struct STABLEDIFFUSIONTOOLS_API FLayerProcessorContext
+{
+	GENERATED_USTRUCT_BODY()
+public:
+	UPROPERTY(BlueprintReadWrite, Transient)
+		TArray<FColor> LayerPixels;
+
+	UPROPERTY(BlueprintReadWrite, Transient)
+		TArray<uint8> LatentData;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Category = "Layers"))
+		TObjectPtr<ULayerProcessorBase> Processor = nullptr;
+
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Instanced, meta = (Category = "Layers", EditCondition = "Processor != nullptr", EditConditionHides))
+		TObjectPtr<ULayerProcessorOptions> ProcessorOptions = nullptr;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (UsesHierarchy = true, Category = "Layers"))
+		TEnumAsByte<ELayerImageType> LayerType = ELayerImageType::unknown;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Layers"))
+		TEnumAsByte<EImageType> OutputType;
+
+	/*
+	* Identifying role key for this layer that will be used to assign it to the correct pipe keyword argument
+	*/
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Category = "Layers", EditCondition = "LayerType == ELayerImageType::custom", EditConditionHides))
+		FString Role = "image";
+};
+
 
 
 USTRUCT(BlueprintType, meta=(UsesHierarchy=true))
@@ -393,7 +448,7 @@ public:
 	FMinimalViewInfo View;
 
 	UPROPERTY(BlueprintReadWrite, Category = "Generation")
-		TEnumAsByte<EPipelineOutputType> OutputType;
+		TEnumAsByte<EImageType> OutputType;
 };
 
 
@@ -420,7 +475,7 @@ public:
 		TArray<FLayerProcessorContext> Layers;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ShowOnlyInnerProperties, Category = "Stage Output"))
-		TEnumAsByte<EPipelineOutputType> OutputType;
+		TEnumAsByte<EImageType> OutputType;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(Category = "Stage Overrides"))
 		FStableDiffusionGenerationOptions OverrideInputOptions;

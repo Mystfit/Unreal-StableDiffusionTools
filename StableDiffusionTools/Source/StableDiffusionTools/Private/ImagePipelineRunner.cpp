@@ -35,7 +35,7 @@ void UImagePipelineRunner::Activate()
 		Complete(LastStageResult);
 	}
 
-	AsyncTask(ENamedThreads::AnyHiPriThreadHiPriTask, [this, LastStageResult]() mutable{
+	AsyncTask(ENamedThreads::AnyHiPriThreadHiPriTask, [this, LastStageResult]() mutable {
 		if (UStableDiffusionSubsystem* Subsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>()) {
 			for (size_t StageIdx = 0; StageIdx < Stages.Num(); ++StageIdx) {
 				UImagePipelineStageAsset* PrevStage = (StageIdx) ? Stages[StageIdx - 1] : nullptr;
@@ -68,7 +68,7 @@ void UImagePipelineRunner::Activate()
 				if (LastStageResult.Completed) {
 					// Use last image result as input for next stage's layers
 					for (auto& Layer : Input.InputLayers) {
-						if (Layer.LayerType == ELayerImageType::latent) {
+						if (Layer.OutputType == EImageType::Latent) {
 							Layer.LatentData = LastStageResult.OutLatent;
 						}
 					}

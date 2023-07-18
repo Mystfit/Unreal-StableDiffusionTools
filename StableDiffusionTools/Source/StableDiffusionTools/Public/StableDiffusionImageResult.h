@@ -22,7 +22,7 @@ public:
     FStableDiffusionModelOptions LORA;
 
     UPROPERTY(BlueprintReadWrite, Category = "Outputs")
-    TEnumAsByte<EPipelineOutputType> OutputType = EPipelineOutputType::Image;
+    TEnumAsByte<EImageType> OutputType = EImageType::Image;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Outputs")
     UTexture2D* OutTexture = nullptr;
