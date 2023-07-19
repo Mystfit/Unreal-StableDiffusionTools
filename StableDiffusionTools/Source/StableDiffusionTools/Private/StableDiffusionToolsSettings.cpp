@@ -3,6 +3,7 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
+#include "HAL/FileManager.h"
 #include "Widgets/Input/SButton.h"
 
 TSubclassOf<UStableDiffusionBridge> UStableDiffusionToolsSettings::GetGeneratorType() const {
@@ -19,7 +20,9 @@ FDirectoryPath UStableDiffusionToolsSettings::GetModelDownloadPath()
 		ModelDownloadPath.Path = FPaths::Combine(FPaths::ProjectSavedDir(), "ModelDownloads");
 	}
 
-	return ModelDownloadPath;
+	FDirectoryPath AbsPath;
+	AbsPath.Path = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*ModelDownloadPath.Path);
+	return AbsPath;
 }
 
 bool UStableDiffusionToolsSettings::GetUseOverridePythonSitePackagesPath() const {
@@ -43,7 +46,9 @@ FDirectoryPath UStableDiffusionToolsSettings::GetPythonSitePackagesOverridePath(
 		}
 	}
 
-	return PythonSitePackagesPath;
+	FDirectoryPath AbsPath;
+	AbsPath.Path = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*PythonSitePackagesPath.Path);
+	return AbsPath;
 }
 
 void UStableDiffusionToolsSettings::AddGeneratorToken(const FName& Generator)
