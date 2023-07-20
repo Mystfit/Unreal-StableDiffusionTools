@@ -42,6 +42,9 @@ public:
     FString GetToken();
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
+    bool GetRequiresToken();
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     FString GetTokenWebsiteHint();
 
     UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Bridge")

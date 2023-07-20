@@ -194,6 +194,9 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
 		FString ErrorMsg;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Model")
+		FString ModelName;
 };
 
 

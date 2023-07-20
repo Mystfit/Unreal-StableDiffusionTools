@@ -174,6 +174,9 @@ public:
 	bool HasToken() const;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
+	bool RequiresToken() const;
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	FString GetToken() const;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")

@@ -128,6 +128,14 @@ bool UStableDiffusionSubsystem::HasToken() const
 	return false;
 }
 
+bool UStableDiffusionSubsystem::RequiresToken() const
+{
+	if (GeneratorBridge) {
+		return GeneratorBridge->GetRequiresToken();
+	}
+	return false;
+}
+
 FString UStableDiffusionSubsystem::GetToken() const
 {
 	if (GeneratorBridge) {

@@ -312,6 +312,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # Update model status to let UI know the model is downloading or available
         result = unreal.StableDiffusionModelInitResult()
         result.model_status = unreal.ModelStatus.LOADING if self.ModelExists(modelname) else unreal.ModelStatus.DOWNLOADING
+        result.model_name = new_model_options.model
         self.set_editor_property("ModelStatus", result)
 
         kwargs = {
@@ -435,6 +436,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         self.set_editor_property("PipelineAsset", new_pipeline_asset)
         
         # Cache status
+        result.model_name = new_model_options.model
         result.model_status = unreal.ModelStatus.LOADED
         self.set_editor_property("ModelStatus", result)
 
@@ -456,6 +458,10 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
     @unreal.ufunction(override=True)
     def GetTokenWebsiteHint(self):
         return "https://huggingface.co/settings/tokens"
+
+    @unreal.ufunction(override=True)
+    def GetRequiresToken(self):
+        return True
 
     def InitUpsampler(self):
         upsampler = None

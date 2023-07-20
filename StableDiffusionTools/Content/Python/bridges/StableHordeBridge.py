@@ -20,6 +20,10 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
         return "https://stablehorde.net/register"
 
     @unreal.ufunction(override=True)
+    def GetRequiresToken(self):
+        return True
+
+    @unreal.ufunction(override=True)
     def InitModel(self, new_model_options, new_pipeline_options, lora_asset, textual_inversion_asset, layers, allow_nsfw, padding_mode):
         result = unreal.StableDiffusionModelInitResult()
         self.model_loaded = True
