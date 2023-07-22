@@ -37,3 +37,23 @@ UStableDiffusionOptionsSection::UStableDiffusionOptionsSection(const FObjectInit
 
 	ChannelProxy = MakeShared<FMovieSceneChannelProxy>(MoveTemp(Channels));
 }
+
+#if WITH_EDITOR
+void UStableDiffusionOptionsSection::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	FName PropertyName = (PropertyChangedEvent.Property != NULL) ? PropertyChangedEvent.Property->GetFName() : NAME_None;
+
+	if ((PropertyName == GET_MEMBER_NAME_CHECKED(UStableDiffusionOptionsSection, PipelineAsset)))
+	{
+		if (PipelineAsset) {
+			PipelineStages.Reset();
+
+			// Update pipeline stages
+			for (auto Stage : PipelineAsset->Stages) {
+				UObject* DuplicatedStage = StaticDuplicateObject(Stage, this->GetOuter());
+				PipelineStages.Add(CastChecked<UImagePipelineStageAsset>(DuplicatedStage));
+			}
+		}
+	}
+}
+#endif

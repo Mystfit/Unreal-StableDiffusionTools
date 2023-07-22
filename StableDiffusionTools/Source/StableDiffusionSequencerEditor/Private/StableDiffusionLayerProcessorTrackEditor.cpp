@@ -113,8 +113,6 @@ void FStableDiffusionLayerProcessorTrackEditor::BuildTrackContextMenu(FMenuBuild
 			MPCTrack->Modify();
 			MPCTrack->SetDisplayName(FText::FromString(Processor->GetName()));
 			MPCTrack->LayerProcessor = Processor;
-			MPCTrack->LayerType = Processor->DefaultLayerType;
-			MPCTrack->Role = "image";
 		}
 
 		FSlateApplication::Get().DismissAllMenus();
@@ -196,8 +194,6 @@ void FStableDiffusionLayerProcessorTrackEditor::AddTrackToSequence(const FAssetD
 
 	Track->AddSection(*NewSection);
 	Track->LayerProcessor = Processor;
-	Track->LayerType = Processor->DefaultLayerType;
-	Track->Role = "image";
 	Track->SetDisplayName(FText::FromString(Processor->GetName()));
 
 	if (GetSequencer().IsValid())

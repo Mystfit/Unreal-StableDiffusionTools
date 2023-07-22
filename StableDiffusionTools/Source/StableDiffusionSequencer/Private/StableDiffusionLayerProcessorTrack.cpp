@@ -11,6 +11,7 @@
 
 #define LOCTEXT_NAMESPACE "StableDiffusionLayerProcessorTrack"
 
+/*
 namespace UE
 {
 	namespace MovieScene
@@ -39,7 +40,7 @@ namespace UE
 
 	} // namespace MovieScene
 } // namespace UE
-
+*/
 
 UStableDiffusionLayerProcessorTrack::UStableDiffusionLayerProcessorTrack(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -76,7 +77,7 @@ void UStableDiffusionLayerProcessorTrack::ExtendEntityImpl(UMovieSceneEntitySyst
 
 	// Parameters are always absolute blends for the time being
 	//TComponentTypeID<FLayerProcessorContext> LayerDataTypeID;
-	FLayerProcessorComponentTypes* LayerProcessorComponents = FLayerProcessorComponentTypes::Get();
+	//FLayerProcessorComponentTypes* LayerProcessorComponents = FLayerProcessorComponentTypes::Get();
 
 	/*
 	OutImportedEntity->AddBuilder(

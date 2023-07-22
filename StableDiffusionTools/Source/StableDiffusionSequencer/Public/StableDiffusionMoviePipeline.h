@@ -100,4 +100,5 @@ private:
 	TArray<UStableDiffusionPromptMovieSceneTrack*> PromptTracks;
 	TArray<UStableDiffusionLayerProcessorTrack*> LayerProcessorTracks;
 
+	void ApplyLayerOptions(TArray<FLayerProcessorContext>& Layers, size_t StageIndex, FFrameTime FrameTime);
 };

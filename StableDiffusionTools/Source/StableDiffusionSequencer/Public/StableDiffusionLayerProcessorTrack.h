@@ -56,12 +56,6 @@ public:
 	/** The layer to manipulate */
 	UPROPERTY(EditAnywhere, Category = "Layer")
 	TObjectPtr<ULayerProcessorBase> LayerProcessor;
-	
-	UPROPERTY(EditAnywhere, Category = "Layer")
-	FString Role;
-
-	UPROPERTY(EditAnywhere, Category = "Layer")
-	TEnumAsByte<ELayerImageType> LayerType;
 
 	UStableDiffusionLayerProcessorTrack(const FObjectInitializer& ObjectInitializer);
 

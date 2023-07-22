@@ -107,7 +107,7 @@ public:
 		TEnumAsByte<ELayerImageType> LayerType = ELayerImageType::unknown;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Layers"))
-		TEnumAsByte<EImageType> OutputType;
+		TEnumAsByte<EImageType> OutputType = EImageType::Image;
 
 	/*
 	* Identifying role key for this layer that will be used to assign it to the correct pipe keyword argument

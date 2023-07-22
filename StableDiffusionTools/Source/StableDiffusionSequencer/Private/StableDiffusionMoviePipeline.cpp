@@ -162,56 +162,19 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			// Frame number for curves includes subframes so we also mult by 1000 to get the subframe number
 			auto FullFrameTime = EffectiveFrame * OriginalSeqFramerateRatio * 1000.0f;
 
-			// Build layer processor options
-			TArray<FLayerProcessorContext> Layers;
-			for (auto Track : LayerProcessorTracks) {
-				for (auto Section : Track->Sections) {
-					if (auto LayerProcessorSection = Cast<UStableDiffusionLayerProcessorSection>(Section)) {
-						if (LayerProcessorSection->IsActive()) {
+			// Get image pipeline and global options from the options section
+			TArray<UImagePipelineStageAsset*> Stages;
+			if (OptionsTrack) {
+				for (auto Section : OptionsTrack->Sections) {
+					if (Section) {
+						auto OptionSection = Cast<UStableDiffusionOptionsSection>(Section);
+						if (OptionSection) {
+							Stages = OptionSection->PipelineStages;
 							
-							// Get frame range of the section
-							bool InRange = true;
-							InRange &= (LayerProcessorSection->HasStartFrame()) ? LayerProcessorSection->GetInclusiveStartFrame() < FullFrameTime : true;
-							InRange &= (LayerProcessorSection->HasEndFrame()) ? LayerProcessorSection->GetExclusiveEndFrame() > FullFrameTime : true;
-							if (InRange)
-							{
-								auto ScalarParams = LayerProcessorSection->GetScalarParameterNamesAndCurves();
-								
-								// Evaluate options for the layer processor
-								if (auto LayerProcessor = Track->LayerProcessor) {
-									ULayerProcessorOptions* LayerOptions =  (LayerProcessorSection->LayerProcessorOptionOverride) ? LayerProcessorSection->LayerProcessorOptionOverride : Track->LayerProcessor->AllocateLayerOptions();
-									if (IsValid(LayerOptions)) {
-										// Iterate over all properties in the processor options class
-										for (TFieldIterator<FProperty> PropertyIt(LayerOptions->GetClass()); PropertyIt; ++PropertyIt)
-										{
-											if (FProperty* Prop = *PropertyIt) {
-												if (const FFloatProperty* FloatProperty = CastField<FFloatProperty>(Prop)) {
-													// Match the property against the available parameter curves in this section
-													auto Param = ScalarParams.FindByPredicate([&Prop](const FScalarParameterNameAndCurve& ParamNameAndCurve) {
-														return ParamNameAndCurve.ParameterName == Prop->GetFName();
-														});
-
-													// Evaluate the parameter at the current time and set the value in the layer options object
-													if (Param) {
-														float ParamValAtTime;
-														Param->ParameterCurve.Evaluate(FullFrameTime, ParamValAtTime);
-														Prop->SetValue_InContainer(LayerOptions, &ParamValAtTime);
-													}
-												}
-											}
-										}
-									}
-
-									// Assign the layer processor and options to the input
-									FLayerProcessorContext Layer;
-									Layer.LayerType = Track->LayerType;
-									Layer.Role = Track->Role;
-									Layer.Processor = LayerProcessor;
-									Layer.ProcessorOptions = LayerOptions;
-									//Layers.Add(MoveTemp(Layer));
-									Input.InputLayers.Add(MoveTemp(Layer));
-								}
-							}
+							// Evaluate curve values
+							OptionSection->GetStrengthChannel().Evaluate(FullFrameTime, Input.Options.Strength);
+							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Input.Options.Iterations);
+							OptionSection->GetSeedChannel().Evaluate(FullFrameTime, Input.Options.Seed);
 						}
 					}
 				}
@@ -237,97 +200,109 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 				}
 			}
 
-			bool FirstView = true;
-			// Start a new capture pass for each layer
-			for (auto& Layer : Input.InputLayers) {
-				if (Layer.Processor) {			
-					//Copy the layer to avoid modifying the original layer array
+			// Create output objects
+			UTexture2D* OutTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
+			FStableDiffusionImageResult LastStageResult;
+
+			// Generate new stable diffusion frame from pipeline stages
+			for (size_t StageIdx = 0; StageIdx < Stages.Num(); ++StageIdx) {
+				UImagePipelineStageAsset* PrevStage = (StageIdx) ? Stages[StageIdx - 1] : nullptr;
+				UImagePipelineStageAsset* CurrentStage = StageIdx < Stages.Num() ? Stages[StageIdx] : nullptr;
+				
+				if (!CurrentStage)
+					continue;
+
+				// Init model at the start of each stage.
+				// TODO: Cache last model and only re-init if model options have changed
+				SDSubsystem->InitModel(CurrentStage->Model->Options, CurrentStage->Pipeline, CurrentStage->LORAAsset, CurrentStage->TextualInversionAsset, CurrentStage->Layers, false, AllowNSFW, PaddingMode);
+				if (SDSubsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {
+					UE_LOG(LogTemp, Error, TEXT("Failed to load model. Check the output log for more information"));
+					continue;
+				}
+
+				// Duplicate the input as we're going to need to modify it
+				FStableDiffusionInput StageInput = Input;
+
+				// Modify global input options from the current stage
+				StageInput.OutputType = CurrentStage->OutputType;
+				if (StageInput.Options.AllowOverrides) {
+					// TODO: Make these keyable parameters in the options track
+					StageInput.Options.GuidanceScale = (CurrentStage->OverrideInputOptions.OverrideGuidanceScale) ? CurrentStage->OverrideInputOptions.GuidanceScale : StageInput.Options.GuidanceScale;
+					StageInput.Options.LoraWeight = (CurrentStage->OverrideInputOptions.OverrideLoraWeight) ? CurrentStage->OverrideInputOptions.LoraWeight : StageInput.Options.LoraWeight;
+				}
+
+				// Duplicate the layers so we can modify the options without modifying the original asset
+				TArray<FLayerProcessorContext> CurrentStageLayers;
+				for (auto& Layer : CurrentStage->Layers) {
 					FLayerProcessorContext TargetLayer;
+					TargetLayer.OutputType = Layer.OutputType;
 					TargetLayer.LayerType = Layer.LayerType;
 					TargetLayer.Role = Layer.Role;
 					TargetLayer.Processor = Layer.Processor;
-					TargetLayer.ProcessorOptions = DuplicateObject(Layer.ProcessorOptions, GetPipeline());
-
-					// Prepare rendering the layer
-					TSharedPtr<FSceneViewFamilyContext> ViewFamily;
-					TargetLayer.Processor->BeginCaptureLayer(GetPipeline()->GetWorld(), FIntPoint(Input.Options.OutSizeX, Input.Options.OutSizeY), nullptr, TargetLayer.ProcessorOptions);
-					GetPipeline()->GetWorld()->SendAllEndOfFrameUpdates();
-					FSceneView* View = BeginSDLayerPass(InOutSampleState, ViewFamily);
-					FirstView = false;
-
-					// Set up post processing material from layer processor
-					View->FinalPostProcessSettings.AddBlendable(TargetLayer.Processor->GetActivePostMaterial(), 1.0f);
-					IBlendableInterface* BlendableInterface = Cast<IBlendableInterface>(TargetLayer.Processor->GetActivePostMaterial());
-					if (BlendableInterface) {
-						ViewFamily->EngineShowFlags.SetPostProcessMaterial(true);
-						BlendableInterface->OverrideBlendableSettings(*View, 1.f);
-					}
-					ViewFamily->EngineShowFlags.SetPostProcessing(true);
-					View->FinalPostProcessSettings.bBufferVisualizationDumpRequired = true;
-
-					// Render the layer
-					GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.Get());
-					FlushRenderingCommands();
-
-					if(!RenderTarget->ReadPixels(TargetLayer.LayerPixels, FReadSurfaceDataFlags())){
-						UE_LOG(LogTemp, Error, TEXT("Failed to read pixels from render target"));
-					}
-
-					// Cleanup before move
-					View->FinalPostProcessSettings.RemoveBlendable(TargetLayer.Processor->PostMaterial);
-					TargetLayer.Processor->EndCaptureLayer(GetPipeline()->GetWorld());
-
-					Input.ProcessedLayers.Add(MoveTemp(TargetLayer));
+					TargetLayer.ProcessorOptions = (Layer.ProcessorOptions) ? DuplicateObject(Layer.ProcessorOptions, GetPipeline()) : Layer.Processor->AllocateLayerOptions();
+					TargetLayer.LatentData = (TargetLayer.OutputType == EImageType::Latent && LastStageResult.Completed) ? LastStageResult.OutLatent : TArray<uint8>();
+					CurrentStageLayers.Add(TargetLayer);
 				}
-			}
 
-			if (OptionsTrack) {
-				for (auto Section : OptionsTrack->Sections) {
-					if (Section) {
-						auto OptionSection = Cast<UStableDiffusionOptionsSection>(Section);
-						if (OptionSection) {
-							//Reload model if it doesn't match the current options track
-							if (OptionSection->ModelAsset && OptionSection->PipelineAsset) {
-								auto Pipeline = OptionSection->PipelineAsset;
-								if (!OptionSection->SchedulerOverride.IsEmpty()) {
-									Pipeline->Options.Scheduler = OptionSection->SchedulerOverride;
-								}
-								if (SDSubsystem->ModelOptions != OptionSection->ModelAsset->Options || SDSubsystem->IsModelDirty()) {
-									SDSubsystem->InitModel(OptionSection->ModelAsset->Options, Pipeline, OptionSection->LORAAsset, OptionSection->TextualInversionAsset, Input.ProcessedLayers, false, AllowNSFW, EPaddingMode::zeros);
-								}
-							}
-							if (SDSubsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {
-								UE_LOG(LogTemp, Error, TEXT("No model asset provided in Stable Diffusion Options section and no model loaded in StableDiffusionSubsystem. Please add a model asset to the Options track or initialize the StableDiffusionSubsystem model."))
-							}
-							// Evaluate curve values
-							OptionSection->GetStrengthChannel().Evaluate(FullFrameTime, Input.Options.Strength);
-							OptionSection->GetIterationsChannel().Evaluate(FullFrameTime, Input.Options.Iterations);
-							OptionSection->GetSeedChannel().Evaluate(FullFrameTime, Input.Options.Seed);
+				// Gather all layers and modify options based on animated parameters
+				ApplyLayerOptions(CurrentStageLayers, StageIdx, FullFrameTime);
+				StageInput.InputLayers = CurrentStageLayers;
+
+				bool FirstView = true;
+				// Start a new capture pass for each layer
+				for (auto& Layer : StageInput.InputLayers) {
+					if (Layer.Processor) {
+						// Prepare rendering the layer
+						TSharedPtr<FSceneViewFamilyContext> ViewFamily;
+						Layer.Processor->BeginCaptureLayer(GetPipeline()->GetWorld(), FIntPoint(StageInput.Options.OutSizeX, StageInput.Options.OutSizeY), nullptr, Layer.ProcessorOptions);
+						GetPipeline()->GetWorld()->SendAllEndOfFrameUpdates();
+						FSceneView* View = BeginSDLayerPass(InOutSampleState, ViewFamily);
+						FirstView = false;
+
+						// Set up post processing material from layer processor
+						View->FinalPostProcessSettings.AddBlendable(Layer.Processor->GetActivePostMaterial(), 1.0f);
+						IBlendableInterface* BlendableInterface = Cast<IBlendableInterface>(Layer.Processor->GetActivePostMaterial());
+						if (BlendableInterface) {
+							ViewFamily->EngineShowFlags.SetPostProcessMaterial(true);
+							BlendableInterface->OverrideBlendableSettings(*View, 1.f);
 						}
-					}
-				}
-			}
-			
-			// Generate new stable diffusion frame
-			FStableDiffusionImageResult SDResult;
-			TUniquePtr<FImagePixelData> SDImageDataBuffer16bit;
-			UTexture2D* OutTexture = nullptr;
+						ViewFamily->EngineShowFlags.SetPostProcessing(true);
+						View->FinalPostProcessSettings.bBufferVisualizationDumpRequired = true;
 
-			// Make sure model is loaded before generating
-			if (SDSubsystem->GetModelStatus().ModelStatus == EModelStatus::Loaded) {
-				OutTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
-				SDResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(Input, OutTexture, nullptr);
-			}
+						// Render the layer
+						GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.Get());
+						FlushRenderingCommands();
+
+						if (!RenderTarget->ReadPixels(Layer.LayerPixels, FReadSurfaceDataFlags())) {
+							UE_LOG(LogTemp, Error, TEXT("Failed to read pixels from render target"));
+						}
+
+						// Cleanup before move
+						View->FinalPostProcessSettings.RemoveBlendable(Layer.Processor->PostMaterial);
+						Layer.Processor->EndCaptureLayer(GetPipeline()->GetWorld());
+
+						StageInput.ProcessedLayers.Add(MoveTemp(Layer));
+					}
+				} 
+
+				// Make sure model is loaded before generating
+				if (SDSubsystem->GetModelStatus().ModelStatus == EModelStatus::Loaded) {
+					LastStageResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(StageInput, OutTexture, nullptr);
+				}
+
+
+			} // End of stage pipeline processing
 
 			// Convert generated image to 16 bit for the exr pipeline
 			// TODO: Check bit depth of movie pipeline and convert to that instead
-			if(IsValid(SDResult.OutTexture)){
+			TUniquePtr<FImagePixelData> SDImageDataBuffer16bit;
+			if(IsValid(LastStageResult.OutTexture)){
 				UStableDiffusionBlueprintLibrary::UpdateTextureSync(OutTexture);
 				TArray<FColor> Pixels = UStableDiffusionBlueprintLibrary::ReadPixels(OutTexture);
 
 				// Convert 8bit BGRA FColors returned from SD to 16bit BGRA
 				TUniquePtr<TImagePixelData<FColor>> SDImageDataBuffer8bit;
-				SDImageDataBuffer8bit = MakeUnique<TImagePixelData<FColor>>(FIntPoint(SDResult.OutWidth, SDResult.OutHeight), TArray64<FColor>(MoveTemp(Pixels)));
+				SDImageDataBuffer8bit = MakeUnique<TImagePixelData<FColor>>(FIntPoint(LastStageResult.OutWidth, LastStageResult.OutHeight), TArray64<FColor>(MoveTemp(Pixels)));
 				SDImageDataBuffer16bit = UE::MoviePipeline::QuantizeImagePixelDataToBitDepth(SDImageDataBuffer8bit.Get(), 16);
 			}
 			else {
@@ -361,6 +336,8 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 #endif
 	}
 }
+
+
 
 FSceneView* UStableDiffusionMoviePipeline::BeginSDLayerPass(FMoviePipelineRenderPassMetrics& InOutSampleState, TSharedPtr<FSceneViewFamilyContext>& ViewFamily)
 {
@@ -475,6 +452,55 @@ void UStableDiffusionMoviePipeline::BeginExportImpl(){
 			}
 
 			SDSubsystem->GeneratorBridge->StopUpsample();
+		}
+	}
+}
+
+void UStableDiffusionMoviePipeline::ApplyLayerOptions(TArray<FLayerProcessorContext>& Layers, size_t StageIndex, FFrameTime FrameTime) {
+	for (auto Track : LayerProcessorTracks) {
+		for (auto Section : Track->Sections) {
+			if (auto LayerProcessorSection = Cast<UStableDiffusionLayerProcessorSection>(Section)) {
+
+				// Get frame range of the section
+				bool InRange = true;
+				InRange &= (LayerProcessorSection->HasStartFrame()) ? LayerProcessorSection->GetInclusiveStartFrame() < FrameTime : true;
+				InRange &= (LayerProcessorSection->HasEndFrame()) ? LayerProcessorSection->GetExclusiveEndFrame() > FrameTime : true;
+				
+				if (InRange && 
+					LayerProcessorSection->IsActive() && 
+					LayerProcessorSection->LayerIndex < Layers.Num() && 
+					LayerProcessorSection->ImagePipelineStageIndex == StageIndex
+				)
+				{
+					auto ScalarParams = LayerProcessorSection->GetScalarParameterNamesAndCurves();
+					auto& ExistingLayerContext = Layers[LayerProcessorSection->LayerIndex];
+
+					ULayerProcessorOptions* LayerOptions = (LayerProcessorSection->LayerProcessorOptionOverride) ? LayerProcessorSection->LayerProcessorOptionOverride : ExistingLayerContext.ProcessorOptions;
+					if (IsValid(LayerOptions)) {
+						// Iterate over all properties in the processor options class
+						for (TFieldIterator<FProperty> PropertyIt(LayerOptions->GetClass()); PropertyIt; ++PropertyIt)
+						{
+							if (FProperty* Prop = *PropertyIt) {
+								if (const FFloatProperty* FloatProperty = CastField<FFloatProperty>(Prop)) {
+									// Match the property against the available parameter curves in this section
+									auto Param = ScalarParams.FindByPredicate([&Prop](const FScalarParameterNameAndCurve& ParamNameAndCurve) {
+										return ParamNameAndCurve.ParameterName == Prop->GetFName();
+										});
+
+									// Evaluate the parameter at the current time and set the value in the layer options object
+									if (Param) {
+										float ParamValAtTime;
+										Param->ParameterCurve.Evaluate(FrameTime, ParamValAtTime);
+										Prop->SetValue_InContainer(LayerOptions, &ParamValAtTime);
+									}
+								}
+							}
+						}
+					}
+
+					ExistingLayerContext.ProcessorOptions = LayerOptions;
+				}
+			}
 		}
 	}
 }

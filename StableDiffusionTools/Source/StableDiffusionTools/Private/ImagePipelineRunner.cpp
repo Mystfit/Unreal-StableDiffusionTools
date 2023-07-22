@@ -38,9 +38,12 @@ void UImagePipelineRunner::Activate()
 	AsyncTask(ENamedThreads::AnyHiPriThreadHiPriTask, [this, LastStageResult]() mutable {
 		if (UStableDiffusionSubsystem* Subsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>()) {
 			for (size_t StageIdx = 0; StageIdx < Stages.Num(); ++StageIdx) {
+				// In order to process the pipeline, we need to use both the previous and current stages
 				UImagePipelineStageAsset* PrevStage = (StageIdx) ? Stages[StageIdx - 1] : nullptr;
 				UImagePipelineStageAsset* CurrentStage = Stages[StageIdx];
 
+				// Init model at the start of each stage.
+				// TODO: Cache last model and only re-init if model options have changed
 				Subsystem->InitModel(CurrentStage->Model->Options, CurrentStage->Pipeline, CurrentStage->LORAAsset, CurrentStage->TextualInversionAsset, CurrentStage->Layers, false, AllowNSFW, PaddingMode);
 				if (Subsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {
 					UE_LOG(LogTemp, Error, TEXT("Failed to load model. Check the output log for more information"));
@@ -48,6 +51,7 @@ void UImagePipelineRunner::Activate()
 					return;
 				}
 
+				// Optionally override global generation options with per-stage options
 				if (Input.Options.AllowOverrides) {
 					Input.Options.GuidanceScale = (CurrentStage->OverrideInputOptions.OverrideGuidanceScale) ? CurrentStage->OverrideInputOptions.GuidanceScale : Input.Options.GuidanceScale;
 					Input.Options.Iterations = (CurrentStage->OverrideInputOptions.OverrideIterations) ? CurrentStage->OverrideInputOptions.Iterations : Input.Options.Iterations;
@@ -60,13 +64,13 @@ void UImagePipelineRunner::Activate()
 					Input.Options.Strength = (CurrentStage->OverrideInputOptions.OverrideStrength) ? CurrentStage->OverrideInputOptions.Strength : Input.Options.Strength;
 				}
 
-				// Set input settings from current stage
+				// Copy layers and output type from the stage
 				Input.InputLayers = CurrentStage->Layers;
 				Input.OutputType = CurrentStage->OutputType;
 				Input.Options.Seed = (Input.Options.Seed < 0) ? FMath::Rand() : Input.Options.Seed;
 
+				// Use last image result as input for next stage's layers
 				if (LastStageResult.Completed) {
-					// Use last image result as input for next stage's layers
 					for (auto& Layer : Input.InputLayers) {
 						if (Layer.OutputType == EImageType::Latent) {
 							Layer.LatentData = LastStageResult.OutLatent;
