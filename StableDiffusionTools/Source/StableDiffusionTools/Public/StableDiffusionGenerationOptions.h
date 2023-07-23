@@ -463,7 +463,7 @@ public:
 	UImagePipelineStageAsset();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage Models")
-		UStableDiffusionModelAsset* Model;
+		UStableDiffusionStyleModelAsset* Model;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Stage Pipeline")
 		UStableDiffusionPipelineAsset* Pipeline;
