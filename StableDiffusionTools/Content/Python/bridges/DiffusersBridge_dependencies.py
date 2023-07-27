@@ -15,7 +15,7 @@ def GetDependencies():
         MakeDependency({"name":"scipy", "version": "1.10.1"}),
         MakeDependency({"name":"ftfy", "version": "6.1.1"}),
         MakeDependency({"name":"accelerate", "version": "0.19.0"}),
-        MakeDependency({"name":"diffusers", "url": "https://github.com/Mystfit/diffusers.git", "branch": "bugfix_sdxl_from_single_file_pipeline_img2img"}),
+        MakeDependency({"name":"diffusers", "version": "0.19.0"}),
         MakeDependency({"name":"compel", "version": "2.0.0"}),
         MakeDependency({"name":"opencv-python", "version":"4.7.0.72", "module": "cv2"}),
         MakeDependency({"name":"realesrgan", "version": "0.3.0"}),

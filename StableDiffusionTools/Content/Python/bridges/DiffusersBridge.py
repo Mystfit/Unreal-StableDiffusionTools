@@ -16,7 +16,7 @@ from diffusers.pipelines.stable_diffusion.convert_from_ckpt import download_from
 import safetensors
 import torch
 from torch import autocast
-from torchvision.transforms.functional import rgb_to_grayscale
+#from torchvision.transforms.functional import rgb_to_grayscale
 import PIL
 from PIL import Image
 from transformers import CLIPFeatureExtractor
@@ -98,20 +98,20 @@ def preprocess_image_inpaint(image):
     image = torch.from_numpy(image)
     return 2.0 * image - 1.0
 
-def preprocess_image_depth(image):
-    w, h = image.size
-    w, h = map(lambda x: x - x % 32, (w, h))  # resize to integer multiple of 32
-    image = image.convert("RGB")
-    image = image.resize((w, h), resample=PIL.Image.LANCZOS)
-    image = np.array(image).astype(np.float32) / 255.0
-    image = image[None].transpose(0, 3, 1, 2)
-    #image = 1 - image
-    image = torch.from_numpy(image)
-    image = rgb_to_grayscale(image, 1)
-    print(f"Presqueeze: Depthmap has shape {image.shape}")
-    image = image.squeeze(1)
-    print(f"Postqueeze: Depthmap has shape {image.shape}")
-    return image
+#def preprocess_image_depth(image):
+#    w, h = image.size
+#    w, h = map(lambda x: x - x % 32, (w, h))  # resize to integer multiple of 32
+#    image = image.convert("RGB")
+#    image = image.resize((w, h), resample=PIL.Image.LANCZOS)
+#    image = np.array(image).astype(np.float32) / 255.0
+#    image = image[None].transpose(0, 3, 1, 2)
+#    #image = 1 - image
+#    image = torch.from_numpy(image)
+#    image = rgb_to_grayscale(image, 1)
+#    print(f"Presqueeze: Depthmap has shape {image.shape}")
+#    image = image.squeeze(1)
+#    print(f"Postqueeze: Depthmap has shape {image.shape}")
+#    return image
 
 
 def preprocess_mask_inpaint(mask):

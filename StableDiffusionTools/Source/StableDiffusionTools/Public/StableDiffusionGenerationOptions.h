@@ -234,7 +234,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Pipeline"))
 	FString PythonPostRenderScript;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(Category = "Scheduler", Tooltip="Choose an available from the currently loaded model"))
 	FString Scheduler;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline", meta = (Bitmask, BitmaskEnum = EPipelineCapabilities))
@@ -271,15 +271,6 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionPipelineAsset : public UPrimaryDa
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Pipeline")
 	FStableDiffusionPipelineOptions Options;
-
-	UFUNCTION(BlueprintCallable, Category = "Pipeline")
-	TArray<FString> GetCompatibleSchedulers();
-
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-
-private:
-	TArray<FString> CompatibleSchedulers;
-	bool CachedSchedulers = false;
 };
 
 
@@ -463,16 +454,25 @@ public:
 	UImagePipelineStageAsset();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage Models")
-		UStableDiffusionStyleModelAsset* Model;
+		UStableDiffusionStyleModelAsset* Model = nullptr;
+
+	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Stage Models")
+		void LoadModel();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Stage Pipeline")
-		UStableDiffusionPipelineAsset* Pipeline;
+		UStableDiffusionPipelineAsset* Pipeline = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Stage Overrides", GetOptions = "GetCompatibleSchedulers", Tooltip = "Choose a compatible scheduler from the model for this pipeline stage"))
+		FString Scheduler;
+
+	UFUNCTION(BlueprintCallable, Category = "Stage Scheduler")
+		TArray<FString> GetCompatibleSchedulers();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage Models")
-		UStableDiffusionLORAAsset* LORAAsset;
+		UStableDiffusionLORAAsset* LORAAsset = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage Models")
-		UStableDiffusionTextualInversionAsset* TextualInversionAsset;
+		UStableDiffusionTextualInversionAsset* TextualInversionAsset = nullptr;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ShowOnlyInnerProperties, Category = "Stage Layers"))
 		TArray<FLayerProcessorContext> Layers;
@@ -482,7 +482,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(Category = "Stage Overrides"))
 		FStableDiffusionGenerationOptions OverrideInputOptions;
+
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+
 private:
+	TArray<FString> CompatibleSchedulers;
+	FString LastQueriedModel;
 };
 
 

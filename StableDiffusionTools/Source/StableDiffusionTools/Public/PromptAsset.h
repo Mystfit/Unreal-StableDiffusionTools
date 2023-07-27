@@ -40,7 +40,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Prompts")
 	float Weight = 1.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Prompts")
+	UPROPERTY(BlueprintReadWrite, Category = "Prompts")
 	TArray<FPromptTokenReplacements> TokenReplacements;
 };
 

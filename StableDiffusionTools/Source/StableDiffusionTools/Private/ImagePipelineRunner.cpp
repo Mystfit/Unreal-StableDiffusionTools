@@ -35,16 +35,32 @@ void UImagePipelineRunner::Activate()
 		Complete(LastStageResult);
 	}
 
-	AsyncTask(ENamedThreads::AnyHiPriThreadHiPriTask, [this, LastStageResult]() mutable {
+	// Gather custom schedulers from pipelines
+	TArray<TObjectPtr<UStableDiffusionPipelineAsset>> TempPipelines;
+	for (auto Stage : Stages) {
+		TObjectPtr<UStableDiffusionPipelineAsset> Pipeline = Stage->Pipeline;
+		
+		// Duplicate the pipelineasset and take ownership of it so we can modify it with our scheduler override
+		// Needs to happen before the async thread is run
+		if (!Stage->Scheduler.IsEmpty()) {
+			Pipeline = DuplicateObject<UStableDiffusionPipelineAsset>(Stage->Pipeline, this);
+			Pipeline->Options.Scheduler = Stage->Scheduler;
+		}
+
+		TempPipelines.Add(Pipeline);
+	}
+
+	AsyncTask(ENamedThreads::AnyHiPriThreadHiPriTask, [this, LastStageResult, TempPipelines]() mutable {
 		if (UStableDiffusionSubsystem* Subsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>()) {
 			for (size_t StageIdx = 0; StageIdx < Stages.Num(); ++StageIdx) {
 				// In order to process the pipeline, we need to use both the previous and current stages
 				UImagePipelineStageAsset* PrevStage = (StageIdx) ? Stages[StageIdx - 1] : nullptr;
 				UImagePipelineStageAsset* CurrentStage = Stages[StageIdx];
+				TObjectPtr<UStableDiffusionPipelineAsset> TempPipelineAsset = TempPipelines[StageIdx];
 
 				// Init model at the start of each stage.
 				// TODO: Cache last model and only re-init if model options have changed
-				Subsystem->InitModel(CurrentStage->Model->Options, CurrentStage->Pipeline, CurrentStage->LORAAsset, CurrentStage->TextualInversionAsset, CurrentStage->Layers, false, AllowNSFW, PaddingMode);
+				Subsystem->InitModel(CurrentStage->Model->Options, TempPipelineAsset, CurrentStage->LORAAsset, CurrentStage->TextualInversionAsset, CurrentStage->Layers, false, AllowNSFW, PaddingMode);
 				if (Subsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {
 					UE_LOG(LogTemp, Error, TEXT("Failed to load model. Check the output log for more information"));
 					Complete(LastStageResult);

@@ -1,24 +1,35 @@
 #include "StableDiffusionGenerationOptions.h"
 #include "StableDiffusionSubsystem.h"
 
-void UStableDiffusionPipelineAsset::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+void UImagePipelineStageAsset::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
-	CachedSchedulers = false;
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
-TArray<FString> UStableDiffusionPipelineAsset::GetCompatibleSchedulers()
+TArray<FString> UImagePipelineStageAsset::GetCompatibleSchedulers()
 {
-	if (!CachedSchedulers) {
+	if (IsValid(Model)) {
 		if (auto subsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>()) {
 			if (auto bridge = subsystem->GeneratorBridge) {
+				if (bridge->ModelStatus.ModelStatus != EModelStatus::Loading &&
+					bridge->ModelStatus.ModelStatus != EModelStatus::Downloading && 
+					Model->Options.Model != LastQueriedModel
+				) {
+					LastQueriedModel = Model->Options.Model;
+					LoadModel();
+				}
+					
 				if (bridge->ModelStatus.ModelStatus == EModelStatus::Loaded) {
 					CompatibleSchedulers = bridge->AvailableSchedulers();
-					CachedSchedulers = true;
+				}
+				else {
+					CompatibleSchedulers.Reset();
+					CompatibleSchedulers.Add("Model loading...");
 				}
 			}
 		}
 	}
+	
 	return CompatibleSchedulers;
 }
 
@@ -26,4 +37,13 @@ UImagePipelineStageAsset::UImagePipelineStageAsset()
 {
 	OverrideInputOptions.IsMasterOptions = false;
 	OverrideInputOptions.AllowOverrides = true;
+}
+
+void UImagePipelineStageAsset::LoadModel()
+{
+	if (IsValid(Model)) {
+		if (auto subsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>()) {
+			subsystem->InitModel(Model->Options, Pipeline, nullptr, nullptr, TArray<FLayerProcessorContext>(), true, true, EPaddingMode::zeros);
+		}
+	}
 }
