@@ -2,6 +2,9 @@
 
 from pathlib import Path
 
+import typing
+from typing import Optional
+import pathlib
 from PIL import Image
 from huggingface_hub import hf_hub_download
 from torch import nn
@@ -55,7 +58,7 @@ class RealESRGANModel(nn.Module):
         return image
 
     @classmethod
-    def from_pretrained(cls, model_name_or_path="nateraw/real-esrgan"):
+    def from_pretrained(cls, model_name_or_path="nateraw/real-esrgan", cache_dir: Optional[str] = None):
         """Initialize a pretrained Real-ESRGAN upsampler.
 
         Example:
@@ -76,7 +79,7 @@ class RealESRGANModel(nn.Module):
         if Path(model_name_or_path).exists():
             file = model_name_or_path
         else:
-            file = hf_hub_download(model_name_or_path, "RealESRGAN_x4plus.pth")
+            file = hf_hub_download(model_name_or_path, "RealESRGAN_x4plus.pth", cache_dir=cache_dir)
         return cls(file)
 
     def upsample_imagefolder(self, in_dir, out_dir, suffix="out", outfile_ext=".png"):
