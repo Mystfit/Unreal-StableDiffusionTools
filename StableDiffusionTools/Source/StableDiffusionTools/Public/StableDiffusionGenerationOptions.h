@@ -219,6 +219,12 @@ public:
 	FString PythonModelArgumentsScript;
 
 	/*
+	* Process any python commands that need to be run after the pipeline is initialised.
+	*/
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Pipeline"))
+		FString PythonPipelinePostInitScript;
+
+	/*
 	* Process the image further after it was generated.
 	* 'input' contains the current input options passed to the generation function
 	* 'generation_args' are the arguments that have been created already
@@ -237,13 +243,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(Category = "Scheduler", Tooltip="Choose an available from the currently loaded model"))
 	FString Scheduler;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline", meta = (Bitmask, BitmaskEnum = EPipelineCapabilities))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline", meta = (Bitmask, BitmaskEnum = "/Script/StableDiffusionTools.EPipelineCapabilities"))
 	int32 Capabilities = (int32)(EPipelineCapabilities::STRENGTH);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline", meta = (Bitmask, BitmaskEnum = EPipelineCapabilities))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline")
 	TArray<FLayerProcessorContext> RequiredLayers;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline", meta = (Bitmask, BitmaskEnum = EPipelineCapabilities))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline")
 	TArray<FString> RequiredLayerKeys;
 
 	FORCEINLINE bool operator==(const FStableDiffusionPipelineOptions& Other)

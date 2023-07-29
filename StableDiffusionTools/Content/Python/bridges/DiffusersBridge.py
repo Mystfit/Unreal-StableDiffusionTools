@@ -320,6 +320,12 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             "use_auth_token": self.get_token()
         }
 
+        # Single file loading if we provide a URL for diffusers model types
+        if new_model_options.external_url and new_model_options.model_type == unreal.ModelType.DIFFUSERS:
+            modelname = new_model_options.external_url
+            model_is_file = True
+            kwargs["use_safetensors"] = True
+
         # Run model init script to generate extra pipeline args
         init_script_locals = {}
         exec(new_pipeline_asset.options.python_model_arguments_script, globals(), init_script_locals)
@@ -371,7 +377,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # Load model
         try:
             if model_is_file:
-                print(f"Requested single-file pipeline is: {ActivePipeline}")
+                print(f"Requested single-file pipeline is: {ActivePipeline}. Model is {modelname}. Args are {kwargs}")
                 self.pipe = ActivePipeline.from_single_file(modelname, **kwargs)
                 print(f"Loaded pipeline is: {self.pipe}")
             else:
@@ -386,6 +392,20 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             result.error_msg = f"Incorrect values passed to the model init function. Full exception: {e}"
             print(result.error_msg)
             return result
+
+        # Cache model and pipeline
+        self.set_editor_property("ModelOptions", new_model_options)
+        self.set_editor_property("PipelineAsset", new_pipeline_asset)
+
+         # Run model post-init scripts
+        post_init_script_locals = {}
+        post_init_script_args = {
+            "pipeline": self.pipe,
+            "pipeline_asset": new_pipeline_asset,
+            "model_asset": new_model_options
+        }
+        exec(new_pipeline_asset.options.python_pipeline_post_init_script, post_init_script_args, post_init_script_locals)
+        self.pipe = post_init_script_locals["pipeline"] if "pipeline" in post_init_script_locals else self.pipe
         
         if scheduler_cls:
             self.pipe.scheduler = scheduler_cls.from_config(self.pipe.scheduler.config)
@@ -432,8 +452,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # Cache assets
         self.set_editor_property("LORAAsset", lora_asset)
         self.set_editor_property("CachedTextualInversionAsset", textual_inversion_asset)
-        self.set_editor_property("ModelOptions", new_model_options)
-        self.set_editor_property("PipelineAsset", new_pipeline_asset)
         
         # Cache status
         result.model_name = new_model_options.model
@@ -754,8 +772,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 else:
                     # Save texture
                     result.out_texture = PILImageToTexture(image.convert("RGBA"), out_texture, True) if not image is None else None
-                    result.out_width = image.width
-                    result.out_height = image.height
+                    result.out_width = image.width if not image is None else input.options.out_size_x
+                    result.out_height = image.height if not image is None else input.options.out_size_y
                 
                 result.input = input
                 result.input.options.seed = seed
