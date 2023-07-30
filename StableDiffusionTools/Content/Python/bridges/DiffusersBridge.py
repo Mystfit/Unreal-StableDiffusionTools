@@ -3,6 +3,7 @@ import io
 import pipes
 from tqdm.auto import tqdm
 import functools
+from urllib.parse import urlparse
 from turtle import update
 import unreal
 import os, inspect, importlib, random, threading, ctypes, time, traceback, pprint, gc, shutil, re
@@ -153,6 +154,8 @@ def refresh_supplementary_model(model_asset: unreal.StableDiffusionModelAsset, d
     # Get supplementary model from local filepath first
     if os.path.exists(model_asset.options.local_file_path.file_path):
         model_id = model_asset.options.local_file_path.file_path
+    elif model_asset.options.external_url and os.path.exists(os.path.join(download_path, os.path.basename(urlparse(model_asset.options.external_url).path))):
+         model_id = os.path.join(download_path, os.path.basename(urlparse(download_path).path))
     elif model_asset.options.local_file_path:
         if model_asset.options.external_url:
             # Download file
@@ -433,7 +436,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 if lora_id:
                     # Force pipeline to CUDA until support is added for pipe.enable_model_cpu_offload()
                     self.pipe.to("cuda")
-                    self.pipe.load_lora_weights(lora_id)
+                    self.pipe.load_lora_weights(".", weight_name=lora_id)
                     # Move model back to CPU so model offloading works
                     self.pipe.to("cpu")
 
@@ -510,7 +513,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             return True
 
         # Check huggingface cached repos
-        cache = scan_cache_dir()
+        cache = scan_cache_dir(cache_dir=self.get_settings_model_save_path().path)
         return bool(next((repo for repo in cache.repos if repo.repo_id == model_name), False))
 
     @unreal.ufunction(override=True)
