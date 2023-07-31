@@ -38,8 +38,12 @@ public:
 		FImageStageResult OnAllStagesCompleted;
 
 private:
+	UPROPERTY(Transient)
 	TArray<UImagePipelineStageAsset*> Stages;
+
+	UPROPERTY(Transient)
 	FStableDiffusionInput Input;
+
 	EInputImageSource ImageSourceType;
 	bool AllowNSFW;
 	EPaddingMode PaddingMode;

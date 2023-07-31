@@ -500,6 +500,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             if self.pipe:
                 del self.pipe
                 self.pipe = None
+        gc.collect()
         torch.cuda.empty_cache()
 
         result = unreal.StableDiffusionModelInitResult()
