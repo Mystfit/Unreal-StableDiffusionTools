@@ -215,6 +215,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
 	void StopGeneratingImage();
 
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
+	bool IsStopping() const;
+
+	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
+	void ClearIsStopping();
+
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
 	void UpsampleImage(const FStableDiffusionImageResult& input);
 
@@ -344,4 +350,7 @@ private:
 
 	// Model state
 	bool bIsModelDirty = true;
+
+	// Generation state
+	bool bIsStopping = false;
 };

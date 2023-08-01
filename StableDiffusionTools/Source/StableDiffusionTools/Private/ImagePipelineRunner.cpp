@@ -53,6 +53,10 @@ void UImagePipelineRunner::Activate()
 	AsyncTask(ENamedThreads::AnyHiPriThreadHiPriTask, [this, LastStageResult, TempPipelines]() mutable {
 		if (UStableDiffusionSubsystem* Subsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>()) {
 			for (size_t StageIdx = 0; StageIdx < Stages.Num(); ++StageIdx) {
+				if (Subsystem->IsStopping()) {
+					break;
+				}
+
 				// In order to process the pipeline, we need to use both the previous and current stages
 				UImagePipelineStageAsset* PrevStage = (StageIdx) ? Stages[StageIdx - 1] : nullptr;
 				UImagePipelineStageAsset* CurrentStage = Stages[StageIdx];
@@ -63,8 +67,12 @@ void UImagePipelineRunner::Activate()
 				Subsystem->InitModel(CurrentStage->Model->Options, TempPipelineAsset, CurrentStage->LORAAsset, CurrentStage->TextualInversionAsset, CurrentStage->Layers, false, AllowNSFW, PaddingMode);
 				if (Subsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {
 					UE_LOG(LogTemp, Error, TEXT("Failed to load model. Check the output log for more information"));
-					Complete(LastStageResult);
-					return;
+					Subsystem->StopGeneratingImage();
+				}
+
+				// We may have cancelled the model load
+				if (Subsystem->IsStopping()) {
+					break;
 				}
 
 				// Optionally override global generation options with per-stage options
@@ -83,7 +91,7 @@ void UImagePipelineRunner::Activate()
 				// Copy layers and output type from the stage
 				Input.InputLayers = CurrentStage->Layers;
 				Input.OutputType = CurrentStage->OutputType;
-				Input.Options.Seed = (Input.Options.Seed < 0) ? FMath::Rand() : Input.Options.Seed;
+				Input.Options.Seed = (Input.Options.RandomSeed) ? FMath::Rand() : Input.Options.Seed;
 
 				// Use last image result as input for next stage's layers
 				if (LastStageResult.Completed) {
@@ -103,8 +111,19 @@ void UImagePipelineRunner::Activate()
 						OnStageCompleted.Broadcast(LastStageResult);
 					});
 				}
-				
+
+				// Handle errors
+				if (LastStageResult.Completed) {
+					UE_LOG(LogTemp, Log, TEXT("Completed pipeline stage %d"), StageIdx);
+				}
+				else {
+					UE_LOG(LogTemp, Error, TEXT("Failed to generate image for pipeline stage. Check the output log for more information"));
+					Subsystem->StopGeneratingImage();
+				}
 			}
+
+			// Reset stopped flag if we aborted early
+			Subsystem->ClearIsStopping();
 		}
 
 		// Broadcast last pipeline result

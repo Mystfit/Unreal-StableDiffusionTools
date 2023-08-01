@@ -51,6 +51,7 @@ enum class EModelStatus : uint8 {
 	Loading UMETA(DisplayName = "Loading"),
 	Loaded UMETA(DisplayName = "Loaded"),
 	Downloading UMETA(DisplayName = "Downloading"),
+	Cancelling UMETA(DisplayName = "Cancelling"),
 	Error UMETA(DisplayName = "Error")
 };
 ENUM_CLASS_FLAGS(EModelStatus);
@@ -357,8 +358,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
 		bool OverrideSeed = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideSeed || IsMasterOptions"))
-		int32 Seed = -1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "(OverrideSeed || IsMasterOptions)"))
+		bool RandomSeed = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "(OverrideSeed || (IsMasterOptions && !RandomSeed))", EditConditionHides))
+		int32 Seed = 0;
 
 	UPROPERTY(BlueprintReadWrite, meta = (Category = "Generation options"))
 		int32 InSizeX = -1;
@@ -369,13 +373,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
 		bool OverrideOutSizeX = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideOutSizeX || IsMasterOptions"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName="Image width", Category = "Generation options", EditCondition = "OverrideOutSizeX || IsMasterOptions"))
 		int32 OutSizeX = 512;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
 		bool OverrideOutSizeY = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideOutSizeY || IsMasterOptions"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName= "Image height", Category = "Generation options", EditCondition = "OverrideOutSizeY || IsMasterOptions"))
 		int32 OutSizeY = 512;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))

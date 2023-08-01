@@ -831,6 +831,15 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
     @unreal.ufunction(override=True)
     def StopImageGeneration(self):
         self.abort = True
+        # Update model status to let UI know the model is downloading or available
+        current_model_status = self.get_editor_property("ModelStatus")
+
+        # Let UI know that we're cancelling the model load - but we'll still have to wait
+        # TODO: Multithreaded model loading?
+        result = unreal.StableDiffusionModelInitResult()
+        result.model_status = unreal.ModelStatus.CANCELLING if current_model_status.model_status == unreal.ModelStatus.LOADING else current_model_status.model_status
+        result.model_name = current_model_status.model_name
+        self.set_editor_property("ModelStatus", result)
 
     @unreal.ufunction(override=True)
     def StartUpsample(self):

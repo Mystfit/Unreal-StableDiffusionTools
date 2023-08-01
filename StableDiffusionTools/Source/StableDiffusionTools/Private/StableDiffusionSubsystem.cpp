@@ -375,6 +375,12 @@ void UStableDiffusionSubsystem::StopGeneratingImage()
 {
 	this->GeneratorBridge->StopImageGeneration();
 	bIsGenerating = false;
+	bIsStopping = true;
+}
+
+bool UStableDiffusionSubsystem::IsStopping() const
+{
+	return bIsStopping;
 }
 
 void UStableDiffusionSubsystem::StartImageGeneration(FStableDiffusionInput Input)
@@ -423,6 +429,11 @@ FStableDiffusionImageResult UStableDiffusionSubsystem::StartImageGenerationSync(
 	});
 
 	return result;
+}
+
+void UStableDiffusionSubsystem::ClearIsStopping()
+{
+	bIsStopping = false;
 }
 
 void UStableDiffusionSubsystem::UpsampleImage(const FStableDiffusionImageResult& input)
