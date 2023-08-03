@@ -35,8 +35,6 @@ TArray<FString> UImagePipelineStageAsset::GetCompatibleSchedulers()
 
 UImagePipelineStageAsset::UImagePipelineStageAsset()
 {
-	OverrideInputOptions.IsMasterOptions = false;
-	OverrideInputOptions.AllowOverrides = true;
 }
 
 void UImagePipelineStageAsset::LoadModel()

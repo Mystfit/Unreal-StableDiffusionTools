@@ -325,43 +325,43 @@ struct STABLEDIFFUSIONTOOLS_API FStableDiffusionGenerationOptions
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, meta = (Category = "Generation options"))
-		bool IsMasterOptions = true;
+	//UPROPERTY(BlueprintReadWrite, meta = (Category = "Generation options"))
+	//	bool IsMasterOptions = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "!IsMasterOptions", EditConditionHides))
-		bool AllowOverrides = false;
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "!IsMasterOptions", EditConditionHides))
+	//	bool AllowOverrides = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition="AllowOverrides", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", PinHiddenByDefault, InlineEditConditionToggle))
 		bool OverrideStrength = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideStrength || IsMasterOptions"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideStrength"))
 		float Strength = 0.75;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", PinHiddenByDefault, InlineEditConditionToggle))
 		bool OverrideGuidanceScale = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideGuidanceScale || IsMasterOptions"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideGuidanceScale"))
 		float GuidanceScale = 7.5;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", PinHiddenByDefault, InlineEditConditionToggle))
 		bool OverrideLoraWeight = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideLoraWeight || IsMasterOptions"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideLoraWeight"))
 		float LoraWeight = 1.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", PinHiddenByDefault, InlineEditConditionToggle))
 		bool OverrideIterations = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideIterations || IsMasterOptions"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideIterations"))
 		int32 Iterations = 50;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", PinHiddenByDefault, InlineEditConditionToggle))
 		bool OverrideSeed = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "(OverrideSeed || IsMasterOptions)"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideSeed"))
 		bool RandomSeed = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "(OverrideSeed || (IsMasterOptions && !RandomSeed))", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "!RandomSeed", EditConditionHides))
 		int32 Seed = 0;
 
 	UPROPERTY(BlueprintReadWrite, meta = (Category = "Generation options"))
@@ -370,28 +370,28 @@ public:
 	UPROPERTY(BlueprintReadWrite, meta = (Category = "Generation options"))
 		int32 InSizeY = -1;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", PinHiddenByDefault, InlineEditConditionToggle, EditConditionHides))
 		bool OverrideOutSizeX = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName="Image width", Category = "Generation options", EditCondition = "OverrideOutSizeX || IsMasterOptions"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName="Image width", Category = "Generation options", EditCondition = "OverrideOutSizeX"))
 		int32 OutSizeX = 512;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", PinHiddenByDefault, InlineEditConditionToggle, EditConditionHides))
 		bool OverrideOutSizeY = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName= "Image height", Category = "Generation options", EditCondition = "OverrideOutSizeY || IsMasterOptions"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (DisplayName= "Image height", Category = "Generation options", EditCondition = "OverrideOutSizeY"))
 		int32 OutSizeY = 512;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", PinHiddenByDefault, InlineEditConditionToggle, EditConditionHides))
 		bool OverridePositivePrompts = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverridePositivePrompts || IsMasterOptions"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverridePositivePrompts"))
 		TArray<FPrompt> PositivePrompts;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "AllowOverrides", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", PinHiddenByDefault, InlineEditConditionToggle, EditConditionHides))
 		bool OverrideNegativePrompts = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideNegativePrompts || IsMasterOptions"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Generation options", EditCondition = "OverrideNegativePrompts"))
 		TArray<FPrompt> NegativePrompts;
 
 	//UPROPERTY(BlueprintReadWrite, Category = "Generation options")

@@ -83,17 +83,15 @@ void UImagePipelineRunner::Activate()
 				}
 
 				// Optionally override global generation options with per-stage options
-				if (Input.Options.AllowOverrides) {
-					Input.Options.GuidanceScale = (CurrentStage->OverrideInputOptions.OverrideGuidanceScale) ? CurrentStage->OverrideInputOptions.GuidanceScale : Input.Options.GuidanceScale;
-					Input.Options.Iterations = (CurrentStage->OverrideInputOptions.OverrideIterations) ? CurrentStage->OverrideInputOptions.Iterations : Input.Options.Iterations;
-					Input.Options.LoraWeight = (CurrentStage->OverrideInputOptions.OverrideLoraWeight) ? CurrentStage->OverrideInputOptions.LoraWeight : Input.Options.LoraWeight;
-					Input.Options.NegativePrompts = (CurrentStage->OverrideInputOptions.OverrideNegativePrompts) ? CurrentStage->OverrideInputOptions.NegativePrompts : Input.Options.NegativePrompts;
-					Input.Options.PositivePrompts = (CurrentStage->OverrideInputOptions.OverridePositivePrompts) ? CurrentStage->OverrideInputOptions.PositivePrompts : Input.Options.PositivePrompts;
-					Input.Options.OutSizeX = (CurrentStage->OverrideInputOptions.OverrideOutSizeX) ? CurrentStage->OverrideInputOptions.OutSizeX : Input.Options.OutSizeX;
-					Input.Options.OutSizeY = (CurrentStage->OverrideInputOptions.OverrideOutSizeY) ? CurrentStage->OverrideInputOptions.OutSizeY : Input.Options.OutSizeY;
-					Input.Options.Seed = (CurrentStage->OverrideInputOptions.OverrideSeed) ? CurrentStage->OverrideInputOptions.Seed : Input.Options.Seed;
-					Input.Options.Strength = (CurrentStage->OverrideInputOptions.OverrideStrength) ? CurrentStage->OverrideInputOptions.Strength : Input.Options.Strength;
-				}
+				Input.Options.GuidanceScale = (CurrentStage->OverrideInputOptions.OverrideGuidanceScale) ? CurrentStage->OverrideInputOptions.GuidanceScale : Input.Options.GuidanceScale;
+				Input.Options.Iterations = (CurrentStage->OverrideInputOptions.OverrideIterations) ? CurrentStage->OverrideInputOptions.Iterations : Input.Options.Iterations;
+				Input.Options.LoraWeight = (CurrentStage->OverrideInputOptions.OverrideLoraWeight) ? CurrentStage->OverrideInputOptions.LoraWeight : Input.Options.LoraWeight;
+				Input.Options.NegativePrompts = (CurrentStage->OverrideInputOptions.OverrideNegativePrompts) ? CurrentStage->OverrideInputOptions.NegativePrompts : Input.Options.NegativePrompts;
+				Input.Options.PositivePrompts = (CurrentStage->OverrideInputOptions.OverridePositivePrompts) ? CurrentStage->OverrideInputOptions.PositivePrompts : Input.Options.PositivePrompts;
+				Input.Options.OutSizeX = (CurrentStage->OverrideInputOptions.OverrideOutSizeX) ? CurrentStage->OverrideInputOptions.OutSizeX : Input.Options.OutSizeX;
+				Input.Options.OutSizeY = (CurrentStage->OverrideInputOptions.OverrideOutSizeY) ? CurrentStage->OverrideInputOptions.OutSizeY : Input.Options.OutSizeY;
+				Input.Options.Seed = (CurrentStage->OverrideInputOptions.OverrideSeed) ? CurrentStage->OverrideInputOptions.Seed : Input.Options.Seed;
+				Input.Options.Strength = (CurrentStage->OverrideInputOptions.OverrideStrength) ? CurrentStage->OverrideInputOptions.Strength : Input.Options.Strength;
 
 				// Copy layers and output type from the stage
 				Input.InputLayers = CurrentStage->Layers;

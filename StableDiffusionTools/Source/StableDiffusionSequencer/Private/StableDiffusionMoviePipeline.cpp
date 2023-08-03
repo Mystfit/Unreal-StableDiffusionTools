@@ -225,11 +225,10 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 
 				// Modify global input options from the current stage
 				StageInput.OutputType = CurrentStage->OutputType;
-				if (StageInput.Options.AllowOverrides) {
-					// TODO: Make these keyable parameters in the options track
-					StageInput.Options.GuidanceScale = (CurrentStage->OverrideInputOptions.OverrideGuidanceScale) ? CurrentStage->OverrideInputOptions.GuidanceScale : StageInput.Options.GuidanceScale;
-					StageInput.Options.LoraWeight = (CurrentStage->OverrideInputOptions.OverrideLoraWeight) ? CurrentStage->OverrideInputOptions.LoraWeight : StageInput.Options.LoraWeight;
-				}
+				
+				// TODO: Make these keyable parameters in the options track
+				StageInput.Options.GuidanceScale = (CurrentStage->OverrideInputOptions.OverrideGuidanceScale) ? CurrentStage->OverrideInputOptions.GuidanceScale : StageInput.Options.GuidanceScale;
+				StageInput.Options.LoraWeight = (CurrentStage->OverrideInputOptions.OverrideLoraWeight) ? CurrentStage->OverrideInputOptions.LoraWeight : StageInput.Options.LoraWeight;
 
 				// Duplicate the layers so we can modify the options without modifying the original asset
 				TArray<FLayerProcessorContext> CurrentStageLayers;
