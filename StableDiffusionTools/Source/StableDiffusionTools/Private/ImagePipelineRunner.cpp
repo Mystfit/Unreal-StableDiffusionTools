@@ -68,10 +68,17 @@ void UImagePipelineRunner::Activate()
 				if (Subsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {
 					UE_LOG(LogTemp, Error, TEXT("Failed to load model. Check the output log for more information"));
 					Subsystem->StopGeneratingImage();
+					if(Subsystem->GeneratorBridge){
+						Subsystem->GeneratorBridge->ModelStatus.ErrorMsg = "Failed to load the specified model";
+						Subsystem->GeneratorBridge->ModelStatus.ModelStatus = EModelStatus::Error;
+					}
+					
+					break;
 				}
 
 				// We may have cancelled the model load
 				if (Subsystem->IsStopping()) {
+					UE_LOG(LogTemp, Error, TEXT("Stopping image pipeline after modoel init"));
 					break;
 				}
 
@@ -112,6 +119,12 @@ void UImagePipelineRunner::Activate()
 					});
 				}
 
+				// We may have cancelled the image generation
+				if (Subsystem->IsStopping()) {
+					UE_LOG(LogTemp, Error, TEXT("Stopping image pipeline after image generation"));
+					break;
+				}
+
 				// Handle errors
 				if (LastStageResult.Completed) {
 					UE_LOG(LogTemp, Log, TEXT("Completed pipeline stage %d"), StageIdx);
@@ -119,6 +132,7 @@ void UImagePipelineRunner::Activate()
 				else {
 					UE_LOG(LogTemp, Error, TEXT("Failed to generate image for pipeline stage. Check the output log for more information"));
 					Subsystem->StopGeneratingImage();
+					break;
 				}
 			}
 

@@ -291,6 +291,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
     @unreal.ufunction(override=True)
     def InitModel(self, new_model_options, new_pipeline_asset, lora_asset, textual_inversion_asset, layers, allow_nsfw, padding_mode):
+        # Reset states
+        self.abort = False
+
         # Free up any previously loaded mnodels
         self.ReleaseModel()
 
@@ -456,13 +459,18 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # Cache assets
         self.set_editor_property("LORAAsset", lora_asset)
         self.set_editor_property("CachedTextualInversionAsset", textual_inversion_asset)
-        
+
+        print("Loaded Stable Diffusion model " + modelname)
+
         # Cache status
         result.model_name = new_model_options.model
         result.model_status = unreal.ModelStatus.LOADED
         self.set_editor_property("ModelStatus", result)
 
-        print("Loaded Stable Diffusion model " + modelname)
+        # TODO: Implement multithreaded load with abortable model load
+        if self.abort:
+            self.ReleaseModel()
+
         return result
 
     @unreal.ufunction(override=True)
@@ -732,6 +740,9 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 if input.debug_python_images:
                     print("Generation args:")
                     pprint.pprint(generation_args)
+
+                # Reset progress bar
+                self.update_image_progress("inprogress", int(0), int(1), float(0.0), input.options.out_size_x, input.options.out_size_y, None)
             
                 # Create executor to generate the image in its own thread that we can abort if needed
                 self.executor = AbortableExecutor("ImageThread", lambda generation_args=generation_args: self.pipe(**generation_args))

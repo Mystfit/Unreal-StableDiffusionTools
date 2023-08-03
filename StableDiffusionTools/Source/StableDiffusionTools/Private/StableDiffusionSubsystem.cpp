@@ -373,9 +373,9 @@ FStableDiffusionImageResult UStableDiffusionSubsystem::GenerateImageSync(FStable
 
 void UStableDiffusionSubsystem::StopGeneratingImage()
 {
-	this->GeneratorBridge->StopImageGeneration();
 	bIsGenerating = false;
 	bIsStopping = true;
+	this->GeneratorBridge->StopImageGeneration();
 }
 
 bool UStableDiffusionSubsystem::IsStopping() const
@@ -415,6 +415,9 @@ FStableDiffusionImageResult UStableDiffusionSubsystem::StartImageGenerationSync(
 	UTexture2D* PreviewTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
 
 	FStableDiffusionImageResult result = this->GeneratorBridge->GenerateImageFromStartImage(Input, OutTexture, PreviewTexture);
+	
+	// Copy view info straight to the result
+	result.View = Input.View;
 
 	bIsGenerating = false;
 
