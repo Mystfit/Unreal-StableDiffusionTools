@@ -17,12 +17,15 @@ TMap<FName, FString> UStableDiffusionToolsSettings::GetGeneratorTokens() const {
 FDirectoryPath UStableDiffusionToolsSettings::GetModelDownloadPath()
 {
 	if (ModelDownloadPath.Path.IsEmpty()) {
-		ModelDownloadPath.Path = FPaths::Combine(FPaths::ProjectSavedDir(), "ModelDownloads");
+		ModelDownloadPath.Path = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*FPaths::Combine(FPaths::ProjectSavedDir(), "ModelDownloads"));
 	}
 
-	FDirectoryPath AbsPath;
-	AbsPath.Path = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*ModelDownloadPath.Path);
-	return AbsPath;
+	// Create download folder if it doesn't exist
+	if (!IFileManager::Get().DirectoryExists(*ModelDownloadPath.Path)) {
+		IFileManager::Get().MakeDirectory(*ModelDownloadPath.Path);
+	}
+
+	return ModelDownloadPath;
 }
 
 bool UStableDiffusionToolsSettings::GetUseOverridePythonSitePackagesPath() const {
