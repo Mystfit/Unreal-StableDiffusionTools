@@ -5,7 +5,8 @@ Description
 -----------
 This plugin generates AI synthesized images in Unreal Editor.
 
-![image](https://github.com/Mystfit/Unreal-StableDiffusionTools/assets/795851/84220709-92f5-4c02-a92a-448863da97bd)
+![image](https://github.com/Mystfit/Unreal-StableDiffusionTools/assets/795851/35bc1146-0a2b-4259-a10d-314a89c10a8b)
+![image](https://github.com/Mystfit/Unreal-StableDiffusionTools/assets/795851/565313ed-6cbb-4311-93af-54f11c76e859)
 
 Join us on [Discord](https://discord.gg/9m6HxaDB62).
 
