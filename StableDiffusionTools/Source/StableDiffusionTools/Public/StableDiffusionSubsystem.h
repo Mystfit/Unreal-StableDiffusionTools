@@ -192,7 +192,7 @@ public:
 	void ConvertRawModel(UStableDiffusionModelAsset* InModelAsset, bool DeleteOriginal = true);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
-	void InitModel(const FStableDiffusionModelOptions& Model, UStableDiffusionPipelineAsset* Pipeline, UStableDiffusionLORAAsset* LORAAsset, UStableDiffusionTextualInversionAsset* TextualInversionAsset, const TArray<FLayerProcessorContext>& Layers, bool Async, bool AllowNSFW, EPaddingMode PaddingMode);
+	void InitModel(const FStableDiffusionModelOptions& Model, UStableDiffusionPipelineAsset* Pipeline, UStableDiffusionLORAAsset* LORAAsset, UStableDiffusionTextualInversionAsset* TextualInversionAsset, const TArray<FLayerProcessorContext>& Layers, bool Async, bool AllowNSFW, int32 SeamlessMode);
 
 	//UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Model")
 	//void RunImagePipeline(TArray<UImagePipelineStageAsset*> Stages, FStableDiffusionInput Input, EInputImageSource ImageSourceType, bool Async, bool AllowNSFW, EPaddingMode PaddingMode);

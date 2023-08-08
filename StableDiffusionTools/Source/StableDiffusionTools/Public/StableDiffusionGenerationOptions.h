@@ -35,15 +35,14 @@ enum class EImageType : uint8 {
 };
 ENUM_CLASS_FLAGS(EImageType);
 
-UENUM(BlueprintType)
-enum class EPaddingMode : uint8 {
+UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
+enum class ESeamlessMode : uint8 {
 	//'zeros', 'reflect', 'replicate' or 'circular'.
-	zeros UMETA(DisplayName = "Zeroes"),
-	reflect UMETA(DisplayName = "Reflect"),
-	replicate UMETA(DisplayName = "Replicate"),
-	circular UMETA(DisplayName = "Circular")
+	none = 0 UMETA(Hidden),
+	seamless_x = 0x01 UMETA(DisplayName = "Seamless horizontal"),
+	seamless_y = 0x02 UMETA(DisplayName = "Seamless vertical")
 };
-ENUM_CLASS_FLAGS(EPaddingMode);
+ENUM_CLASS_FLAGS(ESeamlessMode);
 
 UENUM(BlueprintType)
 enum class EModelStatus : uint8 {
@@ -507,12 +506,6 @@ class STABLEDIFFUSIONTOOLS_API UImagePipelineAsset : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
 public:
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Model config")
-	//EPaddingMode PaddingMode;
-
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Model config")
-	//bool AllowNSFW;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Stages")
 	TArray<UImagePipelineStageAsset*> Stages;
 private:

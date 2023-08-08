@@ -12,12 +12,9 @@ from contextlib import nullcontext
 import numpy as np
 import requests
 from diffusers.pipelines.stable_diffusion.convert_from_ckpt import download_from_original_stable_diffusion_ckpt
-
-
 import safetensors
 import torch
 from torch import autocast
-#from torchvision.transforms.functional import rgb_to_grayscale
 import PIL
 from PIL import Image
 from transformers import CLIPFeatureExtractor
@@ -29,6 +26,7 @@ from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray, PILImageToTexture
 from huggingface_hub.utils import HfFolder, scan_cache_dir
 from huggingface_hub.utils._errors import LocalEntryNotFoundError
+from seamless.seamless import configure_model_padding, patch_conv
 
 try:
     from upsampling import RealESRGANModel
@@ -39,23 +37,6 @@ except ImportError as e:
 # Globally disable progress bars to avoid polluting the Unreal log
 diffusers.utils.logging.disable_progress_bar()
 
-## Global disable torch loading. Use safetensors
-#def _raise_torch_load_err():
-#    raise RuntimeError("I don't want to use pickle")
-
-#torch.load = lambda *args, **kwargs: _raise_torch_load_err()
-
-
-def patch_conv(padding_mode):
-    cls = torch.nn.Conv2d
-    init = cls.__init__
-
-    def __init__(self, *args, **kwargs):
-        kwargs["padding_mode"]=padding_mode.name.lower()
-        return init(self, *args, **kwargs)
-
-    cls.__init__ = __init__
-
 
 def layer_type_name(layer_type: unreal.LayerImageType):
     layer_type_map = {
@@ -64,68 +45,6 @@ def layer_type_name(layer_type: unreal.LayerImageType):
         unreal.LayerImageType.CUSTOM: "custom",
     }
     return layer_type_map[layer_type]
-
-
-def preprocess_init_image(image: Image, width: int, height: int):
-    image = image.resize((width, height), resample=Image.LANCZOS)
-    image = np.array(image).astype(np.float32) / 255.0
-    image = image[None].transpose(0, 3, 1, 2)
-    image = torch.from_numpy(image)
-    return 2.0 * image - 1.0
-
-
-#def preprocess_mask(mask: Image, width: int, height: int):
-#    mask = mask.convert("L")
-#    mask = mask.resize((width // 8, height // 8), resample=Image.LANCZOS)
-#    mask = np.array(mask).astype(np.float32) / 255.0
-#    mask = np.tile(mask, (4, 1, 1))
-#    mask = mask[None].transpose(0, 1, 2, 3)  # what does this step do?
-#    mask = torch.from_numpy(mask)
-#    return mask
-
-def preprocess_normalmap(image: Image, width: int, height: int):
-    image = image.resize((width, height), resample=Image.LANCZOS)
-    image = np.array(image)
-    #image = image[...,::-1]
-    image = Image.fromarray(image)
-    return image
-
-def preprocess_image_inpaint(image):
-    w, h = image.size
-    w, h = map(lambda x: x - x % 32, (w, h))  # resize to integer multiple of 32
-    image = image.resize((w, h), resample=PIL.Image.LANCZOS)
-    image = np.array(image).astype(np.float32) / 255.0
-    image = image[None].transpose(0, 3, 1, 2)
-    image = torch.from_numpy(image)
-    return 2.0 * image - 1.0
-
-#def preprocess_image_depth(image):
-#    w, h = image.size
-#    w, h = map(lambda x: x - x % 32, (w, h))  # resize to integer multiple of 32
-#    image = image.convert("RGB")
-#    image = image.resize((w, h), resample=PIL.Image.LANCZOS)
-#    image = np.array(image).astype(np.float32) / 255.0
-#    image = image[None].transpose(0, 3, 1, 2)
-#    #image = 1 - image
-#    image = torch.from_numpy(image)
-#    image = rgb_to_grayscale(image, 1)
-#    print(f"Presqueeze: Depthmap has shape {image.shape}")
-#    image = image.squeeze(1)
-#    print(f"Postqueeze: Depthmap has shape {image.shape}")
-#    return image
-
-
-def preprocess_mask_inpaint(mask):
-    mask = mask.convert("L")
-    w, h = mask.size
-    w, h = map(lambda x: x - x % 32, (w, h))  # resize to integer multiple of 32
-    mask = mask.resize((w // 8, h // 8), resample=PIL.Image.NEAREST)
-    mask = np.array(mask).astype(np.float32) / 255.0
-    mask = np.tile(mask, (4, 1, 1))
-    mask = mask[None].transpose(0, 1, 2, 3)  # what does this step do?
-    mask = 1 - mask  # repaint white, keep black
-    mask = torch.from_numpy(mask)
-    return mask
 
 
 def download_file(url: str, destination_dir: Path):
@@ -290,7 +209,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
 
 
     @unreal.ufunction(override=True)
-    def InitModel(self, new_model_options, new_pipeline_asset, lora_asset, textual_inversion_asset, layers, allow_nsfw, padding_mode):
+    def InitModel(self, new_model_options, new_pipeline_asset, lora_asset, textual_inversion_asset, layers, allow_nsfw, seamless_mode):
         # Reset states
         self.abort = False
 
@@ -373,9 +292,6 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             kwargs["custom_pipeline"] = new_pipeline_asset.options.custom_pipeline
         if allow_nsfw:
             kwargs["safety_checker"] = None
-        
-        # Padding mode injection
-        patch_conv(padding_mode=padding_mode)
 
         # Torch performance options
         torch.backends.cudnn.benchmark = True
@@ -455,6 +371,17 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     self.pipe.load_textual_inversion(textual_inversion_id)
                     # Move model back to CPU so model offloading works
                     self.pipe.to("cpu")
+
+        # Padding mode injection
+        seamless_x = (seamless_mode & unreal.SeamlessMode.SEAMLESS_X.value) == unreal.SeamlessMode.SEAMLESS_X.value
+        seamless_y = (seamless_mode & unreal.SeamlessMode.SEAMLESS_Y.value) == unreal.SeamlessMode.SEAMLESS_Y.value
+        self.seamless_axes = "xy" if seamless_x and seamless_y else "x" if seamless_x else "y" if seamless_y else ""
+        targets = [self.pipe.text_encoder, self.pipe.vae, self.pipe.unet]
+        if hasattr(self.pipe, "text_encoder_2"):
+            targets.append(self.pipe.text_encoder_2)
+        for target in targets:
+            if target:
+                configure_model_padding(target, seamless_x or seamless_y, self.seamless_axes)
         
         # Cache assets
         self.set_editor_property("LORAAsset", lora_asset)

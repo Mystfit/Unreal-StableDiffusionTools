@@ -70,8 +70,8 @@ public:
 	/**
 	* If you encounter false positive NSFW black frames in your animation, then enabling this option may help
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "StableDiffusion|Outputs")
-	EPaddingMode PaddingMode;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Bitmask, BitmaskEnum = "/Script/StableDiffusionTools.ESeamlessMode", Category = "StableDiffusion|Outputs"))
+	int32 SeamlessMode;
 
 	/**
 	* Disable NSFW filter

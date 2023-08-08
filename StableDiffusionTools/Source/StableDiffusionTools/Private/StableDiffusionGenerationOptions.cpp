@@ -41,7 +41,7 @@ void UImagePipelineStageAsset::LoadModel()
 {
 	if (IsValid(Model)) {
 		if (auto subsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>()) {
-			subsystem->InitModel(Model->Options, Pipeline, nullptr, nullptr, TArray<FLayerProcessorContext>(), true, true, EPaddingMode::zeros);
+			subsystem->InitModel(Model->Options, Pipeline, nullptr, nullptr, TArray<FLayerProcessorContext>(), true, true, 0);
 		}
 	}
 }

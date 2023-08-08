@@ -177,7 +177,7 @@ void UStableDiffusionSubsystem::InitModel(
 	const TArray<FLayerProcessorContext>& Layers, 
 	bool Async, 
 	bool AllowNSFW, 
-	EPaddingMode PaddingMode)
+	int32 SeamlessMode)
 {
 	if (GeneratorBridge) {
 		// Unload any loaded models first
@@ -187,8 +187,8 @@ void UStableDiffusionSubsystem::InitModel(
 		this->GeneratorBridge->OnImageProgressEx.AddUniqueDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
 
 		if (Async) {
-			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model, Pipeline, Layers, LORAAsset, TextualInversionAsset, AllowNSFW, PaddingMode]() mutable {
-				auto Result = this->GeneratorBridge->InitModel(Model, Pipeline, LORAAsset, TextualInversionAsset, Layers, AllowNSFW, PaddingMode);
+			AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [this, Model, Pipeline, Layers, LORAAsset, TextualInversionAsset, AllowNSFW, SeamlessMode]() mutable {
+				auto Result = this->GeneratorBridge->InitModel(Model, Pipeline, LORAAsset, TextualInversionAsset, Layers, AllowNSFW, SeamlessMode);
 				if (Result.ModelStatus == EModelStatus::Loaded) {
 					bIsModelDirty = false;
 					ModelOptions = Model;
@@ -202,7 +202,7 @@ void UStableDiffusionSubsystem::InitModel(
 				});
 		}
 		else {
-			auto Result = this->GeneratorBridge->InitModel(Model, Pipeline, LORAAsset, TextualInversionAsset, Layers, AllowNSFW, PaddingMode);
+			auto Result = this->GeneratorBridge->InitModel(Model, Pipeline, LORAAsset, TextualInversionAsset, Layers, AllowNSFW, SeamlessMode);
 			if (Result.ModelStatus == EModelStatus::Loaded) {
 				ModelOptions = Model;
 				PipelineAsset = Pipeline;

@@ -22,7 +22,7 @@ class STABLEDIFFUSIONTOOLS_API UImagePipelineRunner : public UBlueprintAsyncActi
 public:
 
 	UFUNCTION(BlueprintCallable, meta = (Category = "Async", BlueprintInternalUseOnly = "true"))
-		static UImagePipelineRunner* RunImagePipeline(TArray<UImagePipelineStageAsset*> Stages, FStableDiffusionInput Input, EInputImageSource ImageSourceType, bool AllowNSFW, EPaddingMode PaddingMode);
+		static UImagePipelineRunner* RunImagePipeline(TArray<UImagePipelineStageAsset*> Stages, FStableDiffusionInput Input, EInputImageSource ImageSourceType, bool AllowNSFW, int32 SeamlessMode);
 
 	// UBlueprintAsyncActionBase interface
 	virtual void Activate() override;
@@ -46,5 +46,5 @@ private:
 
 	EInputImageSource ImageSourceType;
 	bool AllowNSFW;
-	EPaddingMode PaddingMode;
+	int32 SeamlessMode;
 };

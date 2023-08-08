@@ -15,14 +15,14 @@ UImagePipelineRunner::UImagePipelineRunner(const FObjectInitializer& ObjectIniti
 	}
 }
 
-UImagePipelineRunner* UImagePipelineRunner::RunImagePipeline(TArray<UImagePipelineStageAsset*> Stages, FStableDiffusionInput Input, EInputImageSource ImageSourceType, bool AllowNSFW, EPaddingMode PaddingMode)
+UImagePipelineRunner* UImagePipelineRunner::RunImagePipeline(TArray<UImagePipelineStageAsset*> Stages, FStableDiffusionInput Input, EInputImageSource ImageSourceType, bool AllowNSFW, int32 SeamlessMode)
 {
 	UImagePipelineRunner* ImagePipelineRunner = NewObject<UImagePipelineRunner>();
 	ImagePipelineRunner->Stages = Stages;
 	ImagePipelineRunner->Input = Input;
 	ImagePipelineRunner->ImageSourceType = ImageSourceType;
 	ImagePipelineRunner->AllowNSFW = AllowNSFW;
-	ImagePipelineRunner->PaddingMode = PaddingMode;
+	ImagePipelineRunner->SeamlessMode = SeamlessMode;
 	return ImagePipelineRunner;
 }
 
@@ -64,7 +64,7 @@ void UImagePipelineRunner::Activate()
 
 				// Init model at the start of each stage.
 				// TODO: Cache last model and only re-init if model options have changed
-				Subsystem->InitModel(CurrentStage->Model->Options, TempPipelineAsset, CurrentStage->LORAAsset, CurrentStage->TextualInversionAsset, CurrentStage->Layers, false, AllowNSFW, PaddingMode);
+				Subsystem->InitModel(CurrentStage->Model->Options, TempPipelineAsset, CurrentStage->LORAAsset, CurrentStage->TextualInversionAsset, CurrentStage->Layers, false, AllowNSFW, SeamlessMode);
 				if (Subsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {
 					UE_LOG(LogTemp, Error, TEXT("Failed to load model. Check the output log for more information"));
 					Subsystem->StopGeneratingImage();

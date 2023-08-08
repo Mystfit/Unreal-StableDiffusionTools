@@ -62,7 +62,7 @@ public:
     bool ConvertRawModel(UStableDiffusionModelAsset* InModelAsset, bool DeleteOriginal = true);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
-    FStableDiffusionModelInitResult InitModel(const FStableDiffusionModelOptions& NewModelOptions, UStableDiffusionPipelineAsset* NewPipelineAsset, UStableDiffusionLORAAsset* LoraAsset = nullptr, UStableDiffusionTextualInversionAsset* TextualInversionAsset = nullptr, const TArray<FLayerProcessorContext>& Layers = TArray<FLayerProcessorContext>(), bool AllowNsfw = false, EPaddingMode PaddingMode = EPaddingMode::zeros);
+    FStableDiffusionModelInitResult InitModel(const FStableDiffusionModelOptions& NewModelOptions, UStableDiffusionPipelineAsset* NewPipelineAsset, UStableDiffusionLORAAsset* LoraAsset = nullptr, UStableDiffusionTextualInversionAsset* TextualInversionAsset = nullptr, const TArray<FLayerProcessorContext>& Layers = TArray<FLayerProcessorContext>(), bool AllowNsfw = false, int32 SeamlessMode = 0);
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void ReleaseModel();

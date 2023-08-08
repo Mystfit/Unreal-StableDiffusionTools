@@ -214,7 +214,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 
 				// Init model at the start of each stage.
 				// TODO: Cache last model and only re-init if model options have changed
-				SDSubsystem->InitModel(CurrentStage->Model->Options, CurrentStage->Pipeline, CurrentStage->LORAAsset, CurrentStage->TextualInversionAsset, CurrentStage->Layers, false, AllowNSFW, PaddingMode);
+				SDSubsystem->InitModel(CurrentStage->Model->Options, CurrentStage->Pipeline, CurrentStage->LORAAsset, CurrentStage->TextualInversionAsset, CurrentStage->Layers, false, AllowNSFW, SeamlessMode);
 				if (SDSubsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {
 					UE_LOG(LogTemp, Error, TEXT("Failed to load model. Check the output log for more information"));
 					continue;
