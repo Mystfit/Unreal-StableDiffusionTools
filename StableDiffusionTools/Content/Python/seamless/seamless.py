@@ -4,8 +4,8 @@ from ast import List
 import torch.nn as nn
 
 
-def patch_conv(cls, padding_mode):
-    #cls = nn.Conv2d
+def patch_conv(padding_mode):
+    cls = nn.Conv2d
     init = cls.__init__
 
     def __init__(self, *args, **kwargs):

@@ -20,13 +20,14 @@ from PIL import Image
 from transformers import CLIPFeatureExtractor
 from compel import Compel, DiffusersTextualInversionManager, ReturnedEmbeddingsType
 import diffusers
-from diffusers import StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionDepth2ImgPipeline, StableDiffusionUpscalePipeline
+from diffusers import ControlNetModel, StableDiffusionImg2ImgPipeline, StableDiffusionPipeline, StableDiffusionInpaintPipeline, StableDiffusionDepth2ImgPipeline, StableDiffusionUpscalePipeline
 from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusionconvertors import FColorAsPILImage, PILImageToFColorArray, PILImageToTexture
 from huggingface_hub.utils import HfFolder, scan_cache_dir
 from huggingface_hub.utils._errors import LocalEntryNotFoundError
 from seamless.seamless import configure_model_padding, patch_conv
+from model_asset_tools import get_model_name_or_path
 
 try:
     from upsampling import RealESRGANModel
@@ -227,17 +228,12 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         print(f"Using pipeline class: {ActivePipeline}")
 
         # Use local model path if it is set, otherwise use the model name
-        model_is_file = os.path.exists(new_model_options.local_file_path.file_path) if new_model_options.local_file_path.file_path else False
-        model_is_folder = os.path.exists(new_model_options.local_folder_path.path) if new_model_options.local_folder_path.path else False
-
-        modelname = new_model_options.model
-        modelname = new_model_options.local_file_path.file_path if model_is_file else modelname
-        modelname = new_model_options.local_folder_path.path if model_is_folder else modelname
+        model_name, model_is_file = get_model_name_or_path(new_model_options)
 
         # Update model status to let UI know the model is downloading or available
         result = unreal.StableDiffusionModelInitResult()
-        result.model_status = unreal.ModelStatus.LOADING if self.ModelExists(modelname) else unreal.ModelStatus.DOWNLOADING
-        result.model_name = new_model_options.model
+        result.model_status = unreal.ModelStatus.LOADING if self.ModelExists(model_name) else unreal.ModelStatus.DOWNLOADING
+        result.model_name = model_name
         self.set_editor_property("ModelStatus", result)
 
         kwargs = {
@@ -246,10 +242,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             "cache_dir": self.get_settings_model_save_path().path
         }
 
-        # Single file loading if we provide a URL for diffusers model types
-        if new_model_options.external_url and new_model_options.model_type == unreal.ModelType.DIFFUSERS:
-            modelname = new_model_options.external_url
-            model_is_file = True
+        if model_is_file:
             kwargs["use_safetensors"] = True
 
         # Run model init script to generate extra pipeline args
@@ -268,8 +261,35 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 else:
                     kwargs[new_key] = val
 
-        # Run layer processor init scripts to generate extra pipeline args
+        # Gather any attached controlnet models
+        controlnets = None
         for layer in layers:
+            if not layer.model:
+                print(f"Layer has no model")
+                continue
+
+            # Get controlnet model name or path
+            controlnet = None
+            controlnet_model_name, controlnet_is_file = get_model_name_or_path(layer.model.options)
+            print(f"Using ControlNet {'file' if controlnet_is_file else 'repo'}: {controlnet_model_name}")
+            controlnet_kwargs = {"torch_dtype":torch.float32 if layer.model.options.precision == "fp32" else torch.float16}
+            try:
+                if controlnet_is_file:
+                    controlnet = ControlNetModel.from_single_file(controlnet_model_name, **controlnet_kwargs)
+                else:
+                    controlnet = ControlNetModel.from_pretrained(controlnet_model_name, **controlnet_kwargs)
+            except Exception as e:
+                print(f"Failed to load ControlNet model {controlnet_model_name}")
+
+            # Gather multiple controlnets (if applicable)
+            if not controlnets:
+                controlnets = controlnet
+            else: 
+                if not isinstance(controlnets, list):
+                    controlnets = [controlnets]
+                controlnets.append(controlnet)
+
+            # Run layer processor init scripts to generate extra pipeline args
             layer_init_script_locals = {}
             exec(layer.processor.python_model_init_script, globals(), layer_init_script_locals)
             for key, val in layer_init_script_locals.items():
@@ -284,6 +304,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                         kwargs[new_key].append(val)
                     else:
                         kwargs[new_key] = val
+        if controlnets:
+            kwargs["controlnet"] = controlnets
         
         # Set pipe optional args
         if new_model_options.revision:
@@ -300,11 +322,11 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # Load model
         try:
             if model_is_file:
-                print(f"Requested single-file pipeline is: {ActivePipeline}. Model is {modelname}. Args are {kwargs}")
-                self.pipe = ActivePipeline.from_single_file(modelname, **kwargs)
+                print(f"Requested single-file pipeline is: {ActivePipeline}. Model is {model_name}. Args are {kwargs}")
+                self.pipe = ActivePipeline.from_single_file(model_name, **kwargs)
                 print(f"Loaded pipeline is: {self.pipe}")
             else:
-                self.pipe = ActivePipeline.from_pretrained(modelname, **kwargs)
+                self.pipe = ActivePipeline.from_pretrained(model_name, **kwargs)
         except LocalEntryNotFoundError as e:
             result.model_status = unreal.ModelStatus.ERROR
             result.error_msg = f"Failed to load the model due to a missing local model or a download error. Full exception: {e}"
@@ -336,7 +358,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # Performance options for low VRAM gpus
         self.pipe.enable_attention_slicing(1)
         try:
-            self.pipe.unet = torch.compile(self.pipe.unet)
+            pass
+            #self.pipe.unet = torch.compile(self.pipe.unet)
         except RuntimeError as e:
             print(f"WARNING: Couldn't compile unet for model. Exception given was '{e}'")
         #self.pipe.enable_xformers_memory_efficient_attention()
@@ -375,24 +398,28 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
         # Padding mode injection
         seamless_x = (seamless_mode & unreal.SeamlessMode.SEAMLESS_X.value) == unreal.SeamlessMode.SEAMLESS_X.value
         seamless_y = (seamless_mode & unreal.SeamlessMode.SEAMLESS_Y.value) == unreal.SeamlessMode.SEAMLESS_Y.value
-        self.seamless_axes = "xy" if seamless_x and seamless_y else "x" if seamless_x else "y" if seamless_y else ""
-        targets = [self.pipe.text_encoder, self.pipe.vae, self.pipe.unet]
-        if hasattr(self.pipe, "text_encoder_2"):
-            targets.append(self.pipe.text_encoder_2)
-        for target in targets:
-            if target:
-                configure_model_padding(target, seamless_x or seamless_y, self.seamless_axes)
+        if seamless_x or seamless_y:
+            patch_conv("circular")
+        else:
+            patch_conv("zeros")
+        #self.seamless_axes = "xy" if seamless_x and seamless_y else "x" if seamless_x else "y" if seamless_y else ""
+        #targets = [self.pipe.text_encoder, self.pipe.vae, self.pipe.unet]
+        #if hasattr(self.pipe, "text_encoder_2"):
+        #    targets.append(self.pipe.text_encoder_2)
+        #for target in targets:
+        #    if target:
+        #        configure_model_padding(target, seamless_x or seamless_y, self.seamless_axes)
         
         # Cache assets
         self.set_editor_property("LORAAsset", lora_asset)
         self.set_editor_property("CachedTextualInversionAsset", textual_inversion_asset)
 
-        print("Loaded Stable Diffusion model " + modelname)
-
         # Cache status
         result.model_name = new_model_options.model
         result.model_status = unreal.ModelStatus.LOADED
         self.set_editor_property("ModelStatus", result)
+
+        print(f"Loaded Stable Diffusion model {model_name}")
 
         # TODO: Implement multithreaded load with abortable model load
         if self.abort:
@@ -518,7 +545,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 role = layer.role if layer.layer_type == unreal.LayerImageType.CUSTOM else layer_type_name(layer.layer_type)
                 if hasattr(layer_img_mappings[role], "__len__"):
                     for img in layer_img_mappings[role]:
-                        img.show()
+                        if isinstance(img, PIL.Image.Image):
+                            img.show()
                 else:
                     layer_img_mappings[key].show()
 
@@ -686,7 +714,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                 image = images[0] if not images is None else None
 
                 if input.debug_python_images and not image is None:
-                    image.show()
+                    if isinstance(image, PIL.Image.Image):
+                        image.show()
 
                 if image is None:
                     print("No image was generated")

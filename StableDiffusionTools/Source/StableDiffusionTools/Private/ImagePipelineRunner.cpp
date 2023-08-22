@@ -38,6 +38,9 @@ void UImagePipelineRunner::Activate()
 	// Gather custom schedulers from pipelines
 	TArray<TObjectPtr<UStableDiffusionPipelineAsset>> TempPipelines;
 	for (auto Stage : Stages) {
+		if (!IsValid(Stage))
+			continue;
+
 		TObjectPtr<UStableDiffusionPipelineAsset> Pipeline = Stage->Pipeline;
 		
 		// Duplicate the pipelineasset and take ownership of it so we can modify it with our scheduler override
@@ -61,6 +64,10 @@ void UImagePipelineRunner::Activate()
 				UImagePipelineStageAsset* PrevStage = (StageIdx) ? Stages[StageIdx - 1] : nullptr;
 				UImagePipelineStageAsset* CurrentStage = Stages[StageIdx];
 				TObjectPtr<UStableDiffusionPipelineAsset> TempPipelineAsset = TempPipelines[StageIdx];
+
+				if (!IsValid(CurrentStage) || !IsValid(TempPipelineAsset)) {
+					break;
+				}
 
 				// Init model at the start of each stage.
 				// TODO: Cache last model and only re-init if model options have changed

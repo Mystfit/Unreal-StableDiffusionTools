@@ -14,18 +14,15 @@
 /**
  * 
  */
-UCLASS(Blueprintable, meta=(DisplayName = "Base layer processor"))
+UCLASS(Blueprintable, EditInlineNew, meta=(DisplayName = "Base layer processor"))
 class STABLEDIFFUSIONTOOLS_API ULayerProcessorBase : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Stable Diffusion|Layer source")
-	TEnumAsByte<ESceneCaptureSource> SourceType;
-
 	/*
-	* Script to run during model initialisation in case this processor needs to interact with the model.
+	* Script to run during model initialisation in case this processor needs to interact with the model. Variables prefixed with 'pipearg_' will be added to the model load function as kwargs with the prefix removed.
 	*/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Stable Diffusion|Layer source"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Layer processor"))
 	FString PythonModelInitScript;
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Layer processor")
@@ -34,11 +31,14 @@ public:
 	/*
 	* Script to run just the model generates a new image. Performs any python image transformations required.
 	*/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Stable Diffusion|Layer source"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (MultiLine = "true", Category = "Layer processor"))
 	FString PythonTransformScript;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Stable Diffusion|Layer source")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Layer source")
 	TEnumAsByte<ELayerBitDepth> CaptureBitDepth = EightBit;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Layer source")
+	TEnumAsByte<ESceneCaptureSource> SourceType;
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Layer processor")
 	void BeginCaptureLayer(UWorld* World, FIntPoint Size, USceneCaptureComponent2D* CaptureSource = nullptr, UObject* LayerOptions = nullptr);
@@ -62,13 +62,13 @@ public:
 	/// <returns></returns>
 	virtual TArray<FLinearColor> ProcessLinearLayer(UTextureRenderTarget2D* Layer);
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Stable Diffusion|Layer source")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Layer source")
 	UMaterialInterface* PostMaterial;
 
-	UFUNCTION(BlueprintCallable, Category = "Stable Diffusion|Layer source")
+	UFUNCTION(BlueprintCallable, Category = "Layer source")
 	UMaterialInterface* GetActivePostMaterial();
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Stable Diffusion|Layer source")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Layer source")
 	TEnumAsByte<ELayerImageType> DefaultLayerType;
 
 	static const TMap<ELayerImageType, FString> ReverseLayerImageTypeLookup;

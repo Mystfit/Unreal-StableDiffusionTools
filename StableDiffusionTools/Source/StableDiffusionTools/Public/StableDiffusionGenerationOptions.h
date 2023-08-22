@@ -97,8 +97,11 @@ public:
 	UPROPERTY(BlueprintReadWrite, Transient)
 		TArray<uint8> LatentData;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Category = "Layers"))
-		TObjectPtr<ULayerProcessorBase> Processor = nullptr;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Layers")
+		UStableDiffusionControlNetModelAsset* Model;
+
+	UPROPERTY(BlueprintReadWrite, Instanced, EditAnywhere, meta = (Category = "Layers"))
+		ULayerProcessorBase* Processor = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Instanced, meta = (Category = "Layers", EditCondition = "Processor != nullptr", EditConditionHides))
 		TObjectPtr<ULayerProcessorOptions> ProcessorOptions = nullptr;
@@ -309,6 +312,15 @@ public:
 	FStableDiffusionTriggerOptions TriggerOptions;
 };
 
+
+UCLASS(Blueprintable, EditInlineNew, CollapseCategories) //CollapseCategories , hidecategories = UObject
+class STABLEDIFFUSIONTOOLS_API UStableDiffusionControlNetModelAsset : public UStableDiffusionModelAsset
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Layer processors")
+	TSubclassOf<ULayerProcessorBase> DefaultLayerProcessor = nullptr;
+};
 
 
 UCLASS()
