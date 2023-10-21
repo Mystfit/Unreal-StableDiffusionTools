@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "ImageUtils.h"
 #include "StableDiffusionSubsystem.h"
 #include "DependencySettings.h"
 #include "Engine/SceneCapture.h"
@@ -85,10 +86,18 @@ public:
 	static UTexture2D* CreateTransientTexture(int32 InSizeX, int32 InSizeY, EPixelFormat InFormat = PF_B8G8R8A8, const FName InName = NAME_None);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
-	static UTexture2D* ColorBufferToTexture(const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture, bool DeferUpdate = false);
+	static void ColorBufferToTexture(const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture, bool DeferUpdate = false);
+
+	UFUNCTION(BlueprintCallable, Category = "Texture")
+	static void ColorFloatBufferToTexture(const TArray<FLinearColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture, bool DeferUpdate = false);
+
+	static void ColorBufferToTexture(const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex, bool DeferUpdate = false, EPipelineOutputTextureFormat ChannelType = EPipelineOutputTextureFormat::BGRA, int PixelDataSize = 4);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static TArray<FColor> ReadPixels(UTexture* Texture);
+
+	UFUNCTION(BlueprintCallable, Category = "Texture")
+	static TArray<FLinearColor> ReadFloatPixels(UTexture* Texture);
 
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static void UpdateTextureSync(UTexture* Texture);
@@ -97,7 +106,10 @@ public:
 	static UTexture2D* CreateTextureAsset(const FString& AssetPath, const FString& Name, FIntPoint Size, ETextureSourceFormat Format = ETextureSourceFormat::TSF_BGRA8, FColor Fill = FColor::Black);
 
 	UFUNCTION(BlueprintCallable, Category = "Asset")
-	static UStableDiffusionImageResultAsset* CreateImageResultAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionImageResult& ImageResult, FMinimalViewInfo View, bool Upsampled = false);
+	static UStableDiffusionImageResultAsset* CreateImageResultAsset(const FString& PackagePath, const FString& Name);
+
+	UFUNCTION(BlueprintCallable, Category = "Asset")
+	static void PopulateImageResultAsset(UStableDiffusionImageResultAsset* Asset, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionImageResult& ImageResult, FMinimalViewInfo View, bool Upsampled = false);
 
 	UFUNCTION(BlueprintCallable, Category = "Asset")
 	static UStableDiffusionStyleModelAsset* CreateModelAsset(const FString& PackagePath, const FString& Name);
@@ -117,7 +129,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	static UMaterialInstanceConstant* CreateMaterialInstanceAsset(UMaterial* ParentMaterial, const FString& Path, const FString& Name);
 
-	static UTexture2D* ColorBufferToTexture(const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex, bool DeferUpdate = false);
+	UFUNCTION(BlueprintCallable, Category = "Texture")
+	static bool IsTextureFloatFormat(UTexture2D* Texture);
+
+	UFUNCTION(BlueprintCallable, Category = "Texture")
+	static UTexture2D* CreateHalfFloatTexture2D(int32 SrcWidth, int32 SrcHeight, UObject* Outer, const FString& Name);
+	
+	static UTexture2D* CreateHalfFloatTexture2D_Imp(int32 SrcWidth, int32 SrcHeight, const TArray<FFloat16Color>& SrcData, UObject* Outer, const FString& Name, const EObjectFlags& Flags, const FCreateTexture2DParameters& InParams);
+
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Texture")
 	static FString LayerTypeToString(ELayerImageType LayerType);
@@ -127,6 +146,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Utilities")
 	static UObject* DeepCopyObject(UObject* ObjectToCopy);
+
 
 private:
 	static FEditorViewportClient* GetEditorClient();

@@ -11,14 +11,23 @@
 UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
 enum class EPipelineCapabilities : uint8 {
 	None = 0 UMETA(Hidden),
-	INPAINT = 0x01,
-	DEPTH = 0x02,
+	ITERATIONS = 0x01,
+	PROGRESS_UPDATES = 0x02,
 	STRENGTH = 0x04,
-	CONTROL = 0x08,
+	SEED = 0x08,
 	POOLED_EMBEDDINGS = 0x10,
-	NO_PROMPT_WEIGHTS = 0x20
+	NO_PROMPT_WEIGHTS = 0x20,
+	GUIDANCE_SCALE = 0x40,
+	NO_PROMPTS = 0x80
 };
 ENUM_CLASS_FLAGS(EPipelineCapabilities);
+
+UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
+enum class EPipelineLORACapabilities : uint8 {
+	None = 0 UMETA(Hidden),
+	SCALE = 0x01,
+};
+ENUM_CLASS_FLAGS(EPipelineLORACapabilities);
 
 UENUM(BlueprintType)
 enum class EInputImageSource : uint8 {
@@ -76,10 +85,19 @@ enum class ELayerImageType : uint8
 {
 	unknown UMETA(DisplayName = "Unknown", Hidden),
 	image UMETA(DisplayName = "Img2Img"),
+	utility UMETA(DisplayName = "Utility image"),
 	control_image UMETA(DisplayName = "ControlNet"),
 	custom UMETA(DisplayName = "Custom")
 };
 ENUM_CLASS_FLAGS(ELayerImageType);
+
+UENUM(BlueprintType)
+enum class EPipelineOutputTextureFormat : uint8
+{
+	BGRA UMETA(DisplayName = "BGRA"),
+	FloatRGBA UMETA(DisplayName = "FloatRGBA")
+};
+ENUM_CLASS_FLAGS(EPipelineOutputTextureFormat);
 
 
 // Forwards
@@ -97,8 +115,11 @@ public:
 	UPROPERTY(BlueprintReadWrite, Transient)
 		TArray<uint8> LatentData;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Category = "Layers"))
+		UTexture2D* LayerTexture = nullptr;
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Layers")
-		UStableDiffusionControlNetModelAsset* Model;
+		UStableDiffusionControlNetModelAsset* Model = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, Instanced, EditAnywhere, meta = (Category = "Layers"))
 		ULayerProcessorBase* Processor = nullptr;
@@ -209,6 +230,9 @@ struct STABLEDIFFUSIONTOOLS_API FStableDiffusionPipelineOptions
 	GENERATED_BODY()
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline")
+	FString PipelineModule = "diffusers";
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline")
 	FString DiffusionPipeline;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline")
@@ -254,6 +278,18 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline")
 	TArray<FString> RequiredLayerKeys;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline")
+	EPipelineOutputTextureFormat OutputTextureFormat = EPipelineOutputTextureFormat::BGRA;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline")
+	bool EnableTiling = true;
+
+	/*
+	* Should this pipeline consume the layers passed in or pass them along to the next pipeline stage?
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline")
+	bool bConsumesLayers = true;
 
 	FORCEINLINE bool operator==(const FStableDiffusionPipelineOptions& Other)
 	{
@@ -310,6 +346,9 @@ class STABLEDIFFUSIONTOOLS_API UStableDiffusionLORAAsset : public UStableDiffusi
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "LORA")
 	FStableDiffusionTriggerOptions TriggerOptions;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pipeline", meta = (Bitmask, BitmaskEnum = "/Script/StableDiffusionTools.EPipelineLORACapabilities", Display = "LORA Capabilities"))
+	int32 LORACapabilities = (int32)(EPipelineLORACapabilities::SCALE);
 };
 
 
@@ -447,17 +486,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
 	UTexture2D* TextureOutput = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
-	TArray<FLayerProcessorContext> InputLayers;
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
+	//TArray<FLayerProcessorContext> InputLayers;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
-	TArray<FLayerProcessorContext> ProcessedLayers;
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
+	//TArray<FLayerProcessorContext> ProcessedLayers;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
 	int32 PreviewIterationRate = 25;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
 	bool DebugPythonImages = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Generation")
+	bool SaveLayers = false;
 
 	UPROPERTY(BlueprintReadWrite, Category = "Generation")
 	FMinimalViewInfo View;
@@ -503,6 +545,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(Category = "Stage Overrides"))
 		FStableDiffusionGenerationOptions OverrideInputOptions;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Category = "Stage Output", Tooltip = "Don't include the image generated from this pipeline stage when calculating the last main image returned from the pipeline."))
+		bool bSkipMainOutput;
 
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 

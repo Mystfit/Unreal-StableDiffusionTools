@@ -4,6 +4,8 @@
 #include "ImagePipelineRunner.h"
 #include "Editor.h"
 #include "StableDiffusionSubsystem.h"
+#include "Async/Async.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 
 
 UImagePipelineRunner::UImagePipelineRunner(const FObjectInitializer& ObjectInitializer)
@@ -15,7 +17,7 @@ UImagePipelineRunner::UImagePipelineRunner(const FObjectInitializer& ObjectIniti
 	}
 }
 
-UImagePipelineRunner* UImagePipelineRunner::RunImagePipeline(TArray<UImagePipelineStageAsset*> Stages, FStableDiffusionInput Input, EInputImageSource ImageSourceType, bool AllowNSFW, int32 SeamlessMode)
+UImagePipelineRunner* UImagePipelineRunner::RunImagePipeline(UStableDiffusionImageResultAsset* OutAsset, TArray<UImagePipelineStageAsset*> Stages, FStableDiffusionInput Input, EInputImageSource ImageSourceType, bool AllowNSFW, int32 SeamlessMode, bool SaveLayers)
 {
 	UImagePipelineRunner* ImagePipelineRunner = NewObject<UImagePipelineRunner>();
 	ImagePipelineRunner->Stages = Stages;
@@ -23,55 +25,57 @@ UImagePipelineRunner* UImagePipelineRunner::RunImagePipeline(TArray<UImagePipeli
 	ImagePipelineRunner->ImageSourceType = ImageSourceType;
 	ImagePipelineRunner->AllowNSFW = AllowNSFW;
 	ImagePipelineRunner->SeamlessMode = SeamlessMode;
+	ImagePipelineRunner->OutAsset = OutAsset;
+	ImagePipelineRunner->SaveLayers = SaveLayers;
 	return ImagePipelineRunner;
 }
 
 void UImagePipelineRunner::Activate()
 {
-	FStableDiffusionImageResult LastStageResult;
+	FStableDiffusionPipelineImageResult LastAssetStageResult;
 
 	if (!Stages.Num()) {
 		UE_LOG(LogTemp, Warning, TEXT("Image pipeline runner was not provided any stages. Exiting early."));
-		Complete(LastStageResult);
+		Complete(LastAssetStageResult, TArray<UImagePipelineStageAsset*>());
 	}
 
 	// Gather custom schedulers from pipelines
-	TArray<TObjectPtr<UStableDiffusionPipelineAsset>> TempPipelines;
+	TArray<TObjectPtr<UImagePipelineStageAsset>> TempStages;
 	for (auto Stage : Stages) {
 		if (!IsValid(Stage))
 			continue;
-
-		TObjectPtr<UStableDiffusionPipelineAsset> Pipeline = Stage->Pipeline;
 		
-		// Duplicate the pipelineasset and take ownership of it so we can modify it with our scheduler override
+		// Duplicate the pipeline stage and take ownership of it and save it later
 		// Needs to happen before the async thread is run
-		if (!Stage->Scheduler.IsEmpty()) {
-			Pipeline = DuplicateObject<UStableDiffusionPipelineAsset>(Stage->Pipeline, this);
-			Pipeline->Options.Scheduler = Stage->Scheduler;
-		}
-
-		TempPipelines.Add(Pipeline);
+		auto TempStage = DuplicateObject<UImagePipelineStageAsset>(Stage, OutAsset);
+		TempStage->ClearFlags(RF_Transient);
+		TempStage->SetFlags(RF_Public | RF_Standalone);
+		TempStage->AddToRoot();
+		TempStages.Add(TempStage);
 	}
 
-	AsyncTask(ENamedThreads::AnyHiPriThreadHiPriTask, [this, LastStageResult, TempPipelines]() mutable {
+	AsyncTask(ENamedThreads::AnyHiPriThreadHiPriTask, [this, LastAssetStageResult, TempStages=MoveTemp(TempStages)]() mutable {
 		if (UStableDiffusionSubsystem* Subsystem = GEditor->GetEditorSubsystem<UStableDiffusionSubsystem>()) {
-			for (size_t StageIdx = 0; StageIdx < Stages.Num(); ++StageIdx) {
+			for (size_t StageIdx = 0; StageIdx < TempStages.Num(); ++StageIdx) {
 				if (Subsystem->IsStopping()) {
 					break;
 				}
 
-				// In order to process the pipeline, we need to use both the previous and current stages
-				UImagePipelineStageAsset* PrevStage = (StageIdx) ? Stages[StageIdx - 1] : nullptr;
-				UImagePipelineStageAsset* CurrentStage = Stages[StageIdx];
-				TObjectPtr<UStableDiffusionPipelineAsset> TempPipelineAsset = TempPipelines[StageIdx];
+				// Save geneartion options in asset
+				OutAsset->GenerationInputs = Input;
 
-				if (!IsValid(CurrentStage) || !IsValid(TempPipelineAsset)) {
+				// In order to process the pipeline, we need to use both the previous and current stages
+				UImagePipelineStageAsset* PrevStage = (StageIdx) ? TempStages[StageIdx - 1] : nullptr;
+				UImagePipelineStageAsset* CurrentStage = TempStages[StageIdx];
+				auto CurrentImageSource = ImageSourceType;
+
+				if (!IsValid(CurrentStage)) {
 					break;
 				}
 
 				// Init model at the start of each stage.
 				// TODO: Cache last model and only re-init if model options have changed
-				Subsystem->InitModel(CurrentStage->Model->Options, TempPipelineAsset, CurrentStage->LORAAsset, CurrentStage->TextualInversionAsset, CurrentStage->Layers, false, AllowNSFW, SeamlessMode);
+				Subsystem->InitModel(CurrentStage->Model->Options, CurrentStage->Pipeline, CurrentStage->LORAAsset, CurrentStage->TextualInversionAsset, CurrentStage->Layers, false, AllowNSFW, SeamlessMode);
 				if (Subsystem->GetModelStatus().ModelStatus != EModelStatus::Loaded) {
 					UE_LOG(LogTemp, Error, TEXT("Failed to load model. Check the output log for more information"));
 					Subsystem->StopGeneratingImage();
@@ -90,6 +94,7 @@ void UImagePipelineRunner::Activate()
 				}
 
 				// Optionally override global generation options with per-stage options
+				Input.SaveLayers = SaveLayers;
 				Input.Options.GuidanceScale = (CurrentStage->OverrideInputOptions.OverrideGuidanceScale) ? CurrentStage->OverrideInputOptions.GuidanceScale : Input.Options.GuidanceScale;
 				Input.Options.Iterations = (CurrentStage->OverrideInputOptions.OverrideIterations) ? CurrentStage->OverrideInputOptions.Iterations : Input.Options.Iterations;
 				Input.Options.LoraWeight = (CurrentStage->OverrideInputOptions.OverrideLoraWeight) ? CurrentStage->OverrideInputOptions.LoraWeight : Input.Options.LoraWeight;
@@ -99,28 +104,54 @@ void UImagePipelineRunner::Activate()
 				Input.Options.OutSizeY = (CurrentStage->OverrideInputOptions.OverrideOutSizeY) ? CurrentStage->OverrideInputOptions.OutSizeY : Input.Options.OutSizeY;
 				Input.Options.Seed = (CurrentStage->OverrideInputOptions.OverrideSeed) ? CurrentStage->OverrideInputOptions.Seed : Input.Options.Seed;
 				Input.Options.Strength = (CurrentStage->OverrideInputOptions.OverrideStrength) ? CurrentStage->OverrideInputOptions.Strength : Input.Options.Strength;
-
-				// Copy layers and output type from the stage
-				Input.InputLayers = CurrentStage->Layers;
+				
+				// Always use the seed and output type from the stage
 				Input.OutputType = CurrentStage->OutputType;
 				Input.Options.Seed = (Input.Options.RandomSeed) ? FMath::Rand() : Input.Options.Seed;
 
 				// Use last image result as input for next stage's layers
-				if (LastStageResult.Completed) {
-					for (auto& Layer : Input.InputLayers) {
+				if (LastAssetStageResult.ImageOutput.Completed) {
+					for (auto& Layer : CurrentStage->Layers) {
 						if (Layer.OutputType == EImageType::Latent) {
-							Layer.LatentData = LastStageResult.OutLatent;
+							Layer.LatentData = LastAssetStageResult.ImageOutput.OutLatent;
 						}
 					}
+
+					// Pass along last generated texture
+					Input.OverrideTextureInput = LastAssetStageResult.ImageOutput.OutTexture;
+					CurrentImageSource = EInputImageSource::Texture;
 				}
 
 				// Generate the image
-				LastStageResult = Subsystem->GenerateImageSync(Input, ImageSourceType);
+				LastAssetStageResult.ImageOutput = Subsystem->GenerateImageSync(Input, CurrentStage, CurrentImageSource);
+				
+				// Move ownership of texture and stage to the output asset
+				if (IsValid(CurrentStage) && IsValid(LastAssetStageResult.ImageOutput.OutTexture)) {
+					TSharedPtr<TPromise<bool>> GameThreadPromise = MakeShared<TPromise<bool>>();
+					AsyncTask(ENamedThreads::GameThread, [this, LastAssetStageResult, CurrentStage, GameThreadPromise]() {
+						LastAssetStageResult.ImageOutput.OutTexture->Rename(nullptr, OutAsset);
+						LastAssetStageResult.ImageOutput.OutTexture->ClearFlags(RF_Transient);
+						LastAssetStageResult.ImageOutput.OutTexture->SetFlags(RF_Public | RF_Standalone);
+						LastAssetStageResult.ImageOutput.OutTexture->PostEditChange();
+
+						CurrentStage->RemoveFromRoot();
+						GameThreadPromise->SetValue(true);
+					});
+					GameThreadPromise->GetFuture().Wait();
+				}
+
+				// Store the result in the output asset
+				LastAssetStageResult.PipelineStage = CurrentStage;
+				OutAsset->StageResults.Add(LastAssetStageResult);
+
+				// Mark package dirty early
+				OutAsset->MarkPackageDirty();
+				OutAsset->PostEditChange();
 
 				// Broadcast on game thread
-				if (StageIdx < Stages.Num() - 1) {
-					AsyncTask(ENamedThreads::GameThread, [this, LastStageResult]() {
-						OnStageCompleted.Broadcast(LastStageResult);
+				if (StageIdx < TempStages.Num() - 1) {
+					AsyncTask(ENamedThreads::GameThread, [this, LastAssetStageResult]() {
+						OnStageCompleted.Broadcast(LastAssetStageResult, OutAsset);
 					});
 				}
 
@@ -131,7 +162,7 @@ void UImagePipelineRunner::Activate()
 				}
 
 				// Handle errors
-				if (LastStageResult.Completed) {
+				if (LastAssetStageResult.ImageOutput.Completed) {
 					UE_LOG(LogTemp, Log, TEXT("Completed pipeline stage %d"), StageIdx);
 				}
 				else {
@@ -146,17 +177,27 @@ void UImagePipelineRunner::Activate()
 		}
 
 		// Broadcast last pipeline result
-		Complete(LastStageResult);
+		Complete(LastAssetStageResult, TempStages);
 	});
 }
 
 
-void UImagePipelineRunner::Complete(FStableDiffusionImageResult& Result)
+void UImagePipelineRunner::Complete(FStableDiffusionPipelineImageResult& Result, TArray<UImagePipelineStageAsset*> Pipeline)
 {
 #if !UE_SERVER
 	RemoveFromRoot();
-	AsyncTask(ENamedThreads::GameThread, [this, Result=MoveTemp(Result)]() {
-		OnAllStagesCompleted.Broadcast(Result);
+	AsyncTask(ENamedThreads::GameThread, [this, Pipeline=MoveTemp(Pipeline), Result=MoveTemp(Result)]() {
+
+		// Move generated objects into the data asset
+		if (IsValid(OutAsset)) {
+			// Change pipeline stage outers to the output asset
+			for (auto& StageResult : OutAsset->StageResults)
+			{
+				
+			}
+		}
+
+		OnAllStagesCompleted.Broadcast(Result, OutAsset);
 	});
 #endif
 

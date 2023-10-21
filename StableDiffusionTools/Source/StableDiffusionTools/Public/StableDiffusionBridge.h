@@ -77,7 +77,7 @@ public:
     bool ModelInitialising = false;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
-    FStableDiffusionImageResult GenerateImageFromStartImage(const FStableDiffusionInput& InputOptions, UTexture* OutTexture, UTexture* PreviewTexture) const;
+    FStableDiffusionImageResult GenerateImageFromStartImage(const FStableDiffusionInput& InputOptions, UImagePipelineStageAsset* PipelineStage, UTexture* OutTexture, UTexture* PreviewTexture) const;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void StopImageGeneration();
@@ -86,7 +86,7 @@ public:
     void StartUpsample();
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
-    FStableDiffusionImageResult UpsampleImage(const FStableDiffusionImageResult& input_result, UTexture2D* OutTexture) const;
+    FStableDiffusionPipelineImageResult UpsampleImage(const FStableDiffusionPipelineImageResult& input_result, UTexture2D* OutTexture, bool IsLinear = false) const;
 
     UFUNCTION(BlueprintImplementableEvent, Category = "StableDiffusion|Bridge")
     void StopUpsample();

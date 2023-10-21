@@ -4,6 +4,7 @@
 #include "SLevelViewport.h"
 #include "Dialogs/Dialogs.h"
 #include "GeomTools.h"
+#include "Async/Async.h"
 #include "TextureCompiler.h"
 #include "UObject/SavePackage.h"
 #include "Components/SceneCaptureComponent2D.h"
@@ -14,6 +15,7 @@
 #include "LevelEditor.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/Texture2D.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "Rendering/Texture2DResource.h"
 #include "Kismet/GameplayStatics.h"
 #include "GeometryScript/GeometryScriptSelectionTypes.h"
@@ -25,6 +27,7 @@
 #include "MaterialEditingLibrary.h"
 #include "Factories/MaterialInstanceConstantFactoryNew.h"
 #include "AssetToolsModule.h"
+#include "HAL/PlatformProcess.h"
 
 using namespace UE::Geometry;
 
@@ -215,11 +218,25 @@ TArray<AActor*> UStableDiffusionBlueprintLibrary::GetActorsInViewFrustum(const U
 	return ActorsInFrustum;
 }
 
-UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTex, bool DeferUpdate)
+void UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const TArray<FColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture, bool DeferUpdate)
 {
 	if (!FrameColors.Num())
-		return nullptr;
-	return ColorBufferToTexture((uint8*)FrameColors.GetData(), FrameSize, OutTex, DeferUpdate);
+		return;
+	ColorBufferToTexture((uint8*)FrameColors.GetData(), FrameSize, OutTexture, DeferUpdate, EPipelineOutputTextureFormat::BGRA, sizeof(FColor));
+}
+
+void UStableDiffusionBlueprintLibrary::ColorFloatBufferToTexture(const TArray<FLinearColor>& FrameColors, const FIntPoint& FrameSize, UTexture2D* OutTexture, bool DeferUpdate)
+{
+	if (!FrameColors.Num())
+		return;
+
+	TArray<FFloat16Color> HalfFloatColors;
+	for (FLinearColor Pixel : FrameColors) {
+		HalfFloatColors.Add(FFloat16Color(Pixel));
+	}
+	UE_LOG(LogTemp, Log, TEXT("Num pixels: %d. Size of a single pixel %d"), HalfFloatColors.Num(), sizeof(FFloat16Color))
+
+	ColorBufferToTexture((uint8*)HalfFloatColors.GetData(), FrameSize, OutTexture, DeferUpdate, EPipelineOutputTextureFormat::FloatRGBA, 8);
 }
 
 TArray<FColor> UStableDiffusionBlueprintLibrary::ReadPixels(UTexture* Texture)
@@ -250,6 +267,65 @@ TArray<FColor> UStableDiffusionBlueprintLibrary::ReadPixels(UTexture* Texture)
 	return MoveTemp(Pixels);
 }
 
+TArray<FLinearColor> UStableDiffusionBlueprintLibrary::ReadFloatPixels(UTexture* Texture)
+{
+	TArray<FLinearColor> Pixels;
+
+	if (!IsValid(Texture))
+		return Pixels;
+
+	if (auto Tex2D = Cast<UTexture2D>(Texture)) {
+		ETextureSourceFormat SourceTexFormat = (Tex2D->Source.GetFormat() == ETextureSourceFormat::TSF_Invalid) ? TSF_BGRA8 : Tex2D->Source.GetFormat();
+		ERawImageFormat::Type ImgFormat = FImageCoreUtils::ConvertToRawImageFormat(SourceTexFormat);
+		int NumChannels = GPixelFormats[FImageCoreUtils::GetPixelFormatForRawImageFormat(ImgFormat)].NumComponents;
+		int NumChannelBytes = GPixelFormats[FImageCoreUtils::GetPixelFormatForRawImageFormat(ImgFormat)].BlockBytes / NumChannels;
+
+		auto Mip = Tex2D->GetPlatformData()->Mips[0];
+		void* MipData = Mip.BulkData.Lock(LOCK_READ_ONLY);
+		int TotalPixels = Mip.BulkData.GetBulkDataSize() / NumChannelBytes / NumChannels;
+
+		// Pixels are 32bit per channel. Copy straight to linear color
+		if (NumChannelBytes == 4)
+		{
+			FLinearColor* RawPixels = static_cast<FLinearColor*>(MipData);
+			Pixels = TArray<FLinearColor>(RawPixels, Mip.BulkData.GetBulkDataSize() / NumChannels);
+		}
+		// Half-float 16bit. Need to convert
+		else if (NumChannelBytes == 2) {
+			FFloat16Color* RawPixels = static_cast<FFloat16Color*>(MipData);
+			
+			for (int idx = 0; idx < TotalPixels; ++idx)
+			{
+				Pixels.Add(FLinearColor(RawPixels[idx]));
+			}
+		}
+		// 8-bit. Normalize and convert to float
+		else if (NumChannelBytes == 1) {
+			FColor* RawPixels = static_cast<FColor*>(MipData);
+			for (int idx = 0; idx < TotalPixels; ++idx)
+			{
+				Pixels.Add(FLinearColor(RawPixels[idx].R / 255.0f, RawPixels[idx].G / 255.0f, RawPixels[idx].B / 255.0f, NumChannels == 4 ? RawPixels[idx].A / 255.0f : 1.0f));
+			}
+		}
+		
+		Mip.BulkData.Unlock();
+	}
+	else if (auto RenderTarget2D = Cast<UTextureRenderTarget2D>(Texture)) {
+		FTextureRenderTargetResource* RT_Resource = nullptr;
+		if (IsInGameThread()) {
+			RT_Resource = RenderTarget2D->GameThread_GetRenderTargetResource();
+		}
+		else if (IsInRenderingThread()) {
+			RT_Resource = RenderTarget2D->GetRenderTargetResource();
+		}
+
+		RT_Resource->ReadLinearColorPixels(Pixels, FReadSurfaceDataFlags(RCM_MinMax));
+	}
+
+	return MoveTemp(Pixels);
+}
+
+
 void UStableDiffusionBlueprintLibrary::UpdateTextureSync(UTexture* Texture)
 {
 	if(!IsValid(Texture))
@@ -267,31 +343,26 @@ void UStableDiffusionBlueprintLibrary::UpdateTextureSync(UTexture* Texture)
 	Texture->WaitForStreaming();
 }
 
-UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex, bool DeferUpdate)
+void UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* FrameData, const FIntPoint& FrameSize, UTexture2D* OutTex, bool DeferUpdate, EPipelineOutputTextureFormat ChannelType, int PixelDataSize)
 {
-	if (!FrameData) 
-		return nullptr;
+	if (!FrameData || !OutTex)
+		return;
 
-	ETextureSourceFormat TexFormat = ETextureSourceFormat::TSF_BGRA8;
-	if (OutTex) {
-		TexFormat = (OutTex->Source.GetFormat() != ETextureSourceFormat::TSF_Invalid) ? OutTex->Source.GetFormat() : TSF_BGRA8;
-	} else {
-		TObjectPtr<UTexture2D> NewTex = UTexture2D::CreateTransient(FrameSize.X, FrameSize.Y, EPixelFormat::PF_B8G8R8A8);
-		OutTex = NewTex;
-		//UE_LOG(LogTemp, Log, TEXT("Creating transient texture to hold color buffer. Input Width: %d, Height: %d. Texture Width: %d, Height: %d"), FrameSize.X, FrameSize.Y, NewTex->GetSizeX(), NewTex->GetSizeY());
-	}
+	ETextureSourceFormat SourceTexFormat = ChannelType == EPipelineOutputTextureFormat::FloatRGBA ? ETextureSourceFormat::TSF_RGBA16F : ETextureSourceFormat::TSF_BGRA8;
+	EPixelFormat TexFormat = ChannelType == EPipelineOutputTextureFormat::FloatRGBA ? EPixelFormat::PF_FloatRGBA : EPixelFormat::PF_B8G8R8A8;
 
-	OutTex->Source.Init(FrameSize.X, FrameSize.Y, 1, 1, TexFormat);//ETextureSourceFormat::TSF_RGBA8);
+	OutTex->Source.Init(FrameSize.X, FrameSize.Y, 1, 1, SourceTexFormat);//ETextureSourceFormat::TSF_RGBA8);
 	OutTex->MipGenSettings = TMGS_NoMipmaps;
 	OutTex->SRGB = true;
 	OutTex->DeferCompression = true;
-	OutTex->CompressionSettings = TextureCompressionSettings::TC_VectorDisplacementmap;
+	OutTex->CompressionSettings = ChannelType == EPipelineOutputTextureFormat::FloatRGBA ? TextureCompressionSettings::TC_HDR : TextureCompressionSettings::TC_VectorDisplacementmap;
 
-	ERawImageFormat::Type ImgFormat = FImageCoreUtils::ConvertToRawImageFormat(OutTex->Source.GetFormat());
+	ERawImageFormat::Type ImgFormat = FImageCoreUtils::ConvertToRawImageFormat(SourceTexFormat);
 	int NumChannels = GPixelFormats[FImageCoreUtils::GetPixelFormatForRawImageFormat(ImgFormat)].NumComponents;
+	int NumBytesPerChannel = GPixelFormats[FImageCoreUtils::GetPixelFormatForRawImageFormat(ImgFormat)].BlockBytes / NumChannels;
 
 	uint8* TextureData = OutTex->Source.LockMip(0);
-	FMemory::Memcpy(TextureData, FrameData, sizeof(uint8) * FrameSize.X * FrameSize.Y * NumChannels);
+	FMemory::Memcpy(TextureData, FrameData, NumBytesPerChannel * NumChannels * FrameSize.X * FrameSize.Y);
 	OutTex->Source.UnlockMip(0);
 
 	if (!DeferUpdate) {
@@ -300,7 +371,6 @@ UTexture2D* UStableDiffusionBlueprintLibrary::ColorBufferToTexture(const uint8* 
 		OutTex->PostEditChange();
 #endif
 	}
-	return OutTex;
 }
 
 FString UStableDiffusionBlueprintLibrary::LayerTypeToString(ELayerImageType LayerType)
@@ -401,44 +471,9 @@ UStableDiffusionTextualInversionAsset* UStableDiffusionBlueprintLibrary::CreateT
 	return NewTextualInversionAsset;
 }
 
-UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::CreateImageResultAsset(const FString& PackagePath, const FString& Name, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionImageResult& ImageResult, FMinimalViewInfo View, bool Upsampled)
+void UStableDiffusionBlueprintLibrary::PopulateImageResultAsset(UStableDiffusionImageResultAsset* Asset, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionImageResult& ImageResult, FMinimalViewInfo View, bool Upsampled)
 {
-	if (Name.IsEmpty() || PackagePath.IsEmpty() || !Texture)
-		return false;
-
-	// Create package
-	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
-	UPackage* Package = CreatePackage(*FullPackagePath);
-	Package->FullyLoad();
-
-	// Duplicate texture
-	auto SrcMipData = Texture->Source.LockMip(0);// GetPlatformMips()[0].BulkData;
-	FString TexName = "T_" + Name;
-	UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *TexName, RF_Public | RF_Standalone);
-	NewTexture = UStableDiffusionBlueprintLibrary::ColorBufferToTexture(SrcMipData, Size, NewTexture);
-	Texture->Source.UnlockMip(0);
-
-	// Create data asset
-	FString AssetName = "DA_" + Name;
-	UStableDiffusionImageResultAsset* NewModelAsset = NewObject<UStableDiffusionImageResultAsset>(Package, *AssetName, RF_Public | RF_Standalone);
-	NewModelAsset->ImageOutput = ImageResult;
-	NewModelAsset->ImageInputs = ImageResult.Input.Options;
-	NewModelAsset->ImageOutput.Upsampled = Upsampled;
-	NewModelAsset->ImageOutput.OutTexture = NewTexture;
-	NewModelAsset->ImageOutput.View = View;
-
-	// Update package
-	Package->MarkPackageDirty();
-	FAssetRegistryModule::AssetCreated(NewTexture);
-
-	//// Save texture pacakge
-	//FString PackageFileName = FPackageName::LongPackageNameToFilename(FullPackagePath, FPackageName::GetAssetPackageExtension());
-	//FSavePackageArgs PackageArgs;
-	//PackageArgs.TopLevelFlags = EObjectFlags::RF_Public | EObjectFlags::RF_Standalone;
-	//PackageArgs.bForceByteSwapping = true;
-	//bool bSaved = UPackage::SavePackage(Package, NewTexture, *PackageFileName, PackageArgs);
-
-	return NewModelAsset;
+	
 }
 
 void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* SourceTexture, UTexture2D* TargetTexture, const FIntPoint& ScreenSize, const FMatrix& ViewProjectionMatrix, UDynamicMesh* SourceMesh, const TArray<int> TriangleIDs, bool ClearCoverageMask)
@@ -676,6 +711,27 @@ UTexture2D* UStableDiffusionBlueprintLibrary::CreateTextureAsset(const FString& 
 	return NewTexture;
 }
 
+UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::CreateImageResultAsset(const FString& PackagePath, const FString& Name)
+{
+	if (Name.IsEmpty() || PackagePath.IsEmpty())
+		return false;
+
+	// Create package
+	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
+	UPackage* Package = CreatePackage(*FullPackagePath);
+	Package->FullyLoad();
+
+	// Create data asset
+	FString AssetName = "DA_" + Name;
+	UStableDiffusionImageResultAsset* NewImageResultAsset = NewObject<UStableDiffusionImageResultAsset>(Package, *AssetName, RF_Public | RF_Standalone);
+
+	// Update package
+	Package->MarkPackageDirty();
+	FAssetRegistryModule::AssetCreated(NewImageResultAsset);
+
+	return NewImageResultAsset;
+}
+
 UProjectionBakeSessionAsset* UStableDiffusionBlueprintLibrary::CreateProjectionBakeSessionAsset(const FProjectionBakeSession& Session, const FString& AssetPath, const FString& Name)
 {
 	if (AssetPath.IsEmpty() || Name.IsEmpty())
@@ -724,6 +780,116 @@ UMaterialInstanceConstant* UStableDiffusionBlueprintLibrary::CreateMaterialInsta
 		MaterialInstance->PostEditChange();
 	}
 	return MaterialInstance;
+}
+
+bool UStableDiffusionBlueprintLibrary::IsTextureFloatFormat(UTexture2D* Texture)
+{
+	auto QueryLinearFormat = [](UTexture2D* Texture) -> bool{
+		check(IsInGameThread());
+
+		if (Texture)
+		{
+			// Get the pixel format of the texture
+			EPixelFormat PixelFormat = Texture->GetPixelFormat();
+
+			// Check if the pixel format is a floating-point format
+			return PixelFormat == PF_FloatRGBA || PixelFormat == PF_FloatRGB;
+		}
+		return false;
+	};
+
+	// Check if we are on the game thread first to avoid deadlocks
+	if (IsInGameThread()) {
+		return QueryLinearFormat(Texture);
+	}
+
+	// We're running in another thread, wait for game thread
+	bool IsLinear = false;
+	TSharedPtr<TPromise<bool>> GameThreadPromise = MakeShared<TPromise<bool>>();
+	AsyncTask(ENamedThreads::GameThread, [Texture, &QueryLinearFormat, &IsLinear, GameThreadPromise]() {
+		IsLinear = QueryLinearFormat(Texture);
+		GameThreadPromise->SetValue(true);
+	});
+	GameThreadPromise->GetFuture().Wait();
+	return IsLinear;
+}
+
+UTexture2D* UStableDiffusionBlueprintLibrary::CreateHalfFloatTexture2D(int32 SrcWidth, int32 SrcHeight, UObject* Outer, const FString& Name)
+{
+	// Empty texture data array. 
+	TArray<FFloat16Color> SrcData;
+	SrcData.AddZeroed(SrcWidth * SrcHeight);
+
+	EObjectFlags Flags = RF_Public | RF_Standalone;
+
+	FCreateTexture2DParameters CreateParams;
+	CreateParams.bDeferCompression = true;
+	CreateParams.CompressionSettings = TC_Default;
+	CreateParams.bSRGB = false;
+	CreateParams.bUseAlpha = true;
+	CreateParams.MipGenSettings = TMGS_NoMipmaps;
+	CreateParams.TextureGroup = TEXTUREGROUP_16BitData;
+
+	return CreateHalfFloatTexture2D_Imp(SrcWidth, SrcHeight, SrcData, Outer, Name, Flags, CreateParams);
+}
+
+UTexture2D* UStableDiffusionBlueprintLibrary::CreateHalfFloatTexture2D_Imp(int32 SrcWidth, int32 SrcHeight, const TArray<FFloat16Color>& SrcData, UObject* Outer, const FString& Name, const EObjectFlags& Flags, const FCreateTexture2DParameters& InParams)
+{
+
+#if WITH_EDITOR
+	UTexture2D* Tex2D;
+
+	Tex2D = NewObject<UTexture2D>(Outer, FName(*Name), Flags);
+	Tex2D->Source.Init(SrcWidth, SrcHeight, /*NumSlices=*/ 1, /*NumMips=*/ 1, TSF_RGBA16F);
+
+	// if bUseAlpha is off, alpha is changed to 255
+	//float AlphaOr = InParams.bUseAlpha ? 0 : 1.0f;
+
+	// Create base mip for the texture we created.
+	uint8* MipData = Tex2D->Source.LockMip(0);
+	for (int32 y = 0; y < SrcHeight; y++)
+	{
+		uint8* DestPtr = &MipData[(SrcHeight - 1 - y) * SrcWidth * sizeof(FFloat16Color)];
+		const FFloat16Color* SrcPtr = &SrcData[(SrcHeight - 1 - y) * SrcWidth];
+		for (int32 x = 0; x < SrcWidth; x++)
+		{
+			*DestPtr++ = SrcPtr->R;
+			*DestPtr++ = SrcPtr->G;
+			*DestPtr++ = SrcPtr->B;
+			*DestPtr++ = (InParams.bUseAlpha) ? SrcPtr->A : FFloat16(1.0);
+			SrcPtr++;
+		}
+	}
+	Tex2D->Source.UnlockMip(0);
+
+	// Set the Source Guid/Hash if specified
+	if (InParams.SourceGuidHash.IsValid())
+	{
+		Tex2D->Source.SetId(InParams.SourceGuidHash, true);
+	}
+
+	// Set compression options.
+	Tex2D->SRGB = InParams.bSRGB;
+	Tex2D->CompressionSettings = InParams.CompressionSettings;
+	Tex2D->MipGenSettings = InParams.MipGenSettings;
+	if (!InParams.bUseAlpha)
+	{
+		Tex2D->CompressionNoAlpha = true;
+	}
+	Tex2D->DeferCompression = InParams.bDeferCompression;
+	if (InParams.TextureGroup != TEXTUREGROUP_MAX)
+	{
+		Tex2D->LODGroup = InParams.TextureGroup;
+	}
+
+	Tex2D->VirtualTextureStreaming = InParams.bVirtualTexture;
+
+	Tex2D->PostEditChange();
+	return Tex2D;
+#else
+	UE_LOG(LogImageUtils, Fatal, TEXT("ConstructTexture2D not supported on console."));
+	return NULL;
+#endif
 }
 
 FColor UStableDiffusionBlueprintLibrary::LerpColor(const FColor& ColorA, const FColor& ColorB, float Alpha)

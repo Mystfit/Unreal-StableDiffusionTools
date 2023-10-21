@@ -2,7 +2,7 @@ import unreal
 import os, inspect, random, io
 import PIL
 from PIL import Image
-from diffusionconvertors import FColorAsPILImage, PILImageToTexture
+from diffusionconvertors import FColorAsPILImage, UpdateTexutre
 import requests
 import base64
 from io import BytesIO
@@ -24,7 +24,7 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
         return True
 
     @unreal.ufunction(override=True)
-    def InitModel(self, new_model_options, new_pipeline_options, lora_asset, textual_inversion_asset, layers, allow_nsfw, padding_mode):
+    def InitModel(self, new_model_options, new_pipeline_asset, lora_asset, textual_inversion_asset, layers, allow_nsfw, padding_mode):
         result = unreal.StableDiffusionModelInitResult()
         self.model_loaded = True
         headers = {
@@ -33,11 +33,15 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
         }
         response = requests.get(f"{StableHordeBridge.API_URL}/find_user", headers=headers)
         if response.status_code != 200:
-            unreal.log_error(f"No Stable Horde user found with the provided token {self.get_token()}. Response code was {response.status_code} and message was \"{response.json()['message']}\"")
+            result.model_status = unreal.ModelStatus.ERROR
+            result.error_msg = f"No Stable Horde user found with the provided token {self.get_token()}. Response code was {response.status_code} and message was \"{response.json()['message']}\""
+            unreal.log_error(result.error_msg)
             self.model_loaded = False
+            return result
 
+        # Cache model and pipeline
         self.set_editor_property("ModelOptions", new_model_options)
-        self.set_editor_property("PipelineOptions", new_pipeline_options)
+        self.set_editor_property("PipelineAsset", new_pipeline_asset)
 
         result.model_status = unreal.ModelStatus.LOADED
         self.set_editor_property("ModelStatus", result)
@@ -125,7 +129,7 @@ class StableHordeBridge(unreal.StableDiffusionBridge):
             unreal.log_error(f"Input data was {request}")
 
         result.input = input
-        result.pixel_data = PILImageToTexture(image.convert("RGBA"), out_texture)
+        result.pixel_data = UpdateTexutre(image.convert("RGBA"), out_texture)
         result.out_width = image.width
         result.out_height = image.height
 

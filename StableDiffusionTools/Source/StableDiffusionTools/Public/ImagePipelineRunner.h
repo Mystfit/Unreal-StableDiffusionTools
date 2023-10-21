@@ -12,7 +12,7 @@
  * 
  */
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FImageStageResult, FStableDiffusionImageResult, StageResult);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FImageStageResult, FStableDiffusionPipelineImageResult, StageResult, UStableDiffusionImageResultAsset*, ResultAsset);
 
 
 UCLASS(Blueprintable)
@@ -22,14 +22,22 @@ class STABLEDIFFUSIONTOOLS_API UImagePipelineRunner : public UBlueprintAsyncActi
 public:
 
 	UFUNCTION(BlueprintCallable, meta = (Category = "Async", BlueprintInternalUseOnly = "true"))
-		static UImagePipelineRunner* RunImagePipeline(TArray<UImagePipelineStageAsset*> Stages, FStableDiffusionInput Input, EInputImageSource ImageSourceType, bool AllowNSFW, int32 SeamlessMode);
+	static UImagePipelineRunner* RunImagePipeline(
+		UStableDiffusionImageResultAsset* OutAsset, 
+		TArray<UImagePipelineStageAsset*> Stages, 
+		FStableDiffusionInput Input, 
+		EInputImageSource ImageSourceType, 
+		bool AllowNSFW = false, 
+		int32 SeamlessMode = 0x00, 
+		bool SaveLayers = false
+	);
 
 	// UBlueprintAsyncActionBase interface
 	virtual void Activate() override;
 	//~UBlueprintAsyncActionBase interface
 
 	UFUNCTION(BlueprintCallable, category = Category)
-		void Complete(FStableDiffusionImageResult& Result);
+		void Complete(FStableDiffusionPipelineImageResult& Result, TArray<UImagePipelineStageAsset*> Pipeline);
 
 	UPROPERTY(BlueprintAssignable, BlueprintReadWrite)
 		FImageStageResult OnStageCompleted;
@@ -47,4 +55,6 @@ private:
 	EInputImageSource ImageSourceType;
 	bool AllowNSFW;
 	int32 SeamlessMode;
+	bool SaveLayers;
+	UStableDiffusionImageResultAsset* OutAsset;
 };

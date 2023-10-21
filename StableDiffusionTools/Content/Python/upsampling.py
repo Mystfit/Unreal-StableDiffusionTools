@@ -8,7 +8,8 @@ import pathlib
 from PIL import Image
 from huggingface_hub import hf_hub_download
 from torch import nn
-import numpy
+import numpy as np
+from typing import Union
 
 try:
     from realesrgan import RealESRGANer
@@ -37,7 +38,7 @@ class RealESRGANModel(nn.Module):
             scale=4, model_path=model_path, model=model, tile=tile, tile_pad=tile_pad, pre_pad=pre_pad, half=not fp32
         )
 
-    def forward(self, image, outscale=4, convert_to_pil=True):
+    def forward(self, image: Union[Image.Image, np.ndarray], outscale=4, convert_to_pil=True) -> Union[np.ndarray, Image.Image]:
         """Upsample an image array or path.
 
         Args:
@@ -49,9 +50,21 @@ class RealESRGANModel(nn.Module):
         Returns:
             Union[np.ndarray, PIL.Image.Image]: An upsampled version of the input image.
         """
-        img = numpy.array(image)
-        img = img[:, :, ::-1]
+        img = np.array(image) if isinstance(image, Image.Image) else image
+        #img = img[:, :, ::-1]
+        if img.shape[2] == 4:
+            # Convert to BGRA
+            img = img[:, :, [2, 1, 0, 3]]
+        else:
+            # Convert to BGR
+            img = img[:, :, ::-1]    
+
+        print(f"Input upsample array: {img}")
+
         image, _ = self.upsampler.enhance(img, outscale=outscale)
+        
+        print(f"Output upsample array: {image}")
+
         if convert_to_pil:
             image = Image.fromarray(image[:, :, ::-1])
 

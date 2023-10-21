@@ -204,10 +204,22 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 			UTexture2D* OutTexture = UTexture2D::CreateTransient(Input.Options.OutSizeX, Input.Options.OutSizeY);
 			FStableDiffusionImageResult LastStageResult;
 
+			// Gather custom schedulers from pipelines
+			TArray<TObjectPtr<UImagePipelineStageAsset>> TempStages;
+			for (auto Stage : Stages) {
+				if (!IsValid(Stage))
+					continue;
+
+				// Duplicate the pipeline stage and take ownership of it and save it later
+				// Needs to happen before the async thread is run
+				auto TempStage = DuplicateObject<UImagePipelineStageAsset>(Stage, this);
+				TempStages.Add(TempStage);
+			}
+
 			// Generate new stable diffusion frame from pipeline stages
-			for (size_t StageIdx = 0; StageIdx < Stages.Num(); ++StageIdx) {
+			for (size_t StageIdx = 0; StageIdx < TempStages.Num(); ++StageIdx) {
 				UImagePipelineStageAsset* PrevStage = (StageIdx) ? Stages[StageIdx - 1] : nullptr;
-				UImagePipelineStageAsset* CurrentStage = StageIdx < Stages.Num() ? Stages[StageIdx] : nullptr;
+				UImagePipelineStageAsset* CurrentStage = StageIdx < Stages.Num() ? TempStages[StageIdx] : nullptr;
 				
 				if (!CurrentStage)
 					continue;
@@ -231,25 +243,17 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 				StageInput.Options.LoraWeight = (CurrentStage->OverrideInputOptions.OverrideLoraWeight) ? CurrentStage->OverrideInputOptions.LoraWeight : StageInput.Options.LoraWeight;
 
 				// Duplicate the layers so we can modify the options without modifying the original asset
-				TArray<FLayerProcessorContext> CurrentStageLayers;
 				for (auto& Layer : CurrentStage->Layers) {
-					FLayerProcessorContext TargetLayer;
-					TargetLayer.OutputType = Layer.OutputType;
-					TargetLayer.LayerType = Layer.LayerType;
-					TargetLayer.Role = Layer.Role;
-					TargetLayer.Processor = Layer.Processor;
-					TargetLayer.ProcessorOptions = (Layer.ProcessorOptions) ? DuplicateObject(Layer.ProcessorOptions, GetPipeline()) : Layer.Processor->AllocateLayerOptions();
-					TargetLayer.LatentData = (TargetLayer.OutputType == EImageType::Latent && LastStageResult.Completed) ? LastStageResult.OutLatent : TArray<uint8>();
-					CurrentStageLayers.Add(TargetLayer);
+					Layer.ProcessorOptions = IsValid(Layer.ProcessorOptions) ? Layer.ProcessorOptions : Layer.Processor->AllocateLayerOptions();
+					Layer.LatentData = (Layer.OutputType == EImageType::Latent && LastStageResult.Completed) ? LastStageResult.OutLatent : TArray<uint8>();
 				}
 
 				// Gather all layers and modify options based on animated parameters
-				ApplyLayerOptions(CurrentStageLayers, StageIdx, FullFrameTime);
-				StageInput.InputLayers = CurrentStageLayers;
+				ApplyLayerOptions(CurrentStage->Layers, StageIdx, FullFrameTime);
 
 				bool FirstView = true;
 				// Start a new capture pass for each layer
-				for (auto& Layer : StageInput.InputLayers) {
+				for (auto& Layer : CurrentStage->Layers) {
 					if (Layer.Processor) {
 						// Prepare rendering the layer
 						TSharedPtr<FSceneViewFamilyContext> ViewFamily;
@@ -279,14 +283,12 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 						// Cleanup before move
 						View->FinalPostProcessSettings.RemoveBlendable(Layer.Processor->PostMaterial);
 						Layer.Processor->EndCaptureLayer(GetPipeline()->GetWorld());
-
-						StageInput.ProcessedLayers.Add(MoveTemp(Layer));
 					}
 				} 
 
 				// Make sure model is loaded before generating
 				if (SDSubsystem->GetModelStatus().ModelStatus == EModelStatus::Loaded) {
-					LastStageResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(StageInput, OutTexture, nullptr);
+					LastStageResult = SDSubsystem->GeneratorBridge->GenerateImageFromStartImage(StageInput, CurrentStage, OutTexture, nullptr);
 				}
 
 
@@ -407,16 +409,21 @@ void UStableDiffusionMoviePipeline::BeginExportImpl(){
 				UpsampleInput.OutHeight = Image->GetSizeY();
 				UpsampleInput.Upsampled = false;
 				UpsampleInput.Completed = false;
-				UpsampleInput.OutTexture = UStableDiffusionBlueprintLibrary::ColorBufferToTexture(QuantitizedPixelData, FIntPoint(Image->GetSizeX(), Image->GetSizeY()), nullptr, true);
+
+				// TODO: Assign destination texture here
+				//UpsampleInput.OutTexture = UStableDiffusionBlueprintLibrary::ColorBufferToTexture(QuantitizedPixelData, FIntPoint(Image->GetSizeX(), Image->GetSizeY()), nullptr, true);
 				UStableDiffusionBlueprintLibrary::UpdateTextureSync(UpsampleInput.OutTexture);
 				
 				// Create a destination texture that is 4x times larger than the input to hold the upsample result
 				// TODO: Allow for arbitary resize factors 
 				UTexture2D* UpsampledTexture = UTexture2D::CreateTransient(UpsampleInput.OutTexture->GetSizeX() * 4, UpsampleInput.OutTexture->GetSizeY() * 4);
-				FStableDiffusionImageResult UpsampleResult = SDSubsystem->GeneratorBridge->UpsampleImage(UpsampleInput, UpsampledTexture);
+				FStableDiffusionPipelineImageResult FakePipelineResult;
+				FakePipelineResult.ImageOutput = UpsampleInput;
+				FakePipelineResult.PipelineStage = nullptr;
+				FStableDiffusionPipelineImageResult UpsampleResult = SDSubsystem->GeneratorBridge->UpsampleImage(FakePipelineResult, UpsampledTexture);
 
-				if (IsValid(UpsampleResult.OutTexture)) {
-					UStableDiffusionBlueprintLibrary::UpdateTextureSync(UpsampleResult.OutTexture);
+				if (IsValid(UpsampleResult.ImageOutput.OutTexture)) {
+					UStableDiffusionBlueprintLibrary::UpdateTextureSync(UpsampleResult.ImageOutput.OutTexture);
 
 					// Build an export task that will async write the upsampled image to disk
 					TUniquePtr<FImageWriteTask> ExportTask = MakeUnique<FImageWriteTask>();
@@ -433,14 +440,14 @@ void UStableDiffusionMoviePipeline::BeginExportImpl(){
 					ExportTask->Filename = OutputPathResolved;
 
 					// Convert RGBA pixels back to FloatRGBA
-					TArray<FColor> SrcPixels = UStableDiffusionBlueprintLibrary::ReadPixels(UpsampleResult.OutTexture);
+					TArray<FColor> SrcPixels = UStableDiffusionBlueprintLibrary::ReadPixels(UpsampleResult.ImageOutput.OutTexture);
 					TArray64<FFloat16Color> ConvertedSrcPixels;
 					ConvertedSrcPixels.InsertUninitialized(0, SrcPixels.Num());
 					for (size_t idx = 0; idx < SrcPixels.Num(); ++idx) {
 						ConvertedSrcPixels[idx] = FFloat16Color(SrcPixels[idx]);
 					}
 					TUniquePtr<TImagePixelData<FFloat16Color>> UpscaledPixelData = MakeUnique<TImagePixelData<FFloat16Color>>(
-						FIntPoint(UpsampleResult.OutWidth, UpsampleResult.OutHeight),
+						FIntPoint(UpsampleResult.ImageOutput.OutWidth, UpsampleResult.ImageOutput.OutHeight),
 						MoveTemp(ConvertedSrcPixels)
 						);
 					ExportTask->PixelData = MoveTemp(UpscaledPixelData);

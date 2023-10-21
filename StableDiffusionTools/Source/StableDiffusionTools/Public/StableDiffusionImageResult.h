@@ -9,21 +9,6 @@ struct STABLEDIFFUSIONTOOLS_API FStableDiffusionImageResult
 {
     GENERATED_BODY()
 public:
-    UPROPERTY(BlueprintReadWrite, Category = "Inputs")
-    FStableDiffusionInput Input;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Inputs")
-    FStableDiffusionModelOptions Model;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Inputs")
-    FStableDiffusionPipelineOptions Pipeline;
-
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Inputs")
-    FStableDiffusionModelOptions LORA;
-
-    UPROPERTY(BlueprintReadWrite, Category = "Outputs")
-    TEnumAsByte<EImageType> OutputType = EImageType::Image;
-
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Outputs")
     UTexture2D* OutTexture = nullptr;
 
@@ -47,14 +32,30 @@ public:
 };
 
 
+USTRUCT(BlueprintType)
+struct STABLEDIFFUSIONTOOLS_API FStableDiffusionPipelineImageResult
+{
+    GENERATED_BODY()
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category = "Inputs")
+        UImagePipelineStageAsset* PipelineStage = nullptr;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Outputs")
+        FStableDiffusionImageResult ImageOutput;
+};
+
+
 UCLASS(BlueprintType)
 class STABLEDIFFUSIONTOOLS_API UStableDiffusionImageResultAsset : public UPrimaryDataAsset
 {
     GENERATED_BODY()
 public:
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Inputs")
-    FStableDiffusionGenerationOptions ImageInputs;
+    FStableDiffusionInput GenerationInputs;
 
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Outputs")
-    FStableDiffusionImageResult ImageOutput;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stages")
+    TArray<FStableDiffusionPipelineImageResult> StageResults;
+
+    UFUNCTION(BlueprintCallable, Category = "Output")
+    void GetLastValidStageResult(FStableDiffusionPipelineImageResult& OutStageResult);
 };

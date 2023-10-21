@@ -2,7 +2,7 @@ import unreal
 import os, inspect, random, io
 import PIL
 from PIL import Image
-from diffusionconvertors import FColorAsPILImage, PILImageToTexture
+from diffusionconvertors import FColorAsPILImage, UpdateTexture
 from stability_sdk.client import *
 
 
@@ -76,7 +76,7 @@ class DreamStudioBridge(unreal.StableDiffusionBridge):
                 image = Image.open(io.BytesIO(artifact.binary)).convert("RGBA")
                
         result.input = input
-        result.pixel_data = PILImageToTexture(image.convert("RGBA"), out_texture)
+        result.pixel_data = UpdateTexutre(image.convert("RGBA"), out_texture)
         result.out_width = image.width
         result.out_height = image.height
 

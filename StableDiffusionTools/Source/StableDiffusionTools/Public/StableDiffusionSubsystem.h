@@ -18,6 +18,8 @@ DECLARE_MULTICAST_DELEGATE_ThreeParams(FFrameCaptureComplete, FColor*, FIntPoint
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FImageGenerationComplete, FStableDiffusionImageResult);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FImageGenerationCompleteEx, FStableDiffusionImageResult, Result);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FPipelineStageCompleteEx, FStableDiffusionPipelineImageResult, Result);
+
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FModelInitialized, bool);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FModelInitializedEx, FStableDiffusionModelInitResult, ModelStatus);
@@ -207,10 +209,10 @@ public:
 	FString GetCurrentScheduler() const;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
-	void GenerateImage(FStableDiffusionInput Input, EInputImageSource ImageSourceType);
+	void GenerateImage(FStableDiffusionInput Input, UImagePipelineStageAsset* PipelineStage, EInputImageSource ImageSourceType);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
-	FStableDiffusionImageResult GenerateImageSync(FStableDiffusionInput Input, EInputImageSource ImageSourceType);
+	FStableDiffusionImageResult GenerateImageSync(FStableDiffusionInput Input, UImagePipelineStageAsset* PipelineStage, EInputImageSource ImageSourceType);
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Generation")
 	void StopGeneratingImage();
@@ -222,10 +224,10 @@ public:
 	void ClearIsStopping();
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Outputs")
-	void UpsampleImage(const FStableDiffusionImageResult& input);
+	void UpsampleImage(const FStableDiffusionPipelineImageResult& input);
 
 	UPROPERTY(BlueprintAssignable, Category = "StableDiffusion|Outputs")
-	FImageGenerationCompleteEx OnImageUpsampleCompleteEx;
+	FPipelineStageCompleteEx OnImageUpsampleCompleteEx;
 
 	UFUNCTION(BlueprintCallable, Category = "StableDiffusion|Utilities")
 	FString OpenImageFilePicker(const FString& StartDir);
@@ -313,19 +315,19 @@ private:
 	FViewportSceneCapture CurrentSceneCapture;
 
 	// Capture from the currently active viewport
-	void CaptureFromViewportSource(FStableDiffusionInput& Input);
+	void CaptureFromViewportSource(FStableDiffusionInput& Input, UImagePipelineStageAsset* PipelineStage);
 
 	// Capture from a provided SceneCapture2D actor
-	void CaptureFromSceneCaptureSource(FStableDiffusionInput& Input);
+	void CaptureFromSceneCaptureSource(FStableDiffusionInput& Input, UImagePipelineStageAsset* PipelineStage);
 	
 	// Capture from a provided texture
-	void CaptureFromTextureSource(FStableDiffusionInput& Input);
+	void CaptureFromTextureSource(FStableDiffusionInput& Input, UImagePipelineStageAsset* PipelineStage);
 
 	// Kick off an async render
-	void StartImageGeneration(FStableDiffusionInput Input);
+	void StartImageGeneration(FStableDiffusionInput Input, UImagePipelineStageAsset* PipelineStage);
 
 	// Kick off an synchronous render
-	FStableDiffusionImageResult StartImageGenerationSync(FStableDiffusionInput Input);
+	FStableDiffusionImageResult StartImageGenerationSync(FStableDiffusionInput Input, UImagePipelineStageAsset* PipelineStage);
 
 
 	FGraphEventRef CurrentRenderTask;

@@ -26,9 +26,11 @@ void UStableDiffusionViewportWidget::NativeConstruct() {
 					}
 				}
 				else if (Asset.IsInstanceOf(UStableDiffusionImageResultAsset::StaticClass())) {
-					if (auto ImageResult = Cast<UStableDiffusionImageResultAsset>(Asset.GetAsset())) {
-						if (IsValid(ImageResult->ImageOutput.OutTexture)) {
-							UpdateFromDataAsset(ImageResult);
+					if (auto ImageResultAsset = Cast<UStableDiffusionImageResultAsset>(Asset.GetAsset())) {
+						FStableDiffusionPipelineImageResult ImageResult;
+						ImageResultAsset->GetLastValidStageResult(ImageResult);
+						if (IsValid(ImageResult.ImageOutput.OutTexture)) {
+							UpdateFromDataAsset(ImageResultAsset);
 						}
 					}
 				}
