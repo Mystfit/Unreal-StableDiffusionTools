@@ -7,20 +7,20 @@ def GetDependencies():
         return dependency_entry
 
     return [
-        MakeDependency({"name":"torch", "no_cache": False, "version": "2.0.1+cu118", "args": "--index-url https://download.pytorch.org/whl/cu118"}), #"2.0.0+cu118"
-        MakeDependency({"name":"torchvision", "no_cache": False, "version": "0.15.2+cu118", "args": "--index-url https://download.pytorch.org/whl/cu118"}),
-        MakeDependency({"name":"numpy", "version": "1.24.3"}), 
-        MakeDependency({"name":"safetensors", "version": "0.3.1"}),
-        MakeDependency({"name":"transformers", "version": "4.29.2"}),
-        MakeDependency({"name":"scipy", "version": "1.10.1"}),
-        MakeDependency({"name":"ftfy", "version": "6.1.1"}),
-        MakeDependency({"name":"accelerate", "version": "0.19.0"}),
-        MakeDependency({"name":"diffusers", "version": "0.21.2"}),
-        MakeDependency({"name":"compel", "url": "https://github.com/damian0815/compel.git"}),
-        MakeDependency({"name":"opencv-python", "version":"4.7.0.72", "module": "cv2"}),
+        MakeDependency({"name":"torch", "no_cache": False, "version": "2.2.1+cu121", "args": "--index-url https://download.pytorch.org/whl/cu121"}),
+        MakeDependency({"name":"torchvision", "no_cache": False, "version": "0.17.1+cu118", "args": "--index-url https://download.pytorch.org/whl/cu121"}),
+        MakeDependency({"name":"numpy", "version": "1.24.4"}), 
+        MakeDependency({"name":"safetensors", "version": "0.4.2"}),
+        MakeDependency({"name":"transformers", "version": "4.38.1"}),
+        MakeDependency({"name":"scipy", "version": "1.12.0"}),
+        MakeDependency({"name":"ftfy", "version": "6.1.3"}),
+        MakeDependency({"name":"accelerate", "version": "0.27.2"}),
+        MakeDependency({"name":"diffusers", "version": "0.26.3"}),
+        MakeDependency({"name":"compel", "version": "2.0.2"}),
+        MakeDependency({"name":"opencv-python", "version":"4.9.0.80", "module": "cv2"}),
         MakeDependency({"name":"realesrgan", "version": "0.3.0"}),
-        MakeDependency({"name":"tqdm", "version": "4.65.0"}),
-        MakeDependency({"name":"pywavelets", "version": "1.4.1"}),
+        MakeDependency({"name":"tqdm", "version": "4.66.2"}),
+        MakeDependency({"name":"pywavelets", "version": "1.5.0"}),
         MakeDependency({"name":"invisible-watermark", "version": "0.2.0"}),
         MakeDependency({"name":"omegaconf", "version": "2.3.0"})
     ]
