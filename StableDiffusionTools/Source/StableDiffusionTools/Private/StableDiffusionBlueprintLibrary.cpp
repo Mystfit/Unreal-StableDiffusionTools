@@ -414,7 +414,7 @@ FSceneView* UStableDiffusionBlueprintLibrary::CalculateEditorView(FSceneViewport
 UStableDiffusionStyleModelAsset* UStableDiffusionBlueprintLibrary::CreateModelAsset(const FString& PackagePath, const FString& Name)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty())
-		return false;
+		return nullptr;
 
 	// Create package
 	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
@@ -434,7 +434,7 @@ UStableDiffusionStyleModelAsset* UStableDiffusionBlueprintLibrary::CreateModelAs
 UStableDiffusionLORAAsset* UStableDiffusionBlueprintLibrary::CreateLORAAsset(const FString& PackagePath, const FString& Name)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty())
-		return false;
+		return nullptr;
 
 	// Create package
 	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
@@ -454,7 +454,7 @@ UStableDiffusionLORAAsset* UStableDiffusionBlueprintLibrary::CreateLORAAsset(con
 UStableDiffusionTextualInversionAsset* UStableDiffusionBlueprintLibrary::CreateTextualInversionAsset(const FString& PackagePath, const FString& Name)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty())
-		return false;
+		return nullptr;
 
 	// Create package
 	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
@@ -714,7 +714,7 @@ UTexture2D* UStableDiffusionBlueprintLibrary::CreateTextureAsset(const FString& 
 UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::CreateImageResultAsset(const FString& PackagePath, const FString& Name)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty())
-		return false;
+		return nullptr;
 
 	// Create package
 	FString FullPackagePath = FPaths::Combine(PackagePath, Name);

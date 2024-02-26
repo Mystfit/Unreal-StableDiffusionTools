@@ -11,7 +11,7 @@
 #include "StableDiffusionBridge.h"
 #include "DependencyManager.h"
 #include "StableDiffusionImageResult.h"
-#include "VPFullScreenUserWidgetActor.h"
+#include "Actors/VPFullScreenUserWidgetActor.h"
 #include "StableDiffusionSubsystem.generated.h"
 
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FFrameCaptureComplete, FColor*, FIntPoint, FIntPoint);
@@ -79,6 +79,14 @@ public:
 			Rotation.Equals(Other.Rotation, 0.001) &&
 			ViewportType == Other.ViewportType &&
 			ViewportIndex == Other.ViewportIndex;
+	}
+
+	FORCEINLINE bool operator!=(const FEditorCameraLivePreview& Other)
+	{
+		return !(Location.Equals(Other.Location, 0.001) &&
+			Rotation.Equals(Other.Rotation, 0.001) &&
+			ViewportType == Other.ViewportType &&
+			ViewportIndex == Other.ViewportIndex);
 	}
 };
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEditorCameraMovedEx, FEditorCameraLivePreview, CameraInfo);

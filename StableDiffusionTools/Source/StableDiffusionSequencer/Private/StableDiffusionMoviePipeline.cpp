@@ -244,7 +244,7 @@ void UStableDiffusionMoviePipeline::RenderSample_GameThreadImpl(const FMoviePipe
 
 				// Duplicate the layers so we can modify the options without modifying the original asset
 				for (auto& Layer : CurrentStage->Layers) {
-					Layer.ProcessorOptions = IsValid(Layer.ProcessorOptions) ? Layer.ProcessorOptions : Layer.Processor->AllocateLayerOptions();
+					Layer.ProcessorOptions = IsValid(Layer.ProcessorOptions) ? Layer.ProcessorOptions : TObjectPtr<ULayerProcessorOptions>(Layer.Processor->AllocateLayerOptions());
 					Layer.LatentData = (Layer.OutputType == EImageType::Latent && LastStageResult.Completed) ? LastStageResult.OutLatent : TArray<uint8>();
 				}
 

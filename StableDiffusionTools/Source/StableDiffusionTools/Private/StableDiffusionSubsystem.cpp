@@ -11,7 +11,7 @@
 #include "LevelEditorSubsystem.h"
 #include "StableDiffusionImageResult.h"
 #include "StableDiffusionToolsSettings.h"
-#include "AssetRegistryModule.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "ImageUtils.h"
 #include "MoviePipelineImageQuantization.h"
@@ -754,7 +754,7 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput&
 
 		for (auto& Layer : PipelineStage->Layers) {
 			// Copy layer
-			FLayerProcessorContext TargetLayer = Layer;
+			FLayerProcessorContext& TargetLayer = Layer;
 			TargetLayer.Processor->BeginCaptureLayer(SceneCapture.SceneCapture->GetWorld(), FrameBounds.Size(), SceneCapture.SceneCapture->GetCaptureComponent2D(), Layer.ProcessorOptions);
 			auto ResultRT = TargetLayer.Processor->CaptureLayer(SceneCapture.SceneCapture->GetCaptureComponent2D(), true, Layer.ProcessorOptions);
 			TargetLayer.Processor->EndCaptureLayer(SceneCapture.SceneCapture->GetWorld(), SceneCapture.SceneCapture->GetCaptureComponent2D());

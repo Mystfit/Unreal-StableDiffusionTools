@@ -68,7 +68,7 @@ void UStableDiffusionLayerProcessorTrack::ImportEntityImpl(UMovieSceneEntitySyst
 	checkf(false, TEXT("This track should never have created entities for itself - this assertion indicates an error in the entity-component field"));
 }
 
-void UStableDiffusionLayerProcessorTrack::ExtendEntityImpl(UMovieSceneEntitySystemLinker* EntityLinker, const UE::MovieScene::FEntityImportParams& Params, UE::MovieScene::FImportedEntity* OutImportedEntity)
+void UStableDiffusionLayerProcessorTrack::ExtendEntityImpl(UMovieSceneParameterSection* Section, UMovieSceneEntitySystemLinker* EntityLinker, const UE::MovieScene::FEntityImportParams& Params, UE::MovieScene::FImportedEntity* OutImportedEntity)
 {
 	using namespace UE::MovieScene;
 

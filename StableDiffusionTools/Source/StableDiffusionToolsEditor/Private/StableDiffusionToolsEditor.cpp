@@ -13,7 +13,7 @@
 #include "Widgets/Text/STextBlock.h"
 #include "ToolMenus.h"
 #include "Engine/ObjectLibrary.h"
-#include "AssetRegistryModule.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/AssetManager.h"
 #include "EditorUtilityWidget.h"
 #include "EditorAssetLibrary.h"

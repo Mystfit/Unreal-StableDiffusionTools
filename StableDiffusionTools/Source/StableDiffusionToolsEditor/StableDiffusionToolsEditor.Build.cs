@@ -7,7 +7,7 @@ public class StableDiffusionToolsEditor : ModuleRules
 	public StableDiffusionToolsEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_1;
+		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_3;
 
 		PublicIncludePaths.AddRange(
 			new string[] {
