@@ -9,6 +9,7 @@ from turtle import update
 import unreal
 import os, inspect, importlib, random, threading, ctypes, time, traceback, pprint, gc, shutil, re
 from pathlib import Path
+import typing
 from typing import Union
 from contextlib import nullcontext
 import numpy as np
@@ -225,8 +226,16 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
             scheduler_cls = getattr(new_pipeline_asset.options.pipeline_module, new_pipeline_asset.options.scheduler)
             print(f"Using scheduler class: {scheduler_cls}")
 
+        ActivePipeline = None
+
+        # If we have a custom pipeline defined in Unreal then exec the python code to define it in our local scope
+        if new_pipeline_asset.options.python_custom_diffusion_pipeline_script:
+            init_script_locals = {}
+            exec(new_pipeline_asset.options.python_custom_diffusion_pipeline_script, globals(), init_script_locals)
+            ActivePipeline = init_script_locals["pipeline_class"] if "pipeline_class" in init_script_locals else None
+
         # Set pipeline
-        if new_pipeline_asset.options.diffusion_pipeline:
+        if new_pipeline_asset.options.diffusion_pipeline and not ActivePipeline:
             pipeline_module = importlib.import_module(new_pipeline_asset.options.pipeline_module)
             ActivePipeline = getattr(pipeline_module, new_pipeline_asset.options.diffusion_pipeline) if new_pipeline_asset.options.diffusion_pipeline else None
         print(f"Using pipeline class: {ActivePipeline}")
@@ -760,7 +769,7 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     # Block until executor completes
                     self.executor.join()
 
-                    if not self.executor.result or not self.executor.completed:
+                    if self.executor.result is None or not self.executor.completed:
                         print(f"Image generation was aborted")
                         self.abort = False
 
@@ -768,15 +777,16 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                     try:
                         images = self.executor.result.images if self.executor.result else None #self.pipe(**generation_args).images
                         image = images[0] if not images is None else None
-                    except AttributeError:
-                        image = self.executor.result if image is None else None
+                    except (AttributeError, ValueError):
+                        image = self.executor.result if not self.executor.result is None else None
+                        print(f"Using single image result {image}")
 
                 if pipeline_asset.options.python_post_render_script:
                     post_render_script_locals = {}
                     if (image is NoneType or image is None) and "image" in layer_img_mappings:
                         image = layer_img_mappings["image"]
                         print("Pipeline didn't return an image. Falling back to 'image' key for post render script")
-                    if image or images:
+                    if not image is None or images:
                         post_render_script_args = {
                             "input": input, 
                             "input_image": image,
@@ -813,7 +823,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                         result.out_height = input.options.out_size_y
                 else:
                     # Save texture
-                    if image is not None:
+                    if not image is None:
+                        print("Saving image to texture")
                         UpdateTexture(image, out_texture, True, pipeline_asset.options.output_texture_format == unreal.PipelineOutputTextureFormat.FLOAT_RGBA) if not image is None else None
                         result.out_texture = out_texture
                         # Let result asset take ownership of the texture
@@ -824,6 +835,8 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                         else:
                             result.out_width = image.width if not image is None else input.options.out_size_x
                             result.out_height = image.height if not image is None else input.options.out_size_y
+                    else:
+                        print("No image data to save")
                 
                 #result.input = input
                 #result.input.options.seed = seed

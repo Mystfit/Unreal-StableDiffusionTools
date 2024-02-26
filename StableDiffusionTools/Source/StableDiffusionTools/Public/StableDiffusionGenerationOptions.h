@@ -239,6 +239,13 @@ public:
 	FString CustomPipeline;
 
 	/*
+	* Define a custom pipeline in Python. The pipeline should be a class that inherits from torch.nn.Module and defines the forward(), from_pretrained(), and from_single_file() functions.
+	* The class must be saved into a variable named 'pipeline_class'.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (MultiLine = "true", Category = "Pipeline"))
+	FString PythonCustomDiffusionPipelineScript;
+
+	/*
 	* Process and add any additional keyword arguments for the pipeline in Python at model init.
 	* Any local variable in this script prefixed with the substring 'pipearg_' will be added to the pipe's keyword argument list
 	*/

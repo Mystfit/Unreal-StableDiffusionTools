@@ -46,6 +46,15 @@ def NumpyArrayToFLinearColorArray(image_arr: np.array) -> list[unreal.LinearColo
             pixel = image_arr[row][col]
             output_pixels.append(unreal.LinearColor(pixel[0].item(), pixel[1].item(), pixel[2].item(), pixel[3].item()))
     return output_pixels
+
+def NumpyArrayToFColorArray(image_arr: np.array) -> list[unreal.Color]:
+    output_pixels = []
+    print(f"Numpy array shape is :{image_arr.shape}")
+    for row in range(image_arr.shape[0]):
+        for col in range(image_arr.shape[1]):
+            pixel = image_arr[row][col]
+            output_pixels.append(unreal.Color(pixel[0].item(), pixel[1].item(), pixel[2].item(), pixel[3].item()))
+    return output_pixels
         
 def UpdateTexture(image: Union[PIL.Image.Image, np.array], out_texture: unreal.Texture2D, defer_update: bool, is_linear: bool = False) -> None:
     if image is None or not out_texture:
@@ -57,7 +66,7 @@ def UpdateTexture(image: Union[PIL.Image.Image, np.array], out_texture: unreal.T
     height = 0
 
     if isinstance(image, np.ndarray):
-        pixels = NumpyArrayToFLinearColorArray(image)
+        pixels = NumpyArrayToFLinearColorArray(image) if is_linear else NumpyArrayToFColorArray(image)
         width = image.shape[1]
         height = image.shape[0]
     elif isinstance(image, PIL.Image.Image):

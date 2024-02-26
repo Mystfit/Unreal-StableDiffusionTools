@@ -20,7 +20,7 @@ $upluginJson = Get-Content -Path $upluginFile.FullName | ConvertFrom-Json
 $versionNumber = $upluginJson.VersionName
 
 # Create the output zip file name
-$zipFileName = "{0}-{1}.zip" -f $InputFolder, $versionNumber
+$zipFileName = "{0}-{1}.7z" -f $InputFolder, $versionNumber
 
 # Create a temporary folder for the contents to be zipped
 $tempFolder = Join-Path -Path $env:TEMP -ChildPath ([System.Guid]::NewGuid().ToString())
@@ -35,7 +35,7 @@ Copy-Item -Path $InputFolder\* -Destination $rootFolder -Recurse -Exclude $ignor
 # Create the 7zip command
 $sevenZipExe = "7z.exe"  # Replace with the actual path to 7zip's command line program
 $splitSize = "1990m"  # Split the zip file into parts of approximately 1.99 GB each
-$sevenZipCommand = "$sevenZipExe a -tzip -v$splitSize `"$zipFileName`" `"$tempFolder\*`""
+$sevenZipCommand = "$sevenZipExe a -tzip -sfx -v$splitSize `"$zipFileName`" `"$tempFolder\*`""
 
 # Execute the 7zip command
 Invoke-Expression -Command $sevenZipCommand
