@@ -138,6 +138,23 @@ public:
 	*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (Category = "Layers", EditCondition = "LayerType == ELayerImageType::custom", EditConditionHides))
 		FString Role = "image";
+
+	
+	inline bool operator==(const FLayerProcessorContext& other) const {
+		return Model == other.Model &&
+			Processor == other.Processor &&
+			ProcessorOptions == other.ProcessorOptions &&
+			LayerType == other.LayerType &&
+			OutputType == other.OutputType;
+	}
+
+	inline bool operator!=(const FLayerProcessorContext& other) const {
+		return !(Model == other.Model &&
+			Processor == other.Processor &&
+			ProcessorOptions == other.ProcessorOptions &&
+			LayerType == other.LayerType &&
+			OutputType == other.OutputType);
+	}
 };
 
 

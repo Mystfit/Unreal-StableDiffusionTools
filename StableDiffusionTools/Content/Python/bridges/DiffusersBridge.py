@@ -317,6 +317,10 @@ class DiffusersBridge(unreal.StableDiffusionBridge):
                         kwargs[new_key].append(val)
                     else:
                         kwargs[new_key] = val
+
+        # Cache layers
+        self.set_editor_property("CachedLayers", layers)
+
         if controlnets:
             kwargs["controlnet"] = controlnets
         

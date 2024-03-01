@@ -107,6 +107,9 @@ public:
     UStableDiffusionTextualInversionAsset* CachedTextualInversionAsset;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
+    TArray<FLayerProcessorContext> CachedLayers;
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "StableDiffusion|Bridge")
     FStableDiffusionModelInitResult ModelStatus;
 
     FImageProgress OnImageProgress;

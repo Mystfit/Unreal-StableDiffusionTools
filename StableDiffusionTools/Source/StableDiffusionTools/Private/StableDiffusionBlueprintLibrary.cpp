@@ -671,6 +671,7 @@ UTexture2D* UStableDiffusionBlueprintLibrary::CreateTextureAsset(const FString& 
 	//UTexture2D* NewTexture = NewObject<UTexture2D>(Package, *Name, RF_Public | RF_Standalone);
 	
 	// Make sure transient texture sticks around.
+	NewTexture->Modify();
 	NewTexture->ClearFlags(RF_Transient);
 	NewTexture->SetFlags(EObjectFlags::RF_Public | EObjectFlags::RF_Standalone);
 	NewTexture->Rename(nullptr, Package);
@@ -691,7 +692,7 @@ UTexture2D* UStableDiffusionBlueprintLibrary::CreateTextureAsset(const FString& 
 
 	NewTexture->UpdateResource();
 	NewTexture->MarkPackageDirty();
-	NewTexture->Modify();
+	
 #if WITH_EDITOR
 	NewTexture->PostEditChange();
 #endif
@@ -725,9 +726,12 @@ UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::CreateImageR
 	FString AssetName = "DA_" + Name;
 	UStableDiffusionImageResultAsset* NewImageResultAsset = NewObject<UStableDiffusionImageResultAsset>(Package, *AssetName, RF_Public | RF_Standalone);
 
+	// Update asset
+	FAssetRegistryModule::AssetCreated(NewImageResultAsset);
+	NewImageResultAsset->Modify();
+
 	// Update package
 	Package->MarkPackageDirty();
-	FAssetRegistryModule::AssetCreated(NewImageResultAsset);
 
 	return NewImageResultAsset;
 }

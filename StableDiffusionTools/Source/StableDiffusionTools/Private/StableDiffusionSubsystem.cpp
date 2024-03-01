@@ -183,6 +183,19 @@ void UStableDiffusionSubsystem::InitModel(
 		// Unload any loaded models first
 		//ReleaseModel();
 
+		//if ((GetModelStatus().ModelStatus == EModelStatus::Loaded && 
+		//	this->GeneratorBridge->ModelOptions == ModelOptions &&
+		//	this->GeneratorBridge->PipelineAsset == Pipeline &&
+		//	this->GeneratorBridge->LORAAsset == LORAAsset &&
+		//	this->GeneratorBridge->CachedTextualInversionAsset == TextualInversionAsset &&
+		//	this->GeneratorBridge->CachedLayers == Layers)
+		//) {
+		//	// Same model + options loaded, skip initialising twice
+		//	UE_LOG(LogTemp, Log, TEXT("Model already loaded. Skipping init"));
+		//	bIsModelDirty = false;
+		//	return;
+		//}
+
 		// Forward image updated event from bridge to subsystem
 		this->GeneratorBridge->OnImageProgressEx.AddUniqueDynamic(this, &UStableDiffusionSubsystem::UpdateImageProgress);
 
