@@ -768,10 +768,15 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput&
 		for (auto& Layer : PipelineStage->Layers) {
 			// Copy layer
 			FLayerProcessorContext& TargetLayer = Layer;
-			TargetLayer.Processor->BeginCaptureLayer(SceneCapture.SceneCapture->GetWorld(), FrameBounds.Size(), SceneCapture.SceneCapture->GetCaptureComponent2D(), Layer.ProcessorOptions);
-			auto ResultRT = TargetLayer.Processor->CaptureLayer(SceneCapture.SceneCapture->GetCaptureComponent2D(), true, Layer.ProcessorOptions);
-			TargetLayer.Processor->EndCaptureLayer(SceneCapture.SceneCapture->GetWorld(), SceneCapture.SceneCapture->GetCaptureComponent2D());
-			TargetLayer.LayerPixels = TargetLayer.Processor->ProcessLayer(ResultRT);
+			UWorld* SceneCaptureWorld = SceneCapture.SceneCapture->GetWorld();
+			if(SceneCaptureWorld){
+				if (TargetLayer.Processor) {
+					TargetLayer.Processor->BeginCaptureLayer(SceneCaptureWorld, FrameBounds.Size(), SceneCapture.SceneCapture->GetCaptureComponent2D(), Layer.ProcessorOptions);
+					auto ResultRT = TargetLayer.Processor->CaptureLayer(SceneCapture.SceneCapture->GetCaptureComponent2D(), true, Layer.ProcessorOptions);
+					TargetLayer.Processor->EndCaptureLayer(SceneCaptureWorld, SceneCapture.SceneCapture->GetCaptureComponent2D());
+					TargetLayer.LayerPixels = TargetLayer.Processor->ProcessLayer(ResultRT);
+				}
+			}
 		}
 
 		// Cleanup
@@ -783,7 +788,7 @@ void UStableDiffusionSubsystem::CaptureFromViewportSource(FStableDiffusionInput&
 	GetViewportScreenShot(UStableDiffusionSubsystem::GetCapturingViewport().Get(), Pixels, FrameBounds);
 
 	// Find a final colour layer as a destination for our captured frame
-	auto FinalColorProcessor = PipelineStage->Layers.FindByPredicate([](const FLayerProcessorContext& Layer) { return Layer.Processor->IsA<UFinalColorLayerProcessor>(); });
+	auto FinalColorProcessor = PipelineStage->Layers.FindByPredicate([](const FLayerProcessorContext& Layer) { return (Layer.Processor) ? Layer.Processor->IsA<UFinalColorLayerProcessor>() : false; });
 	if (FinalColorProcessor) {
 		FinalColorProcessor->LayerPixels = MoveTemp(Pixels);
 	}
@@ -820,10 +825,12 @@ void UStableDiffusionSubsystem::CaptureFromSceneCaptureSource(FStableDiffusionIn
 	
 	// Process each layer the model has requested
 	for (auto Layer : PipelineStage->Layers) {
-		Layer.Processor->BeginCaptureLayer(CaptureComponent->GetWorld(), CaptureSize, CaptureComponent, Layer.ProcessorOptions);
-		auto ResultRT = Layer.Processor->CaptureLayer(CaptureComponent, true, Layer.ProcessorOptions);
-		Layer.Processor->EndCaptureLayer(CaptureComponent->GetWorld(), CaptureComponent);
-		Layer.LayerPixels = Layer.Processor->ProcessLayer(ResultRT);
+		if (Layer.Processor) {
+			Layer.Processor->BeginCaptureLayer(CaptureComponent->GetWorld(), CaptureSize, CaptureComponent, Layer.ProcessorOptions);
+			auto ResultRT = Layer.Processor->CaptureLayer(CaptureComponent, true, Layer.ProcessorOptions);
+			Layer.Processor->EndCaptureLayer(CaptureComponent->GetWorld(), CaptureComponent);
+			Layer.LayerPixels = Layer.Processor->ProcessLayer(ResultRT);
+		}
 	}
 
 	// Set size from scene capture
@@ -849,10 +856,12 @@ void UStableDiffusionSubsystem::CaptureFromTextureSource(FStableDiffusionInput& 
 
 	// Process each layer the model has requested
 	for (auto Layer : PipelineStage->Layers) {
-		Layer.Processor->BeginCaptureLayer(GEditor->GetEditorWorldContext().World(), CaptureSize);
-		auto ResultRT = Layer.Processor->CaptureLayer(nullptr);
-		Layer.Processor->EndCaptureLayer(GEditor->GetEditorWorldContext().World());
-		Layer.LayerPixels = Layer.Processor->ProcessLayer(ResultRT);
+		if (Layer.Processor) {
+			Layer.Processor->BeginCaptureLayer(GEditor->GetEditorWorldContext().World(), CaptureSize);
+			auto ResultRT = Layer.Processor->CaptureLayer(nullptr);
+			Layer.Processor->EndCaptureLayer(GEditor->GetEditorWorldContext().World());
+			Layer.LayerPixels = Layer.Processor->ProcessLayer(ResultRT);
+		}
 	}
 
 	// Find a final colour layer as a destination for our texture

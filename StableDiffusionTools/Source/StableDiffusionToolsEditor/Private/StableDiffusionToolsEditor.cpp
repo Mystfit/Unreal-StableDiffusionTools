@@ -157,10 +157,10 @@ void FStableDiffusionToolsEditorModule::RegisterDetailCustomization()
 	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditor);
 	
 	
-	PropertyModule.RegisterCustomClassLayout(UImagePipelineStageAsset::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FImagePipelineStageCustomization::MakeInstance));
+	//PropertyModule.RegisterCustomClassLayout(UImagePipelineStageAsset::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FImagePipelineStageCustomization::MakeInstance));
 	//PropertyModule.RegisterCustomPropertyTypeLayout(FLayerProcessorContext::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FLayerDataCustomization::MakeInstance));
 	//PropertyModule.RegisterCustomPropertyTypeLayout(ULayerProcessorOptions::StaticClass()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FLayerProcessorOptionsCustomization::MakeInstance));
-	PropertyModule.NotifyCustomizationModuleChanged();
+	//PropertyModule.NotifyCustomizationModuleChanged();
 }
 
 

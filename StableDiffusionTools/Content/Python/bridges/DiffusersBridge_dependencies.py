@@ -15,7 +15,7 @@ def GetDependencies():
         MakeDependency({"name":"scipy", "version": "1.12.0"}),
         MakeDependency({"name":"ftfy", "version": "6.1.3"}),
         MakeDependency({"name":"accelerate", "version": "0.27.2"}),
-        MakeDependency({"name":"diffusers", "version": "0.26.3"}),
+        MakeDependency({"name":"diffusers", "version": "0.27.2"}),
         MakeDependency({"name":"compel", "version": "2.0.2"}),
         MakeDependency({"name":"opencv-python", "version":"4.9.0.80", "module": "cv2"}),
         MakeDependency({"name":"realesrgan", "version": "0.3.0"}),
