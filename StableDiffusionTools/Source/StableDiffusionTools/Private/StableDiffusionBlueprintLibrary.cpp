@@ -28,6 +28,7 @@
 #include "Factories/MaterialInstanceConstantFactoryNew.h"
 #include "AssetToolsModule.h"
 #include "HAL/PlatformProcess.h"
+#include <PackageTools.h>
 
 using namespace UE::Geometry;
 
@@ -473,7 +474,8 @@ UStableDiffusionTextualInversionAsset* UStableDiffusionBlueprintLibrary::CreateT
 
 void UStableDiffusionBlueprintLibrary::PopulateImageResultAsset(UStableDiffusionImageResultAsset* Asset, UTexture2D* Texture, FIntPoint Size, const FStableDiffusionImageResult& ImageResult, FMinimalViewInfo View, bool Upsampled)
 {
-	
+	if (!Asset || !Texture)
+		return;
 }
 
 void UStableDiffusionBlueprintLibrary::CopyTextureDataUsingUVs(UTexture2D* SourceTexture, UTexture2D* TargetTexture, const FIntPoint& ScreenSize, const FMatrix& ViewProjectionMatrix, UDynamicMesh* SourceMesh, const TArray<int> TriangleIDs, bool ClearCoverageMask)
@@ -712,29 +714,52 @@ UTexture2D* UStableDiffusionBlueprintLibrary::CreateTextureAsset(const FString& 
 	return NewTexture;
 }
 
+//UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::CreateImageResultAsset(const FString& PackagePath, const FString& Name)
+//{
+//	if (Name.IsEmpty() || PackagePath.IsEmpty())
+//		return nullptr;
+//
+//	// Create package
+//	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
+//	UPackage* Package = CreatePackage(*UPackageTools::SanitizePackageName(*FullPackagePath));
+//	Package->SetIsExternallyReferenceable(true);
+//	Package->FullyLoad();
+//
+//	// Create data asset
+//	FString AssetName = "DA_" + Name;
+//	UStableDiffusionImageResultAsset* NewImageResultAsset = NewObject<UStableDiffusionImageResultAsset>(Package, UStableDiffusionImageResultAsset::StaticClass(), *AssetName, RF_Public | RF_Standalone | RF_Transactional);
+//
+//	// Update asset
+//	FAssetRegistryModule::AssetCreated(NewImageResultAsset);
+//	//NewImageResultAsset->Modify();
+//
+//	// Update package
+//	Package->MarkPackageDirty();
+//
+//	return NewImageResultAsset;
+//}
+
 UStableDiffusionImageResultAsset* UStableDiffusionBlueprintLibrary::CreateImageResultAsset(const FString& PackagePath, const FString& Name)
 {
 	if (Name.IsEmpty() || PackagePath.IsEmpty())
 		return nullptr;
 
 	// Create package
-	FString FullPackagePath = FPaths::Combine(PackagePath, Name);
+	FString AssetName = "DA_" + Name;
+	FString FullPackagePath = FPaths::Combine(PackagePath, AssetName);
 	UPackage* Package = CreatePackage(*FullPackagePath);
 	Package->FullyLoad();
 
 	// Create data asset
-	FString AssetName = "DA_" + Name;
 	UStableDiffusionImageResultAsset* NewImageResultAsset = NewObject<UStableDiffusionImageResultAsset>(Package, *AssetName, RF_Public | RF_Standalone);
-
-	// Update asset
-	FAssetRegistryModule::AssetCreated(NewImageResultAsset);
-	NewImageResultAsset->Modify();
 
 	// Update package
 	Package->MarkPackageDirty();
+	FAssetRegistryModule::AssetCreated(NewImageResultAsset);
 
 	return NewImageResultAsset;
 }
+
 
 UProjectionBakeSessionAsset* UStableDiffusionBlueprintLibrary::CreateProjectionBakeSessionAsset(const FProjectionBakeSession& Session, const FString& AssetPath, const FString& Name)
 {

@@ -129,12 +129,28 @@ void UImagePipelineRunner::Activate()
 				if (IsValid(CurrentStage) && IsValid(LastAssetStageResult.ImageOutput.OutTexture)) {
 					TSharedPtr<TPromise<bool>> GameThreadPromise = MakeShared<TPromise<bool>>();
 					AsyncTask(ENamedThreads::GameThread, [this, LastAssetStageResult, CurrentStage, GameThreadPromise]() {
-						LastAssetStageResult.ImageOutput.OutTexture->Rename(nullptr, OutAsset);
-						LastAssetStageResult.ImageOutput.OutTexture->ClearFlags(RF_Transient);
-						LastAssetStageResult.ImageOutput.OutTexture->SetFlags(RF_Public | RF_Standalone);
-						LastAssetStageResult.ImageOutput.OutTexture->PostEditChange();
+						// Move ownership of texture to the output asset
+						if (IsValid(LastAssetStageResult.ImageOutput.OutTexture)) {
+							LastAssetStageResult.ImageOutput.OutTexture->Rename(nullptr, OutAsset);
+							LastAssetStageResult.ImageOutput.OutTexture->ClearFlags(RF_Transient);
+							LastAssetStageResult.ImageOutput.OutTexture->SetFlags(RF_Public | RF_Standalone);
+							LastAssetStageResult.ImageOutput.OutTexture->PostEditChange();
+							LastAssetStageResult.ImageOutput.OutTexture->RemoveFromRoot();
+						}
+						
+						// Move ownership of pipeline stage to the output asset
+						if (IsValid(LastAssetStageResult.PipelineStage)) {
+							LastAssetStageResult.PipelineStage->Rename(nullptr, OutAsset);
+							LastAssetStageResult.PipelineStage->ClearFlags(RF_Transient);
+							LastAssetStageResult.PipelineStage->SetFlags(RF_Public | RF_Standalone);
+							LastAssetStageResult.PipelineStage->PostEditChange();
+							LastAssetStageResult.PipelineStage->RemoveFromRoot();
+						}
 
-						CurrentStage->RemoveFromRoot();
+						OutAsset->MarkPackageDirty();
+						OutAsset->PostEditChange();
+
+						//CurrentStage->RemoveFromRoot();
 						GameThreadPromise->SetValue(true);
 					});
 					GameThreadPromise->GetFuture().Wait();
@@ -143,10 +159,6 @@ void UImagePipelineRunner::Activate()
 				// Store the result in the output asset
 				LastAssetStageResult.PipelineStage = CurrentStage;
 				OutAsset->StageResults.Add(LastAssetStageResult);
-
-				// Mark package dirty early
-				OutAsset->MarkPackageDirty();
-				OutAsset->PostEditChange();
 
 				// Broadcast on game thread
 				if (StageIdx < TempStages.Num() - 1) {
@@ -185,19 +197,26 @@ void UImagePipelineRunner::Activate()
 void UImagePipelineRunner::Complete(FStableDiffusionPipelineImageResult& Result, TArray<UImagePipelineStageAsset*> Pipeline)
 {
 #if !UE_SERVER
-	RemoveFromRoot();
 	AsyncTask(ENamedThreads::GameThread, [this, Pipeline=MoveTemp(Pipeline), Result=MoveTemp(Result)]() {
 
-		// Move generated objects into the data asset
+		// Move generated objects into the data asset - do we need to do this here anymore since it's handled in the runner?
 		if (IsValid(OutAsset)) {
 			// Change pipeline stage outers to the output asset
-			for (auto& StageResult : OutAsset->StageResults)
-			{
-				
+			for (auto& StageResult : OutAsset->StageResults) {
+				if (IsValid(StageResult.PipelineStage)) {
+					
+				}
 			}
+
+			// Mark package dirty early
+			OutAsset->MarkPackageDirty();
+			OutAsset->PostEditChange();
 		}
 
 		OnAllStagesCompleted.Broadcast(Result, OutAsset);
+
+		// Remove the pipeline runner from the root to GC it
+		RemoveFromRoot();
 	});
 #endif
 

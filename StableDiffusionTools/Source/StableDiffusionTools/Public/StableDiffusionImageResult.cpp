@@ -4,7 +4,7 @@ void UStableDiffusionImageResultAsset::GetLastValidStageResult(FStableDiffusionP
 {
 	for (int i = StageResults.Num() - 1; i >= 0; i--)
 	{
-		if (StageResults[i].ImageOutput.Completed && (IsValid(StageResults[i].PipelineStage)) ? !StageResults[i].PipelineStage->bSkipMainOutput : false)
+		if (StageResults[i].ImageOutput.Completed && IsValid(StageResults[i].PipelineStage) ? !StageResults[i].PipelineStage->bSkipMainOutput : true)
 		{
 			OutStageResult = StageResults[i];
 			break;
